@@ -32,6 +32,15 @@ screenCanvas.getContext = (type: string, attrs?: object) => {
       if (srcOffset === undefined || typeof data?.subarray !== 'function') return raw(target, offset, data)
       return raw(target, offset, data.subarray(srcOffset, length === undefined ? undefined : srcOffset + length))
     }
+    // Pixi 改纹理采样方式时（不是首次创建）会设 TEXTURE_COMPARE_MODE；它是 WebGL2 的常量，WebGL1 上是 undefined，
+    // 传下去就是 INVALID_ENUM 警告（开发者工具里 "texParameter: invalid parameter name"）。WebGL1 没有的参数直接跳过。
+    for (const name of ['texParameteri', 'texParameterf'] as const) {
+      const rawParam = ctx[name].bind(ctx) as (target: number, pname: number, value: number) => void
+      ctx[name] = (target: number, pname: number | undefined, value: number) => {
+        if (pname === undefined) return
+        rawParam(target, pname, value)
+      }
+    }
     ctx.__saplingPatched = true
   }
   return ctx
