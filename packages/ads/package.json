@@ -50,7 +50,7 @@
     "prepublishOnly": "node ../engine/scripts/check-publish.ts && pnpm build && pnpm test"
   },
   "peerDependencies": {
-    "sapling2d": ">=0.4.0"
+    "sapling2d": ">=0.3.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
