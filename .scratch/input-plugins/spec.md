@@ -39,7 +39,7 @@ get<T>(token: ServiceToken<T>): T   // 没提供：throw `${token.name} is not i
 
 - `Game.create`：建树 → 按顺序 `install` 每个插件 → 按 `options.actions` 加动作 → 注册 Autoload → 之后不变。卸载函数在 `game.destroy()` 里按相反顺序调用。
 - `provide` 同一个 token 两次 → throw。
-- 默认插件由入口决定：`sapling2d/browser` 的 `startGame` 和 `sapling2d/testing` 的 `createTestGame` 传 `plugins: [keyboard(), ...(options.plugins ?? [])]`；`sapling2d/wechat` 原样传；`Game.create` 自己没有默认。
+- 默认插件由入口决定：三个入口（`sapling2d/browser`、`sapling2d/wechat`、`createTestGame`）都传 `plugins: [keyboard(), ...(options.plugins ?? [])]`；`Game.create` 自己没有默认。（原定小游戏入口不装；真机验证发现不装时每个带 `key()` 绑定的游戏启动都警告，改为也装——小游戏里它没有事件源。）
 - 不做"去掉默认插件"的开关。
 
 ### Platform

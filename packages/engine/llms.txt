@@ -229,7 +229,7 @@ expect(g.scene.jumps).toBe(2)
 
 `isActionJustPressed` / `isActionJustReleased` 在 `process` 里按帧算；在 `physicsProcess`（以及刚体的接触信号）里按物理步算（上一个物理步之后按下的，在下一个物理步里为 true）。屏幕刷新率高于 60Hz 时有的帧没有物理步，所以在 `physicsProcess` 里处理跳跃这类按键不会丢。
 
-- `tree.input` 只有动作查询和指针状态（`pointerPosition`、`isPointerPressed`、`pressedPointers`…）。键盘是一个插件（浏览器和测试默认装好）：`key('Space')` 绑定动作；要查原始按键用 `this.tree.get(Keyboard).isPressed('Space')`。小游戏没有键盘，游戏代码不用区分——绑定了 `key()` 的动作在那里只是不会被键盘触发。
+- `tree.input` 只有动作查询和指针状态（`pointerPosition`、`isPointerPressed`、`pressedPointers`…）。键盘是一个插件（三个入口都默认装好）：`key('Space')` 绑定动作；要查原始按键用 `this.tree.get(Keyboard).isPressed('Space')`。小游戏没有键盘事件，游戏代码不用区分——绑定了 `key()` 的动作在那里只是不会被键盘触发。
 - 动作的绑定可以来自不同的输入来源（`pointerPress()`、`key()`、屏幕按钮、摇杆、`tilt()`），游戏只查动作；几个来源同时作用时力度取最大。
 
 ### 屏幕按钮（虚拟按键）
@@ -1756,7 +1756,7 @@ startGame({ main, plugins: [motion()], actions: { steerLeft: [key('KeyA'), tilt(
 this.tree.get(MotionInput).permission   // 插件提供的服务按类取；没装时报错并提示 plugins: [...]
 ```
 
-- 插件在建树之后、定义动作之前按顺序安装；各入口有默认插件：浏览器的 `startGame` 和 `createTestGame` 默认装键盘（`keyboard()`），小游戏入口不装；`plugins` 追加在默认之后。
+- 插件在建树之后、定义动作之前按顺序安装；三个入口都默认装键盘（`keyboard()`，小游戏里没有事件源，只是让 `key()` 绑定有人认领）；`plugins` 追加在默认之后。
 - **插件在三个平台上都能装**：不支持的平台装一个 mock（控制台 `info` 一次），游戏照常跑——浏览器里开发、Node 里测试永远不会因为少了传感器或广告而报错。
 - 现有插件：`keyboard()`（内置在 `sapling2d`）、`motion()`（`sapling2d/motion`，见“倾斜”）、`touch()`（独立的包 `sapling2d-touch`：屏幕按钮和摇杆，带默认皮肤，见“屏幕按钮”）。
 - 自己写一个：实现 `Plugin`（`install(ctx)`：`ctx.tree`、`ctx.platform.kind`、`ctx.provide(Token, service)`、`ctx.preload(assets)`（插件自己的贴图 / 音效，和入口场景的资源一起加载，切场景不卸载），返回卸载函数）。插件包里的资源用 `tex('~<包名>/<路径>')` 引用，包的 `package.json` 声明 `"sapling2d": { "assets": "<目录>" }`，构建工具负责校验、serve、拷进包（浏览器和小游戏都是）。输入类插件把一个 `InputSource` 登记到 `tree.input.addSource(...)`：`eventTypes` 订阅事件（自己的事件用 `tree.input.enqueue` 入队，和指针事件同一个队列、帧首按序处理）、`bindingTypes` 认领绑定类型、`strength(action, bindings)` 给力度 0–1、`beginFrame()` 给轮询型设备、`releaseAll(queue)` 处理切后台。事件和绑定的类型用声明合并登记：`declare module 'sapling2d' { interface InputEventRegistry { motion: … } interface InputBindingRegistry { tilt: … } }`（都要有 `type` 字段）。向 `window` / `wx` 注册监听是插件自己的事，核心不碰。
@@ -1768,7 +1768,7 @@ this.tree.get(MotionInput).permission   // 插件提供的服务按类取；没�
 - 资源放在 `public/assets/`，`tex('a.png')` 在两个平台上路径相同。构建时 `public/assets/boot/` 放进主包，其余资源放进一个分包，启动页显示后下载（进度算进 `tree.loadProgress`，失败时重试 2 次）。主包上限 4 MB（含 `game.js`），所有包合计 30 MB；构建时打印各包大小，发布构建超限时失败、超过 80% 时警告。
 - **启动页（`loading`）的资源必须放在 `boot/`**，否则启动时报错；`startGame` 完成之前（Autoload 的构造函数里）也只能用 `boot/` 里的资源。`saplingWechat({ mainAssets })` 可以改规则（glob 或函数）。
 - 只用 WebGL1；iOS 小游戏可能没有 JIT：同时活跃的刚体控制在 60–80 个以内。模拟器和真机差异很大，以真机为准。
-- 小游戏没有键盘（`sapling2d/wechat` 不装键盘插件）；触摸是多点的。`loadFont(path)` 加载包内字体（只在小游戏里）。
+- 小游戏没有键盘事件（键盘插件装着但不会触发）；触摸是多点的。`loadFont(path)` 加载包内字体（只在小游戏里）。
 - 传感器：`sapling2d/motion` 用 `wx.startAccelerometer`，不用申请权限，切到后台时插件停掉传感器；轴向和单位以真机为准，模拟器不可信。
 
 ## 性能（微信小游戏 iOS）

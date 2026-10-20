@@ -55,9 +55,9 @@ export class Keyboard implements InputSource {
 }
 
 /**
- * 键盘插件。`sapling2d/browser` 的 `startGame` 和 `createTestGame` 默认安装，游戏不用自己加；小游戏入口不装（没有键盘）。
+ * 键盘插件。三个入口（`sapling2d/browser`、`sapling2d/wechat`、`createTestGame`）都默认安装，游戏不用自己加。
  * 浏览器里监听 window 的 keydown / keyup（忽略按住不放的自动重复）；窗口失焦时补发松开，避免按键卡住。
- * 其它平台只登记状态（测试里注入事件）。
+ * 其它平台没有事件源，只登记状态：小游戏里 `key()` 绑定永远不会被触发，但有人认领（不警告），`tree.get(Keyboard)` 可用；测试里注入事件。
  */
 export function keyboard(): Plugin {
   return {

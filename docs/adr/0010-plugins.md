@@ -64,7 +64,7 @@ interface InputSource {
 
 ### 键盘是默认安装的内置插件
 
-键盘只有浏览器有，按规则 1 不属于核心。但每个游戏都在浏览器里开发、测试靠 `pressKey`，所以它做成**真正的插件、由入口默认安装**：`sapling2d/browser` 的 `startGame` 和 `createTestGame` 默认带 `keyboard()`，`sapling2d/wechat` 不带（小游戏包里一个字节都不多）。`plugins` 追加在默认之后。`key()`、`keyboard()`、`Keyboard` 仍从 `sapling2d` 主入口导出，游戏代码不变；`tree.input.isKeyPressed(code)` 变成 `tree.get(Keyboard).isPressed(code)`。
+键盘只有浏览器有，按规则 1 不属于核心。但每个游戏都在浏览器里开发、测试靠 `pressKey`，所以它做成**真正的插件、由入口默认安装**：三个入口（`sapling2d/browser`、`sapling2d/wechat`、`createTestGame`）都默认带 `keyboard()`；小游戏里它没有事件源，装它是为了 `key()` 绑定有人认领（真机验证时发现：不装的话每个带键盘绑定的游戏启动都警告）、`tree.get(Keyboard)` 三端可用，代价是 game.js 多 1.4 KB gzip。`plugins` 追加在默认之后。`key()`、`keyboard()`、`Keyboard` 仍从 `sapling2d` 主入口导出，游戏代码不变；`tree.input.isKeyPressed(code)` 变成 `tree.get(Keyboard).isPressed(code)`。
 
 选真插件而不是"Input 内部的一个 source"，是因为它用最简单的设备把 `install`、`kind` 分支、mock、headless 注入、`tree.get`、registry 合并全部跑一遍——机制在第一天就有一个真实消费者。
 

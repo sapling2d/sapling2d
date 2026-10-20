@@ -3,6 +3,7 @@ import './polyfills'
 import 'pixi.js/unsafe-eval'
 import { DOMAdapter } from 'pixi.js'
 import type { Scene } from '../../core/Scene'
+import { keyboard } from '../../plugins/keyboard'
 import { PixiRenderer } from '../../render/PixiRenderer'
 import { Game, type GameOptions } from '../../runtime/Game'
 import { WechatAdapter } from './adapter'
@@ -55,6 +56,8 @@ export interface WechatGameOptions<S extends Scene> extends GameOptions<S> {
  * startGame({ main: GameScene })
  * ```
  *
+ * 和浏览器一样默认安装键盘插件：小游戏没有键盘事件源，装它是为了 `key()` 绑定有人认领（否则每个带键盘绑定的游戏启动时都警告）、
+ * `tree.get(Keyboard)` 在三个平台上都能用。`plugins` 里的插件追加在它之后。
  * 构建：在 Vite 配置里使用 `saplingWechat()`（见 sapling2d/vite），产出可以直接用微信开发者工具打开的目录。
  */
 export async function startGame<S extends Scene>(options: WechatGameOptions<S>): Promise<Game<S>> {
@@ -69,5 +72,5 @@ export async function startGame<S extends Scene>(options: WechatGameOptions<S>):
     ...(options.pixelArt ? { pixelArt: true } : {}),
   })
   // 启动页进入树后就开始帧循环，加载期间有画面
-  return Game.create({ ...options, platform, renderer, start: true })
+  return Game.create({ ...options, plugins: [keyboard(), ...(options.plugins ?? [])], platform, renderer, start: true })
 }
