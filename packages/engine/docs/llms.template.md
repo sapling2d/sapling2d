@@ -22,7 +22,7 @@
 - **节点树**：游戏对象都继承节点类（`Node`、`Node2D`、`Sprite2D`、`RigidBody2D`……），用 `this.add(child)` 组成树；`add` 返回带类型的子节点。节点之间用类型化字段、Groups 和 Autoload 互相引用，**不支持按路径查找**。
 - **生命周期**：`enterTree()`（父先于子）→ `ready()`（子先于父，一生一次）→ 每帧 `process(dt)` / 固定 60Hz 的 `physicsProcess(dt)` → `exitTree()`（子先于父）。覆写时不需要调用 `super`。
 - **场景**：`Scene` 是树的根，同一时间一个。`static assets` 声明的资源在 `ready()` 之前加载完成；场景参数通过构造函数声明，用 `this.tree.changeScene(Cls, params)` 切换。
-- **场景树**：`this.tree` 提供 `input`、`audio`、`storage`、`physics`、`viewport`、`rng`、`fxRng`（视觉效果专用的随机数流，见下）、`paused`、`timeScale`、`createTween()`、`createTimer()`、`getNodesInGroup()`、`autoload()`、`changeScene()`、`dump()`；时间：`time`（游戏时间，秒，按物理步累计；暂停时和 `timeScale` 为 0 时都不走，适合做冷却和时间点）、`physicsFrames`（物理步数，暂停时也计数）、`processFrames`。节点不在树里时访问 `this.tree` 会抛错（构造函数里不要用）。
+- **场景树**：`this.tree` 提供 `input`、`audio`、`storage`、`physics`、`viewport`、`rng`、`fxRng`（视觉效果专用的随机数流，见下）、`paused`、`timeScale`、`createTween()`、`createTimer()`、`getNodesInGroup()`、`autoload()`、`get(Token)`（插件提供的服务，见“插件”）、`changeScene()`、`dump()`；时间：`time`（游戏时间，秒，按物理步累计；暂停时和 `timeScale` 为 0 时都不走，适合做冷却和时间点）、`physicsFrames`（物理步数，暂停时也计数）、`processFrames`。节点不在树里时访问 `this.tree` 会抛错（构造函数里不要用）。
 - **构造参数**：每个节点的构造函数接受一个选项对象，键就是它可写的属性：通用的 `name`、`groups`、`processMode`；`Node2D` 的 `position`、`rotation`、`scale`、`visible`、`zIndex`、`alpha`、`modulate`、`selfModulate`、`blendMode`、`inputPickable`、`hitArea`；再加各节点自己的属性（如 `Label` 的 `text`（默认 `''`）、`fontSize`，`RigidBody2D` 的 `mass`、`bounce`）。
 - **单位与坐标**：像素、y 轴向下、弧度（另有 `rotationDegrees`）、重力 px/s²。游戏坐标是设计分辨率（默认 750×1334）；`expand` 模式下屏幕多出来的部分向两侧对称扩展，贴边的 UI 用 `this.tree.viewport.visibleRect` / `safeRect`。
 - **每帧顺序**：处理输入队列（指针信号在这里触发）→ 若干次物理步（每步：所有节点的 `physicsProcess`，再推进物理世界、写回刚体位置、派发接触信号）→ `process` → Tween / Timer → `callDeferred` → `queueFree`。每帧最多补 2 个物理步。
@@ -65,6 +65,9 @@
 <!-- example:input#test -->
 
 `isActionJustPressed` / `isActionJustReleased` 在 `process` 里按帧算；在 `physicsProcess`（以及刚体的接触信号）里按物理步算（上一个物理步之后按下的，在下一个物理步里为 true）。屏幕刷新率高于 60Hz 时有的帧没有物理步，所以在 `physicsProcess` 里处理跳跃这类按键不会丢。
+
+- `tree.input` 只有动作查询和指针状态（`pointerPosition`、`isPointerPressed`、`pressedPointers`…）。键盘是一个插件（浏览器和测试默认装好）：`key('Space')` 绑定动作；要查原始按键用 `this.tree.get(Keyboard).isPressed('Space')`。小游戏没有键盘，游戏代码不用区分——绑定了 `key()` 的动作在那里只是不会被键盘触发。
+- 动作的绑定可以来自不同的输入来源（`pointerPress()`、`key()`、屏幕按钮、摇杆、`tilt()`），游戏只查动作；几个来源同时作用时力度取最大。
 
 ### 屏幕按钮（虚拟按键）
 
@@ -429,7 +432,7 @@ fx.createTween().to(fx, { alpha: 0 }, 0.3).call(() => fx.queueFree())
 ## 测试：`createTestGame`
 
 ```ts
-const g = await createTestGame({ main: GameScene, seed: 1, screen?, storage?, autoloads?, actions?, design?, assetsDir?, loading? })  // loading 默认 null，传入时直接跳过（不经过帧、不等 loaded()）；assetsDir：文本资源（Tiled 关卡）从这里读真实文件，默认 public/assets
+const g = await createTestGame({ main: GameScene, seed: 1, screen?, storage?, autoloads?, actions?, plugins?, design?, assetsDir?, loading? })  // loading 默认 null，传入时直接跳过（不经过帧、不等 loaded()）；assetsDir：文本资源（Tiled 关卡）从这里读真实文件，默认 public/assets；plugins 追加在默认的 keyboard() 之后
 ```
 
 | 成员 | 说明 |
@@ -439,6 +442,7 @@ const g = await createTestGame({ main: GameScene, seed: 1, screen?, storage?, au
 | `g.dump()` / `g.dump({ json: true })` | 场景树文本：每行 `名字 (类名) 属性=值`，缩进表示层级，取默认值的属性省略（见下表） |
 | `g.tap(x, y)` / `g.drag(from, to, { frames })` / `g.pressKey(code)` | 模拟输入（设计坐标，也就是屏幕上的位置；有相机时节点收到的是对应的世界坐标），走和真实平台相同的路径；`tap` 推进 2 帧 |
 | `g.pointerDown/Move/Up(x, y, id?)` / `g.keyDown/keyUp(code)` | 只注入事件，下一次 step 处理 |
+| `g.inject(event)` | 注入任意原始输入事件，插件的事件也走这里：`g.inject({ type: 'motion', x, y, z })` |
 | `g.setScreen(info)` / `g.setFocus(bool)` | 模拟换屏幕、切后台 |
 | `g.audio.log` / `g.audio.playing` / `g.audio.finishAll()` | 播放记录（无头不发声） |
 | `g.platform.storage` | 内存存储；`createTestGame({ storage: { best: 10 } })` 预置存档 |
@@ -464,13 +468,30 @@ const g = await createTestGame({ main: GameScene, seed: 1, screen?, storage?, au
 
 无头模式不渲染：贴图宽高为 0（需要点击区域时显式设置 `hitArea`）。`changeScene` 在微任务里完成：`await` 它的返回值，或 `await new Promise(r => setTimeout(r, 0))`。
 
+## 插件
+
+平台差异化的能力（键盘、传感器、手柄、小游戏的广告 / 分享 / 登录）不在引擎核心里，而是**插件**：
+
+```ts
+import { motion, MotionInput, tilt } from 'sapling2d/motion'
+startGame({ main, plugins: [motion()], actions: { steerLeft: [key('KeyA'), tilt('left')] } })
+this.tree.get(MotionInput).permission   // 插件提供的服务按类取；没装时报错并提示 plugins: [...]
+```
+
+- 插件在建树之后、定义动作之前按顺序安装；各入口有默认插件：浏览器的 `startGame` 和 `createTestGame` 默认装键盘（`keyboard()`），小游戏入口不装；`plugins` 追加在默认之后。
+- **插件在三个平台上都能装**：不支持的平台装一个 mock（控制台 `info` 一次），游戏照常跑——浏览器里开发、Node 里测试永远不会因为少了传感器或广告而报错。
+- 现有插件：`keyboard()`（内置在 `sapling2d`）、`motion()`（`sapling2d/motion`，见“倾斜”）。
+- 自己写一个：实现 `Plugin`（`install(ctx)`：`ctx.tree`、`ctx.platform.kind`、`ctx.provide(Token, service)`，返回卸载函数）。输入类插件把一个 `InputSource` 登记到 `tree.input.addSource(...)`：`eventTypes` 订阅事件（自己的事件用 `tree.input.enqueue` 入队，和指针事件同一个队列、帧首按序处理）、`bindingTypes` 认领绑定类型、`strength(action, bindings)` 给力度 0–1、`beginFrame()` 给轮询型设备、`releaseAll(queue)` 处理切后台。事件和绑定的类型用声明合并登记：`declare module 'sapling2d' { interface InputEventRegistry { motion: … } interface InputBindingRegistry { tilt: … } }`（都要有 `type` 字段）。向 `window` / `wx` 注册监听是插件自己的事，核心不碰。
+- 测试里用 `g.inject(event)` 注入插件的事件；屏幕按钮和摇杆就是用这套公开能力写的，可以照着看。
+
 ## 微信小游戏
 
 - 构建：`saplingWechat({ entry: 'src/main.wechat.ts' })`，`vite build -c vite.wechat.config.ts [--watch]`，用微信开发者工具打开 `dist-wechat/`。环境变量：`WX_APPID`、`SAPLING_RELEASE=1`（真机预览必须，压缩、无 sourcemap）、`SAPLING_LOG_URL=http://<局域网 IP>:7777/log`（把 console、错误和 `snapshot()` 截图发到 `startLogServer()`）。
 - 资源放在 `public/assets/`，`tex('a.png')` 在两个平台上路径相同。构建时 `public/assets/boot/` 放进主包，其余资源放进一个分包，启动页显示后下载（进度算进 `tree.loadProgress`，失败时重试 2 次）。主包上限 4 MB（含 `game.js`），所有包合计 30 MB；构建时打印各包大小，发布构建超限时失败、超过 80% 时警告。
 - **启动页（`loading`）的资源必须放在 `boot/`**，否则启动时报错；`startGame` 完成之前（Autoload 的构造函数里）也只能用 `boot/` 里的资源。`saplingWechat({ mainAssets })` 可以改规则（glob 或函数）。
 - 只用 WebGL1；iOS 小游戏可能没有 JIT：同时活跃的刚体控制在 60–80 个以内。模拟器和真机差异很大，以真机为准。
-- 小游戏没有键盘；触摸是多点的。`loadFont(path)` 加载包内字体（只在小游戏里）。
+- 小游戏没有键盘（`sapling2d/wechat` 不装键盘插件）；触摸是多点的。`loadFont(path)` 加载包内字体（只在小游戏里）。
+- 传感器：`sapling2d/motion` 用 `wx.startAccelerometer`，不用申请权限，切到后台时插件停掉传感器；轴向和单位以真机为准，模拟器不可信。
 
 ## 性能（微信小游戏 iOS）
 
@@ -515,10 +536,12 @@ for (let i = 0; i < bullets.length; i++) {
 - **每帧都要跑的类不要用 `#private`**：小游戏构建目标是 ES2017，`#x` 会被编译成 WeakMap 查找，iOS 上慢 2–3 倍（ADR 0006）。用 TS 的 `private _x`。
 - **随机数**：用 `this.tree.rng`（带 seed，测试可复现），不要用 `Math.random`。只影响画面、不影响玩法的随机（粒子——`Particles2D` 自动用——、屏幕震动、装饰性的抖动）用 `this.tree.fxRng`：同样可复现，但加减这些效果不会让同一个 seed 的对局走向变掉。
 - **声明合并**：给组名、动作名、存档 key 加类型：`declare module 'sapling2d' { interface GroupRegistry { … } interface ActionRegistry { … } interface StorageRegistry { … } }`。
+- **忘了装插件**：定义动作时出现 `binding type "tilt" has no input source` 的警告，或 `tree.get(X)` 报 `X is not installed`，都是 `plugins: [...]` 里少了对应的插件。
+- **iOS 浏览器的传感器权限**要在用户手势里申请：`motion()` 自动在第一次触摸时申请；`permission === 'prompt'` 期间提示玩家点一下屏幕，不要在 `ready()` 里就认为有倾斜输入。
 - **Tween 在类方法里**：`this.createTween().to(this, {...})` 按 `Node2D` 的属性做类型检查；补间子类特有的属性写 `to(this as MyNode, …)`。
 - **音量是 0–1**（不是 dB）；`tree.paused` 不暂停声音。
 
 ## 更多
 
 - 术语表：仓库根目录 `CONTEXT.md`；架构决策：`docs/adr/`；微信环境实测：`spikes/wechat/REPORT.md`。
-- 示例：`examples/merge`（合成大西瓜，含无头测试）、`examples/plane`（飞机大战：图集、帧动画、粒子、用 HitTester 做碰撞、暂停）、`examples/platformer`（横版跳跃：Tiled 关卡、CharacterBody2D、Camera2D、CanvasLayer 的 HUD、屏幕按钮、像素风、横屏）、`examples/spinblade`（俯视角转刀：摇杆、俯视角 CharacterBody2D、旋转矩形的命中判定（游戏自己的 KnifeCollider）、打击停顿、屏幕震动、粒子、ColorRect 血条、Boss）、`examples/towerdefense`（竖版塔防灰盒：随机曲线路径、带每帧时长的攻击动画和出手帧结算、对象池、三选一升级卡片）、`examples/physics`、`examples/sprite`；项目模板：`templates/game`。
+- 示例：`examples/merge`（合成大西瓜，含无头测试）、`examples/plane`（飞机大战：图集、帧动画、粒子、用 HitTester 做碰撞、暂停）、`examples/platformer`（横版跳跃：Tiled 关卡、CharacterBody2D、Camera2D、CanvasLayer 的 HUD、屏幕按钮、像素风、横屏）、`examples/spinblade`（俯视角转刀：摇杆、俯视角 CharacterBody2D、旋转矩形的命中判定（游戏自己的 KnifeCollider）、打击停顿、屏幕震动、粒子、ColorRect 血条、Boss）、`examples/towerdefense`（竖版塔防灰盒：随机曲线路径、带每帧时长的攻击动画和出手帧结算、对象池、三选一升级卡片）、`examples/racer`（倾斜转向：`sapling2d/motion` 插件、`tilt()` 和键盘共用动作、HUD 显示传感器原始值）、`examples/physics`、`examples/sprite`；项目模板：`templates/game`。

@@ -7,7 +7,7 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - **Node** — 场景树中的基本单元。所有游戏对象都是 Node 的子类，通过**继承**扩展（`class Player extends RigidBody2D`）。不使用 ECS / 组件挂载。
 - **Node2D** — 带 2D 变换（`position`、`rotation`、`scale`、`visible`、`zIndex`）的 Node。变换数据由节点自己持有，不是 Pixi 对象的包装。
 - **Scene** — 场景树的根节点（`extends Node2D`）。通过 `static assets` 声明预加载资源；场景参数通过构造函数声明（`constructor(readonly params: {...})`）。`await tree.changeScene(SceneClass, params)` 先加载资源、再在微任务里替换（不打断当前帧），连续调用按顺序执行；旧场景独有的资源被卸载；`reloadCurrentScene()` 用原参数重开；`tree.sceneChanged` 信号。同一时间只有一个活动 Scene。
-- **SceneTree** — 运行时的树与主循环拥有者。提供 `changeScene`、`paused`、`getNodesInGroup`、`focusChanged`。
+- **SceneTree** — 运行时的树与主循环拥有者。提供 `changeScene`、`paused`、`getNodesInGroup`、`focusChanged`、`get(Token)`（插件提供的服务）。
 - **Autoload** — 跨场景存在的全局单例节点（如 `GameState`），在启动参数 `autoloads` 中注册，用 `tree.autoload(GameState)` 按类型获取。
 - **Group** — 节点的标签集合（`addToGroup` / `getNodesInGroup`），用于跨层级查找。通过声明合并 `GroupRegistry` 给组名和返回类型加强类型。**不支持** `getNode("Path")` 或 `%Unique` 路径查找；父子引用使用类型化字段。
 - **Signal** — 强类型事件（`new Signal<[score: number]>()`），支持 `connect(fn, owner)` / `emit` / `await`，节点释放时自动断开（owner 为该节点的连接、该节点声明的信号）。`await signal` 会错过同步紧接着的 emit，这种情况用 `signal.wait()`。
@@ -15,7 +15,11 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - **queueFree** — 帧末延迟销毁节点。不提供立即 `free()`。物理回调期间的增删也延迟生效；`callDeferred(fn)` 用于延迟任意操作。
 - **processMode** — `inherit` | `pausable` | `always`，配合 `tree.paused` 决定节点是否被暂停。暂停时 pausable 节点的 process / physicsProcess、绑定的 Tween / Timer、指针事件都停止，物理世界停止；`createTimer` 默认暂停时继续计时（`processAlways: false` 可改）。
 - **Focus** — 平台的前后台事件统一为 `tree.focusChanged(focused)`。默认（`pauseOnBackground: true`）后台时挂起整个主循环，回到前台时清空物理累加器。
-- **Platform** — 引擎访问外部世界的唯一接口（canvas、时间、rAF、输入事件源、资源读取、音频、存储、屏幕信息）。实现：`BrowserPlatform`、`WechatPlatform`、`HeadlessPlatform`。核心代码禁止直接访问 `window` / `document` / `wx`。
+- **Platform** — 引擎访问外部世界的唯一接口（canvas、时间、rAF、指针事件源、资源读取、音频、存储、屏幕信息），只提供每个平台都有的东西；`kind`（`browser` / `wechat` / `headless`）给插件选实现用。实现：`BrowserPlatform`、`WechatPlatform`、`HeadlessPlatform`。核心代码禁止直接访问 `window` / `document` / `wx`；平台只产指针事件，键盘、传感器这类设备由插件自己监听（ADR 0010）。
+- **Plugin** — 平台差异化能力（键盘、传感器、手柄、小游戏的广告 / 分享）的接入方式：`startGame({ plugins: [motion()] })`。`install(ctx)` 在建树之后、定义动作之前按顺序调用一次，拿到 `tree`、`platform`，用 `ctx.provide(Token, service)` 提供服务，游戏用 `tree.get(Token)` 取（没装时报错并提示 `plugins: [...]`）；返回的函数在 `game.destroy()` 时调用。三条规则：`Input` 不再增长、平台只产指针事件、插件必须在三个 `kind` 上都能安装（不支持的平台装 mock 并 `console.info` 一次，游戏照常跑）。各入口可以带默认插件：浏览器的 `startGame` 和 `createTestGame` 默认装 `keyboard()`，小游戏入口不装。
+- **InputSource** — `Input` 的唯一扩展点，插件和屏幕控件都通过它接入：`bindingTypes`（认领的绑定类型，定义动作时没人认领就警告）、`eventTypes`（订阅的事件类型，按类型路由）、`handle(event)`、`beginFrame()`（轮询型设备）、`strength(action, bindings)`（给动作的力度，所有来源取最大）、`releaseAll(queue)`（切后台把按着的东西排队成松开）。`tree.input.addSource` / `removeSource` / `enqueue`。事件和绑定的类型是开放的：`InputEventRegistry` / `InputBindingRegistry` 声明合并（每种都要有 `type` 字段）。
+- **Keyboard** — 内置的键盘插件（`keyboard()`、`key()`、`Keyboard`，从 `sapling2d` 导出），浏览器入口和测试默认安装。`key('Space')` 绑定动作；`tree.get(Keyboard).isPressed(code)` 查原始状态。浏览器里监听 `window`，失焦时补发松开；其它平台只登记状态（测试用 `g.pressKey` / `g.inject` 注入）。
+- **MotionInput / tilt()** — 运动传感器插件 `sapling2d/motion`：`motion()` 安装；`tilt(dir, { deadzone, full })` 把倾斜角换成 0–1 力度绑定动作，和键盘共用；`tree.get(MotionInput)` 的 `x` / `y` / `z`（含重力的加速度，单位 g，设备坐标）、`roll` / `pitch`（度）、`available`、`permission`。浏览器用 `devicemotion`（iOS 在第一次手势里申请权限），小游戏用 `wx.startAccelerometer`（切后台停掉），无头靠 `g.inject({ type: 'motion', x, y, z })`。
 - **Headless** — 不创建渲染器、仅运行节点树与物理的模式，用于确定性测试（`createTestGame`）。
 - **alpha / modulate** — `Node2D` 的外观属性：`alpha`（不透明度 0–1）和 `modulate`（颜色乘子 0xRRGGBB）作用于整个子树、父子相乘；`selfModulate` 只作用于节点自己的贴图 / 文字。补间时颜色按 RGB 通道插值。
 - **Render sync** — 渲染层每帧把脏节点状态同步到懒创建的 Pixi 显示对象。用户代码不接触 Pixi 对象（逃生口：`unsafePixi`）。非 Node2D 节点不产生显示对象，其子节点挂到最近的 Node2D 祖先下。
@@ -24,7 +28,7 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - **timeScale** — `tree.timeScale`：游戏时间的缩放（默认 1）。process 的 dt、物理步数、Tween、Timer、帧动画、相机平滑、`tree.time` 都乘上它；0 是打击停顿，小于 1 是慢动作。输入和渲染不受影响；`createTimer(秒, { ignoreTimeScale: true })` 按真实时间计时。和 `paused` 互相独立；`tree.time` 在两者任一停住时都不走。
 - **AnimatedSprite2D** — 帧动画精灵（继承 Sprite2D）：一套或多套命名动画（frames + fps + loop），按帧时间推进，暂停时停止。
 - **Assets directory** — 游戏项目的资源放在 `<root>/public/assets/`（Vite 原样发布，页面地址 `assets/<path>`，即 `startGame` 默认的 `assetsBaseUrl`）。`tex` / `sfx` / `music` 里的路径与平台无关；微信构建时拷贝进小游戏包（工单 16/17）。`sapling2d/vite` 插件在构建和开发时检查字面量路径是否存在，缺失时报错并给出最相近的文件名；动态拼接的路径不检查。
-- **Entry points** — `sapling2d`（核心，无 Pixi、无 DOM）、`sapling2d/browser`（`startGame`）、`sapling2d/wechat`（`startGame`）、`sapling2d/testing`（`createTestGame`）、`sapling2d/vite`（`sapling()` 资源校验、`saplingWechat()` 小游戏构建、`startLogServer()`）。`sapling2d/vite` 由 Node 原生加载，其内部相对导入必须带 `.ts` 扩展名。
+- **Entry points** — `sapling2d`（核心，无 Pixi、无 DOM；含内置的键盘插件）、`sapling2d/browser`（`startGame`）、`sapling2d/wechat`（`startGame`）、`sapling2d/motion`（运动传感器插件）、`sapling2d/testing`（`createTestGame`）、`sapling2d/vite`（`sapling()` 资源校验、`saplingWechat()` 小游戏构建、`startLogServer()`）。`sapling2d/vite` 由 Node 原生加载，其内部相对导入必须带 `.ts` 扩展名。插件各自一个入口，不装不进包。
 - **Physics step** — 固定 60Hz 的物理步进：每步先调用所有节点的 `physicsProcess`，再 `world.step`，再把刚体位置写回节点。每帧最多补 2 步。step 期间世界锁定，增删刚体一律延迟。
 - **PhysicsBody2D** — `RigidBody2D`（dynamic）、`StaticBody2D`；形状来自 `CollisionShape2D` 子节点（`circle(r)`、`rectangle(w, h)`）。刚体位置以 planck 为准；给 position / rotation 赋值等于瞬移并清零速度。默认 friction 0.5、bounce 0、mass 1 kg。刚体在进入树后的第一个物理步才创建，之前设置的速度和冲量会排队。
 - **CollisionObject2D** — `PhysicsBody2D` 和 `Area2D` 的基类，持有形状、碰撞层和 `bodyEntered` / `bodyExited` 信号。接触信号在 `world.step` 之后派发，回调里可以安全地 add / remove / queueFree。
@@ -43,11 +47,11 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - **Tween** — `this.createTween().to(target, props, duration, ease).parallel().wait(s).call(fn)`，绑定节点销毁时自动停止（不触发 `finished`）。从下一帧开始播放；每一步的起始值在该步开始时读取；同一个 `to()` 里的多个属性同时进行。`to(this, ...)` 在类方法里按 Node2D 的属性做类型检查。
 - **Engine-internal hooks** — 引擎节点通过 `_onEnterTree` / `_onExitTree` / `_internalProcess` 实现自身行为，用户覆写 `enterTree` / `exitTree` / `process` 时不需要调用 super。
 - **Design resolution / Viewport** — 设计分辨率（默认 750×1334），游戏坐标都以它为准。`this.tree.viewport` 提供 `visibleRect`、`safeRect`、`screenToDesign` 和 `resized` 信号。`expand`（默认）等比缩放、多出的空间向两侧**对称**扩展（与 Godot 向右下扩展不同）；`keep` 裁剪到设计区域。渲染分辨率 = min(DPR, 2)。
-- **Input** — `this.tree.input`。平台原始事件在每帧开始时统一处理（确定性）。`isActionJustPressed` 在 `process` 里按帧、在 `physicsProcess` 里按物理步算（和 Godot 一样，高刷新率下不丢按键）。动作在启动参数 `actions` 中定义（`key('Space')`、`pointerPress()`），动作名可通过声明合并 `ActionRegistry` 加强类型。
-- **TouchScreenButton** — 屏幕按钮（虚拟按键，继承 Sprite2D）：手指按住时让一个输入动作处于按下状态，和键盘绑定共用动作名；每个手指独立，滑出、抬起、取消、切到后台都会松开。按在按钮上的手指不参与节点拾取，也不触发 `pointerPress()`。
-- **TouchJoystick** — 虚拟摇杆（继承 Node2D）：手指拖动时按方向和力度（0–1）驱动四个方向的输入动作，游戏用 `input.getVector(...)` 读取，和键盘共用动作名。`dynamic`（在区域里按下的地方出现）或 `fixed`；只认一个手指。
-- **Action strength** — 输入动作的力度（0–1）：数字输入（按键、`pointerPress()`、屏幕按钮）是 1，摇杆是推动的程度；力度 ≥ 0.5 时动作算按下。
-- **Pointer picking** — `inputPickable` 加 `hitArea`（Sprite2D 默认用贴图范围）的节点会收到 `pointerDown` / `pointerMove` / `pointerUp` / `clicked`；只有绘制顺序最上层的节点收到；按下后该指针被节点捕获。被节点处理掉的按下不触发 `pointerPress()` 动作。
+- **Input** — `this.tree.input`。只管跨平台的核心：事件队列（平台的指针事件和插件的事件都走 `enqueue`，每帧开始时统一处理，确定性）、动作（`ActionMap`）、指针路由；此外不再增加任何公开成员，新设备一律走 `InputSource`。`isActionJustPressed` 在 `process` 里按帧、在 `physicsProcess` 里按物理步算（和 Godot 一样，高刷新率下不丢按键）。动作在启动参数 `actions` 中定义（`pointerPress()` 是核心的；`key('Space')` 来自键盘插件、`tilt('left')` 来自 motion 插件），绑定的类型没有来源认领时警告；动作名可通过声明合并 `ActionRegistry` 加强类型。
+- **TouchScreenButton** — 屏幕按钮（虚拟按键，继承 Sprite2D）：手指按住时让一个输入动作处于按下状态，和键盘绑定共用动作名；每个手指独立，滑出、抬起、取消、切到后台都会松开；滑出后滑回来不再按下，一个手指只按最上层的那个按钮。按在按钮上的手指不触发 `pointerPress()`。只用节点拾取的公开能力加 `InputSource` 实现，不在核心里（ADR 0010）。
+- **TouchJoystick** — 虚拟摇杆（继承 Node2D）：手指拖动时按方向和力度（0–1）驱动四个方向的输入动作，游戏用 `input.getVector(...)` 读取，和键盘共用动作名。`dynamic`（在区域里按下的地方出现）或 `fixed`；只认一个手指。只配 `left` / `right`、半径小、`deadzone: 0` 的 `fixed` 摇杆就是一个可以滑动换方向的方向键。实现方式同 TouchScreenButton。
+- **Action strength** — 输入动作的力度（0–1）：数字输入（按键、`pointerPress()`、屏幕按钮）是 1，摇杆和倾斜是推动 / 倾斜的程度；几个来源取最大；力度 ≥ 0.5 时动作算按下。
+- **Pointer picking** — `inputPickable` 加 `hitArea`（Sprite2D 默认用贴图范围，子类可覆写 `hitTest`）的节点会收到 `pointerDown` / `pointerMove` / `pointerUp` / `clicked`；只有绘制顺序最上层的节点收到；按下后该指针被节点捕获。被捕获的节点变得不可命中（隐藏、暂停、排队销毁、离开树）时，下一帧帧首收到一次 `pointerUp`（不发 `clicked`），这根指针之后的事件忽略。被节点处理掉的按下不触发 `pointerPress()` 动作。
 - **Audio** — `this.tree.audio`。资源用 `sfx(path)`（预解码，可叠加）和 `music(path)`（流式）声明。一次性音效 `tree.audio.play(stream, { volume, loop, bus })` 返回 Voice；节点用 `AudioStreamPlayer`（同一时间一个声音，离开树时停止）。平台只实现很薄的 `AudioBackend`。浏览器在第一次手势时自动解锁：之前请求的音乐排队，音效丢弃。后台时挂起。
 - **Audio bus** — `Master` / `Music` / `SFX` 三条音量总线，音量是 0–1 线性值（不是 Godot 的 dB）；实际音量 = 声音 × 总线 × Master，静音为 0。
 - **Storage** — `this.tree.storage.get(key, default)` / `set` / `remove` / `has` / `keys` / `clear`，同步、JSON、自动加前缀（默认 `sapling2d:`，`storagePrefix` 可改）。数据损坏或类型与默认值不一致时返回默认值。key 和值可通过声明合并 `StorageRegistry` 加类型。平台只实现 `StorageBackend`（浏览器 localStorage，不可用时退回内存）。

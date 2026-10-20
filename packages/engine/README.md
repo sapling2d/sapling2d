@@ -7,6 +7,7 @@ A code-first, agent-friendly 2D game engine for TypeScript.
 - **Godot-style node tree**: `Node`, `Node2D`, `Scene`, typed signals, groups, autoloads, timers, tweens and pausing.
 - **PixiJS v8 rendering** and **planck.js (Box2D) physics**: `RigidBody2D`, `StaticBody2D`, `Area2D`, collision layers and contact signals.
 - **Write once, run in two places**: in the browser, and as a **WeChat Mini Game** with a built-in adapter and Vite plugin.
+- **Plugins for platform-specific input**: the core only knows pointers and actions; keyboard, accelerometer tilt (`sapling2d/motion`) and your own devices plug in as `InputSource`s and drive the same actions.
 - **Deterministic headless testing**: `sapling2d/testing` steps the game frame by frame in Vitest and dumps the scene tree as text.
 - **Agent friendly**: all of it is plain code, with no editor or scene files. [`llms.txt`](https://github.com/kwoktung/sapling2d/blob/main/packages/engine/llms.txt) holds the whole API, runnable examples and known pitfalls in one file, generated from tested examples.
 
@@ -62,6 +63,7 @@ console.log(g.dump())
 | `sapling2d` | Nodes, scenes, signals, math, physics, audio, storage |
 | `sapling2d/browser` | `startGame()` for the web |
 | `sapling2d/wechat` | `startGame()` for WeChat Mini Games |
+| `sapling2d/motion` | `motion()` plugin: accelerometer tilt as action strength (`tilt('left')`) |
 | `sapling2d/testing` | `createTestGame()` for headless tests |
 | `sapling2d/vite` | `sapling()` asset checks, `saplingWechat()` mini game build, `startLogServer()` |
 

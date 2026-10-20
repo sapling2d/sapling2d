@@ -7,6 +7,7 @@
 - **Godot 风格节点树**：`Node`、`Node2D`、`Scene`，以及类型安全的信号、分组、Autoload、计时器、补间和暂停。
 - **渲染与物理**：渲染用 PixiJS v8，物理用 planck.js（Box2D）。提供 `RigidBody2D`、`StaticBody2D`、`Area2D`、碰撞层和接触信号。
 - **一份代码，两端运行**：浏览器，以及**微信小游戏**。引擎内置小游戏适配层和 Vite 插件。
+- **平台差异化的输入走插件**：核心只认识指针和动作；键盘、加速度计倾斜（`sapling2d/motion`）和你自己的设备都以 `InputSource` 接入，驱动同一组动作。
 - **确定性的无头测试**：`sapling2d/testing` 可以在 Vitest 里逐帧推进游戏，并把场景树导出成文本。
 - **对 Agent 友好**：一切都写在代码里，不需要编辑器，也没有场景文件。[`llms.txt`](./packages/engine/llms.txt) 用一个文件收录了完整 API、可运行示例和常见坑，内容由经过测试的示例生成。
 
@@ -62,6 +63,7 @@ console.log(g.dump())
 | `sapling2d` | 节点、场景、信号、数学、物理、音频、存储 |
 | `sapling2d/browser` | 浏览器端 `startGame()` |
 | `sapling2d/wechat` | 微信小游戏端 `startGame()` |
+| `sapling2d/motion` | `motion()` 插件：加速度计倾斜变成动作力度（`tilt('left')`） |
 | `sapling2d/testing` | 无头测试 `createTestGame()` |
 | `sapling2d/vite` | `sapling()` 资源路径检查、`saplingWechat()` 小游戏构建、`startLogServer()` 真机日志 |
 
