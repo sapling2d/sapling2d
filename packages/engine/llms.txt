@@ -438,7 +438,7 @@ expect(g.scene.revived).toBe(true)
 - 失败不抛错：返回 `'unavailable'`（控制台 warn 一次，带流量主错误码的解释）。同一时间只播一个全屏广告，播放中再调用返回 `'unavailable'`，不会重复发奖励。
 - 播放期间默认 `tree.paused = true` 并静音 `Master` 总线，结束恢复后才 resolve（`pauseGame: false` 可关）。
 - mock：浏览器、无头、以及小游戏里没配 id 的类型，都是场景树里画出来的占位——激励视频 / 插屏弹一个带"看完 / 关闭"按钮的覆盖层（暂停时也能点），banner 是底部一条。浏览器里能点；测试里 `g.tap` 覆盖层的按钮（坐标见 `MOCK_LAYOUT`，默认屏幕下"看完"在 (245, 787)、"关闭"在 (505, 787)）或 `ads({ mock: 'rewarded' })` 不弹 UI 直接出结果。小游戏没配 id 时控制台 info 一次，上线前查日志。
-- 真机才有真广告（流量主，累计 1000 独立访客才能开通）；开发者工具对任意 id 显示模拟广告。广告位 id 用构建环境变量传（`import.meta.env.VITE_AD_REWARDED`），不要写死在代码里。
+- 真广告要流量主的广告位 id（累计 1000 独立访客才能开通）；开发者工具的"模拟广告"同样要真的 id——随便填的 id 会收到 `error 1002（广告单元无效）`，插件按 `unavailable` 降级（不弹、按钮不显示、游戏照常）。广告位 id 用构建环境变量传（`import.meta.env.VITE_AD_REWARDED`），不要写死在代码里；没有 id 时不传，走 mock 看流程。
 
 ### 物理与碰撞（合成玩法）
 

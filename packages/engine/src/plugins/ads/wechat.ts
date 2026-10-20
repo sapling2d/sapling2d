@@ -64,6 +64,12 @@ function describe(err: WxAdError): string {
   return code !== undefined ? `error ${code}${ERRORS[code] ? ` (${ERRORS[code]})` : ''}: ${err.errMsg}` : err.errMsg
 }
 
+/** `show()` / `load()` 被拒时 wx 给的是 `{ errCode, errMsg }` 对象，不是 Error。 */
+function toAdError(err: unknown): WxAdError {
+  if (err && typeof err === 'object' && 'errMsg' in err) return err as WxAdError
+  return { errMsg: err instanceof Error ? err.message : String(err) }
+}
+
 /**
  * 小游戏的激励视频 / 插屏：安装时预加载；`show()` 被拒就 `load()` 再试一次；关闭后立刻预加载下一条。
  * 任何失败都 resolve `unavailable`（同一个错误码只警告一次），`timeoutMs` 兜底。暂停 / 静音和并发保护在 `Ads` 里。
@@ -115,7 +121,8 @@ export class WechatFullscreenAd implements FullscreenAd {
       ad.show()
         .catch(() => ad.load().then(() => ad.show()))
         .catch((err: unknown) => {
-          this._warnOnce({ errMsg: err instanceof Error ? err.message : String(err) }, 'show')
+          const e = toAdError(err)
+          this._warnOnce(e, e.errCode ?? 'show')
           this._settle('unavailable')
         })
     })
@@ -193,7 +200,7 @@ export class WechatBanner implements AdBanner {
       (err: unknown) => {
         if (!this._warned) {
           this._warned = true
-          console.warn(`[sapling2d] ads: banner show failed: ${err instanceof Error ? err.message : String(err)}`)
+          console.warn(`[sapling2d] ads: banner show failed: ${describe(toAdError(err))}`)
         }
         return false
       },

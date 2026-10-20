@@ -1,19 +1,19 @@
-# 04 — 模拟器验证（真机等有广告位 id 再补）
+# 04 — 模拟器验证（真机和真广告等有广告位 id 再补）
 
-**What to build:** 用开发者工具的模拟广告验证真实生产者的流程。用户目前**没有流量主的广告位 id**，真机那组只记录项目、不阻塞发布。
-
-- 模拟器（开发者工具对任意 `adUnitId` 显示模拟广告）：spinblade `dev:wechat`，`VITE_AD_REWARDED=adunit-test` 之类随便填一个 id；失败后点"看视频复活"→ 模拟器弹模拟激励视频 →"完成"→ 复活；"中途退出"→ `skipped` 的提示。插屏、banner 同样看一遍；banner 的 `onResize` 高度和贴底位置对不对。模拟器和真机差异大（`spikes/wechat/REPORT.md`），这里只验流程和回调的形态，不验表现。
-- 真机（等有广告位 id；hero-guard 开通流量主后也行，到时候在它那边验）：
-  - 激励视频播放期间 `wx.onHide` 是否触发（日志里看 `focusChanged`）。没结论之前 `pauseGame` 默认开着——两种情况下都不冲突，记进 `spikes/wechat/REPORT.md`。
-  - 看完 / 中途退出两条路的返回值；关闭后下一条有没有预加载（第二次 show 不等待）。
-  - banner 真实高度和位置；切后台回来 banner 还在。
-  - 频控：连续两次插屏，第二次 `unavailable` 且只 warn 一次。
+**What to build:** 用开发者工具验证插件；用户目前**没有流量主的广告位 id**。
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent（模拟器部分；真机部分 blocked：没有广告位 id）
+**Status:** 模拟器部分 done（2026-10-20）；真广告 / 真机 blocked：没有广告位 id
 
-- [ ] 模拟器：激励视频两条路、插屏、banner 高度 / 位置
-- [ ] 真机（blocked，等 id）：`onHide` 结论写进 `spikes/wechat/REPORT.md`
-- [ ] 真机（blocked，等 id）：三种广告各一遍，频控和预加载
-- [ ] 发现的差异回填到 02 的实现和测试
+- [x] 模拟器 + 随便填的 id（`adunit-test-*`）：三种广告安装时预加载都收到 `error 1002（广告单元无效）`→ 插屏不弹、`ready.rewarded` 为 false 按钮不显示、banner 不显示，游戏照常跑；每种各 warn 一次。**开发者工具的"模拟广告"也要真的 id**，这条路验的是错误路径
+- [x] 模拟器 + 不配 id（mock）：用户按流程走完没有问题——进结果页弹"模拟插屏广告"→ 关闭；底部"广告"灰条，按钮在它上方；"看视频 · 多带 4 把刀"→"看完 ✓"→ 回到场地、刀 × 8、敌人在动；再死一次 →"关闭 ✗"→ 留在结果页提示"没看完，没有奖励"
+- [x] 日志里发现并修掉一个 bug：`show()` 被 wx 以 `{ errCode, errMsg }` 对象拒绝时 warn 文案是 `[object Object]`，改为带错误码解释（`interstitial error 1002 (广告单元无效): no advertisement`），补了测试
+- [ ] 真广告（blocked，等 id）：激励视频看完 / 中途退出两条路；关闭后下一条预加载（第二次 show 不等待）；banner 真实高度和位置、切后台回来还在；连续两次插屏第二次 `unavailable` 且只 warn 一次
+- [ ] 真机（blocked，等 id）：激励视频播放期间 `wx.onHide` 是否触发，结论写进 `spikes/wechat/REPORT.md`；没结论之前 `pauseGame` 默认开
+
+## Comments
+
+**模拟器（2026-10-20）：** 日志（`SAPLING_LOG_URL`）里今天这次启动：`boot` → 三条 `[sapling2d] ads: … error 1002 (广告单元无效): no advertisement` → 一条 `interstitial [object Object]`（已修）。之后的 mock 构建用户手动走完全部流程，未发现问题。
+
+等 hero-guard 开通流量主后在它那边补真广告和真机两组；到时候 `wx.onHide` 的结论决定要不要把 `pauseGame` 的默认值改掉（现在开着两种情况都不冲突，大概率不用改）。

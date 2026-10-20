@@ -117,6 +117,17 @@ describe('小游戏激励视频 / 插屏', () => {
     expect(await p).toBe('rewarded')
   })
 
+  it('show 被 wx 以 { errCode, errMsg } 对象拒绝（开发者工具里无效 id 就是这样）：文案带错误码，不是 [object Object]', async () => {
+    const f = fakeFullscreen()
+    const ad = new WechatFullscreenAd(f.ad, 'interstitial', 1000)
+    f.ad.show = () => Promise.reject({ errCode: 1002, errMsg: 'no advertisement' })
+    f.ad.load = () => Promise.reject({ errCode: 1002, errMsg: 'no advertisement' })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(await ad.show()).toBe('unavailable')
+    expect(String(warn.mock.calls[0]![0])).toBe('[sapling2d] ads: interstitial error 1002 (广告单元无效): no advertisement')
+    expect(String(warn.mock.calls[0]![0])).not.toContain('[object Object]')
+  })
+
   it('onError：当前请求 unavailable、ready 变 false；同一个 errCode 只警告一次，文案带解释', async () => {
     const f = fakeFullscreen()
     const ad = new WechatFullscreenAd(f.ad, 'rewarded', 1000)

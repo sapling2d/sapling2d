@@ -106,7 +106,7 @@ interface PluginContext {
 
 - 无头（`test/ads.test.ts`）：三态返回；`mock` 四种模式；覆盖层两个按钮和遮罩吞点击；暂停 / 静音的进入和恢复（包括本来就暂停 / 静音时不乱恢复）；播放中再调用返回 `unavailable`；`ready` 的值；banner `show` / `hide` / `height` / `resized`；`PluginContext.autoload` 的节点在游戏 Autoload 之前、切场景后还在。
 - 小游戏生产者（`test/ads-wechat.test.ts`）：假 `wx`（`createRewardedVideoAd` 等返回可手动触发 `onLoad` / `onError` / `onClose` 的假对象）：预加载；未加载先 load 再 show；`isEnded` 两种和 `undefined`；错误 → `unavailable` 且同一 errCode 只 warn 一次；超时；关闭后重新 load；插屏 show 被拒；banner `style` 计算、`onResize` → `height` / `resized`、`hide` 不销毁。
-- 开发者工具模拟器对任意 `adUnitId` 显示模拟广告（激励视频有"完成 / 中途退出"按钮）：验证真实生产者的流程。真机要真的广告位 id（流量主，开通要累计 1000 独立访客）——目前没有，真机验证等有了再补，不阻塞发布；在那之前 `pauseGame` 保持默认开（无论 `wx.onHide` 触不触发都不冲突）。
+- 开发者工具的"模拟广告"**也要真的广告位 id**（实测：随便填的 id 预加载就收到 `error 1002 广告单元无效`），所以真实生产者的成功路径只能等有流量主 id（开通要累计 1000 独立访客）再验，不阻塞发布；错误路径（1002 → 全部 `unavailable`、按钮不显示、游戏照常）在模拟器里已验。mock 流程在模拟器里也已验（不配 id）。在有 id 之前 `pauseGame` 保持默认开（无论 `wx.onHide` 触不触发都不冲突）。
 
 ## 验证载体
 
