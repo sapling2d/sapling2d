@@ -11,21 +11,25 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done（2026-10-20）
 
-- [ ] `grep -rn 'nodes/' packages/engine/src/core/input` 为空；`grep -rn 'VirtualControls\|VirtualButton\|VirtualStick\|passbyPress' packages/engine/src` 为空
-- [ ] 按钮：按下 / 抬起 / 取消 / 多个手指按同一个按钮（最后一个离开才松开）/ 滑出松开 / 滑回来不再按下 / 画在上面的节点先收到 / 按着的手指不触发 `pointerPress()` / 未知动作警告
-- [ ] 按钮：隐藏、`processMode` 暂停、`queueFree`、移出树、切后台时在下一帧帧首松开，`released` 恰好发一次，动作 `isActionJustReleased` 为 true
-- [ ] 摇杆：`dynamic` 出现位置和死区换算、`fixed`、斜向、`g.drag`、区域外不响应、按着时第二个手指不归它（落到下面的节点或 `pointerPress()`）、自定义 `region`、和按钮同时用、上层按钮优先、和键盘取最大、后台 / 隐藏 / 移出树松开、暂停、贴图显示和摇杆头限位、相机不影响
-- [ ] 通用捕获取消：一个普通 `inputPickable` 节点被拖着时 `visible = false`，下一帧收到 `pointerUp`、不收到 `clicked`，之后这根手指的 `pointerup` 不再触发任何信号；`queueFree` 同样
-- [ ] 同帧按下又抬起：`pressed` 和 `released` 都发出，动作 just-pressed 和 just-released 同帧都为 true（和现在一致）
-- [ ] 每帧热路径不分配：没有手指按着时 `cancelUnhittable` 只是一次 Map 遍历；节点没有每帧代码
-- [ ] platformer 的方向键用了 `passbyPress`（`examples/platformer/src/nodes/Controls.ts:9-10`，左右滑动不用抬手）：改成一个 `fixed` 的 `TouchJoystick`（只配 `left` / `right`，`hitArea` 覆盖原来两个按钮的区域，不设贴图），两张按钮贴图留作装饰、按 `vectorX` 的符号切换高亮；手感和原来一致（滑过去就换方向）。spinblade 不受影响。两个示例的测试通过
-- [ ] `pnpm check` 绿，`llms.txt` 重新生成
+- [x] `grep -rn 'nodes/' packages/engine/src/core/input` 为空；`grep -rn 'VirtualControls\|VirtualButton\|VirtualStick\|passbyPress' packages/engine/src` 为空
+- [x] 按钮：按下 / 抬起 / 取消 / 多个手指按同一个按钮（最后一个离开才松开）/ 滑出松开 / 滑回来不再按下 / 画在上面的节点先收到 / 按着的手指不触发 `pointerPress()` / 未知动作警告
+- [x] 按钮：隐藏、`processMode` 暂停、`queueFree`、移出树、切后台时在下一帧帧首松开，`released` 恰好发一次，动作 `isActionJustReleased` 为 true
+- [x] 摇杆：`dynamic` 出现位置和死区换算、`fixed`、斜向、`g.drag`、区域外不响应、按着时第二个手指不归它（落到下面的节点或 `pointerPress()`）、自定义 `region`、和按钮同时用、上层按钮优先、和键盘取最大、后台 / 隐藏 / 移出树松开、暂停、贴图显示和摇杆头限位、相机不影响
+- [x] 通用捕获取消：一个普通 `inputPickable` 节点被拖着时 `visible = false`，下一帧收到 `pointerUp`、不收到 `clicked`，之后这根手指的 `pointerup` 不再触发任何信号；`queueFree`、暂停、离开树同样（`test/input.test.ts` 三个用例）
+- [x] 同帧按下又抬起：`pressed` 和 `released` 都发出，动作 just-pressed 和 just-released 同帧都为 true
+- [x] 每帧热路径不分配：没有手指按着时 `cancelUnhittable` 看一眼 `_captures.size` 就返回；节点没有每帧代码
+- [x] platformer 的方向键用了 `passbyPress`（`examples/platformer/src/nodes/Controls.ts`）：改成一个 `fixed` 的 `TouchJoystick`（只配 `left` / `right`，半径 20、死区 0，`hitArea` 覆盖原来两个按钮的区域，不设贴图），两张按钮图改成 `Sprite2D` 留作装饰、按 `vectorX` 的符号切换透明度；手感和原来一致（滑过去就换方向）。`level.test.ts` 按右键图中心（偏移 30 > 半径）照常成立。spinblade 不受影响。两个示例的测试通过
+- [x] `pnpm check` 绿，`llms.txt` 重新生成
 
-**实现提示**
+## Comments
 
-- 今天的"抬起时还在区域内才算 `clicked`"由核心判断；按钮的"滑出就松开"由节点在 `pointerMove` 里用 `hitTest(ev.localPosition)` 判断，核心不变。
-- `TouchJoystick.hitTest` 里 `globalTransform.apply` 只在按下拾取时调用一次，不是每帧。
-- 节点把自己当 `InputSource` 传给 `addSource`，`strength(action)` 直接比较字符串即可（按钮一个、摇杆四个），不要为此建 Map。
-- 捕获取消用最后一次记录的位置生成 `PointerEvent2D`，`PointerRouter` 已经为每个指针保存了设计坐标（`_pointersDesign`）。
+**实现（2026-10-20）：** `pnpm check` 全部 workspace 包通过（engine 483，比 01 多 4：按钮 +3、摇杆 +1、指针 +2、删 passby 相关 2）。
+
+- `PointerRouter` 只剩节点拾取和捕获，`handle` 的 move 分支从 20 行缩到 5 行。`cancelUnhittable` 直接复用 `_end(id, up = false)`：节点在树里就收到 `pointerUp`，不在树里（`remove` 掉的）只是忘掉指针——节点自己在 `_onExitTree` 里松开。
+- 两个节点进树时 `addSource(this)`，自己就是 `InputSource`，`strength(action)` 直接比较字符串。拾取时序没变：指针信号在 `_flush` 处理事件时同步触发，紧接着 `actions.update` 就读到，同帧按下又抬起仍然两个边沿都有。
+- `TouchJoystick.hitTest` 覆写：按着时 false（第二个手指不归它）；`dynamic` 把局部点用 `globalTransform.apply` 换回摇杆所在坐标系再查 `region`，只在按下拾取时调用一次。
+- 行为变化（spec 里已写）：`passbyPress` 删除；一个手指只按最上层的按钮；被拖着的节点隐藏 / 暂停 / 排队销毁时收到 `pointerUp`（以前静默丢掉，现在任何拖拽都能正确收尾）；拖着的节点离开树后这根手指被忘掉（`isPointerPressed` 变 false）。
+- `llms.template.md` 的屏幕按钮 / 摇杆小节和节点清单去掉了 passby，加了"fixed 摇杆当方向键"和"控件只用公开 API 实现，可以照着写"两句；`docs/examples/touch-buttons.test.ts` 相应改掉滑动换方向的演示。`CONTEXT.md` 留给 04。
+- 要做滑入按下（passby）的话，核心需要 `pointerEnter` / `pointerExit` 和显式捕获 API，见 spec "不在范围内"。

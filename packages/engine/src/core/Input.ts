@@ -5,7 +5,6 @@ import type { InputBinding } from './input/bindings'
 import { isPointerEvent, type RawInputEvent } from './input/events'
 import { PointerRouter } from './input/PointerRouter'
 import type { InputSource } from './input/source'
-import { VirtualControls, type VirtualButton, type VirtualStick } from './input/VirtualControls'
 import type { Node } from './Node'
 import type { Viewport } from './Viewport'
 
@@ -42,7 +41,6 @@ export class Input {
   /** 处理中的队列。和 `_queue` 轮换使用：处理期间入队的事件进另一个数组、下一帧处理，每帧不分配。 */
   private _spare: RawInputEvent[] = []
   private readonly _actions = new ActionMap()
-  private readonly _controls = new VirtualControls()
   private readonly _pointer: PointerRouter
   private readonly _sources: InputSource[] = []
   private readonly _strengthSources: InputSource[] = []
@@ -59,8 +57,7 @@ export class Input {
 
   /** @internal */
   constructor(viewport: Viewport, topLevel: () => readonly Node[]) {
-    this._pointer = new PointerRouter(viewport, topLevel, this._controls)
-    this.addSource(this._controls)
+    this._pointer = new PointerRouter(viewport, topLevel)
   }
 
   // ---------------------------------------------------------------- 动作
@@ -232,7 +229,9 @@ export class Input {
   _flush(): void {
     this._actions.beginFrame()
     this._pointer.beginFrame()
-    // 来源的帧首处理（按着的屏幕按钮变得不能按时松开、轮询手柄）；动作状态在这里统一更新，所有节点在同一帧看到变化
+    // 被拖着的节点变得不可命中（隐藏、暂停、销毁）时收到 pointerUp；来源的帧首处理（轮询手柄）。
+    // 动作状态在这里统一更新，所有节点在同一帧看到变化
+    this._pointer.cancelUnhittable()
     const frameSources = snapshot(this._frameSources, this._frameScratch)
     for (let i = 0; i < frameSources.length; i++) frameSources[i]!.beginFrame!()
     this._actions.update(this._source)
@@ -265,28 +264,6 @@ export class Input {
     this._pointer.releaseAll(this._queue)
     const sources = this._sources.slice() // 切后台很少发生，直接复制
     for (let i = 0; i < sources.length; i++) sources[i]!.releaseAll?.(this._queue)
-  }
-
-  // ---------------------------------------------------------------- 屏幕控件（由节点进出树时调用；工单 02 移除）
-
-  /** @internal TouchScreenButton 进入树时调用。 */
-  _addButton(button: VirtualButton): void {
-    this._controls.addButton(button)
-  }
-
-  /** @internal TouchScreenButton 离开树时调用。 */
-  _removeButton(button: VirtualButton): void {
-    this._controls.removeButton(button)
-  }
-
-  /** @internal TouchJoystick 进入树时调用。 */
-  _addStick(stick: VirtualStick): void {
-    this._controls.addStick(stick)
-  }
-
-  /** @internal TouchJoystick 离开树时调用。 */
-  _removeStick(stick: VirtualStick): void {
-    this._controls.removeStick(stick)
   }
 }
 

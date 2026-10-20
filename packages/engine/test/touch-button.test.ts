@@ -61,23 +61,57 @@ describe('TouchScreenButton', () => {
     expect([right.isPressed, input.isActionPressed('tbRight'), input.isActionPressed('tbJump')]).toEqual([false, false, true])
   })
 
-  it('手指滑出按钮就松开；passbyPress 的按钮滑进来就按下，不是的不会', async () => {
+  it('手指滑出按钮就松开；滑进别的按钮不会按下它，滑回来也不再按下', async () => {
+    let left!: TouchScreenButton
     const g = await setup((scene) => {
-      scene.add(new TouchScreenButton({ action: 'tbLeft', position: v(100, 1200), hitArea: AREA, passbyPress: true }))
-      scene.add(new TouchScreenButton({ action: 'tbRight', position: v(300, 1200), hitArea: AREA, passbyPress: true }))
-      scene.add(new TouchScreenButton({ action: 'tbJump', position: v(500, 1200), hitArea: AREA }))
+      left = scene.add(new TouchScreenButton({ action: 'tbLeft', position: v(100, 1200), hitArea: AREA }))
+      scene.add(new TouchScreenButton({ action: 'tbRight', position: v(300, 1200), hitArea: AREA }))
     })
     const input = g.tree.input
-    const state = () => [input.isActionPressed('tbLeft'), input.isActionPressed('tbRight'), input.isActionPressed('tbJump')]
+    const state = () => [input.isActionPressed('tbLeft'), input.isActionPressed('tbRight')]
+    const log: string[] = []
+    left.pressed.connect(() => log.push('pressed'))
+    left.released.connect(() => log.push('released'))
     g.pointerDown(100, 1200, 1)
     g.step()
-    expect(state()).toEqual([true, false, false])
-    g.pointerMove(300, 1200, 1) // 从“左”滑到“右”
+    expect(state()).toEqual([true, false])
+    g.pointerMove(300, 1200, 1) // 从“左”滑到“右”：左松开，右不按下
     g.step()
-    expect(state()).toEqual([false, true, false])
-    g.pointerMove(500, 1200, 1) // 滑到“跳”：不是 passbyPress，不按下
+    expect(state()).toEqual([false, false])
+    g.pointerMove(100, 1200, 1) // 滑回来：不再按下
     g.step()
-    expect(state()).toEqual([false, false, false])
+    expect(state()).toEqual([false, false])
+    g.pointerUp(100, 1200, 1)
+    g.step()
+    expect(log).toEqual(['pressed', 'released'])
+  })
+
+  it('同一帧内按下又抬起：pressed 和 released 都发出，动作刚按下和刚松开同帧都为 true', async () => {
+    let button!: TouchScreenButton
+    const g = await setup((scene) => {
+      button = scene.add(new TouchScreenButton({ action: 'tbJump', position: v(100, 100), hitArea: AREA }))
+    })
+    const log: string[] = []
+    button.pressed.connect(() => log.push('pressed'))
+    button.released.connect(() => log.push('released'))
+    g.pointerDown(100, 100, 1)
+    g.pointerUp(100, 100, 1)
+    g.step()
+    expect(log).toEqual(['pressed', 'released'])
+    expect([g.tree.input.isActionJustPressed('tbJump'), g.tree.input.isActionJustReleased('tbJump'), g.tree.input.isActionPressed('tbJump')]).toEqual([true, true, false])
+  })
+
+  it('重叠的按钮：一个手指只按最上层的那个', async () => {
+    let a!: TouchScreenButton
+    let b!: TouchScreenButton
+    const g = await setup((scene) => {
+      a = scene.add(new TouchScreenButton({ action: 'tbLeft', position: v(100, 100), hitArea: AREA }))
+      b = scene.add(new TouchScreenButton({ action: 'tbRight', position: v(110, 100), hitArea: AREA }))
+    })
+    g.pointerDown(105, 100, 1)
+    g.step()
+    expect([a.isPressed, b.isPressed]).toEqual([false, true])
+    expect([g.tree.input.isActionPressed('tbLeft'), g.tree.input.isActionPressed('tbRight')]).toEqual([false, true])
   })
 
   it('触摸取消、切到后台都会松开（包括按着的键盘按键）', async () => {
@@ -191,21 +225,24 @@ describe('TouchScreenButton 审查修复', () => {
     expect(g.tree.input.isActionPressed('tbJump')).toBe(false)
   })
 
-  it('信号回调里移除按钮不会让别的按钮卡住', async () => {
+  it('信号回调里同步移除按钮不会让别的按钮卡住', async () => {
     let a!: TouchScreenButton
     let b!: TouchScreenButton
     const g = await setup((scene) => {
       a = scene.add(new TouchScreenButton({ action: 'tbLeft', position: v(100, 100), hitArea: AREA }))
-      b = scene.add(new TouchScreenButton({ action: 'tbRight', position: v(110, 100), hitArea: AREA }))
-      a.released.connect(() => a.queueFree())
+      b = scene.add(new TouchScreenButton({ action: 'tbRight', position: v(300, 100), hitArea: AREA }))
+      a.released.connect(() => a.parent!.remove(a))
     })
-    g.pointerDown(105, 100, 1) // 两个按钮重叠，同时按下
+    g.pointerDown(100, 100, 1)
+    g.pointerDown(300, 100, 2)
     g.step()
     expect([a.isPressed, b.isPressed]).toEqual([true, true])
-    g.pointerUp(105, 100, 1)
+    g.pointerUp(100, 100, 1)
     g.step()
+    expect([a.isInsideTree, b.isPressed, g.tree.input.isActionPressed('tbRight')]).toEqual([false, true, true])
+    g.pointerUp(300, 100, 2)
     g.step()
-    expect([b.isPressed, g.tree.input.isActionPressed('tbRight')]).toEqual([false, false])
+    expect([b.isPressed, g.tree.input.isActionPressed('tbRight'), g.tree.input.isActionJustReleased('tbRight')]).toEqual([false, false, true])
   })
 
   it('画在按钮上面的可点击节点（更高的 CanvasLayer）先收到指针', async () => {
@@ -219,10 +256,10 @@ describe('TouchScreenButton 审查修复', () => {
     expect([hits, g.tree.input.isActionJustPressed('tbJump')]).toEqual([['dialog'], false])
   })
 
-  it('从空白处滑进 passbyPress 按钮后，不再算 pointerPress() 的按下；拖着节点的手指滑过按钮不会按下它', async () => {
+  it('从空白处按下再滑过按钮不会按下它（pointerPress() 一直算按着）；拖着节点的手指滑过按钮也不会', async () => {
     let dragged!: Node2D
     const g = await setup((scene) => {
-      scene.add(new TouchScreenButton({ action: 'tbRight', position: v(300, 300), hitArea: AREA, passbyPress: true }))
+      scene.add(new TouchScreenButton({ action: 'tbRight', position: v(300, 300), hitArea: AREA }))
       dragged = scene.add(new Node2D({ position: v(600, 300), inputPickable: true, hitArea: AREA }))
     })
     const input = g.tree.input
@@ -231,7 +268,7 @@ describe('TouchScreenButton 审查修复', () => {
     expect(input.isActionPressed('tbTap')).toBe(true)
     g.pointerMove(300, 300, 1)
     g.step()
-    expect([input.isActionPressed('tbRight'), input.isActionPressed('tbTap')]).toEqual([true, false])
+    expect([input.isActionPressed('tbRight'), input.isActionPressed('tbTap')]).toEqual([false, true])
     g.pointerUp(300, 300, 1)
     g.pointerDown(600, 300, 2) // 按在可拖动的节点上
     g.step()
@@ -250,21 +287,6 @@ describe('TouchScreenButton 审查修复', () => {
     g.pointerDown(400, 400, 1) // 上一次的 pointerup 没有收到；这次按在按钮外
     g.step()
     expect([input.isActionPressed('tbJump'), input.isActionJustReleased('tbJump'), input.isActionJustPressed('tbTap')]).toEqual([false, true, true])
-  })
-
-  it('拖着的节点中途被销毁后，这个手指不再算拖着节点：滑进 passbyPress 按钮会按下', async () => {
-    let dragged!: Node2D
-    const g = await setup((scene) => {
-      scene.add(new TouchScreenButton({ action: 'tbRight', position: v(300, 300), hitArea: AREA, passbyPress: true }))
-      dragged = scene.add(new Node2D({ position: v(600, 300), inputPickable: true, hitArea: AREA }))
-    })
-    g.pointerDown(600, 300, 1)
-    g.step()
-    dragged.queueFree()
-    g.step()
-    g.pointerMove(300, 300, 1)
-    g.step()
-    expect(g.tree.input.isActionPressed('tbRight')).toBe(true)
   })
 
   it('切到后台时，队列里还没处理的按下也会被取消', async () => {

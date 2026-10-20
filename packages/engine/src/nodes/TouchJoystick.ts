@@ -1,5 +1,6 @@
 import type { ActionName } from '../core/actions'
 import type { Texture } from '../core/assets'
+import type { InputSource } from '../core/input/source'
 import { Node2D, type Node2DOptions } from '../core/Node2D'
 import { Signal } from '../core/Signal'
 import { Rect2 } from '../math/Rect2'
@@ -45,12 +46,15 @@ export interface TouchJoystickOptions extends Node2DOptions {
  * const dir = this.tree.input.getVector('left', 'right', 'up', 'down')
  * ```
  *
- * - 只认一个手指：按着摇杆的手指不触发 `pointerPress()`、不点中下面的节点、也不会滑进屏幕按钮；另一个手指可以同时按屏幕按钮。
+ * - 只认一个手指：按着摇杆的手指不触发 `pointerPress()`、不点中下面的节点、也不会按到屏幕按钮；另一个手指可以同时按屏幕按钮。
  * - 手指抬起、触摸取消、游戏切到后台、摇杆被隐藏 / 暂停 / 移出树时松开，力度归零。
  * - 放在 CanvasLayer 里（固定在屏幕上）。按绘制顺序参与拾取：`dynamic` 的区域里，画在它上面的按钮和可点击节点先收到指针。
  * - 摇杆自己不要旋转、缩放（方向按它的局部坐标算）。
+ * - 只配 `left` / `right` 的 `fixed` 摇杆可以当方向键用：手指在两边之间滑动不用抬起。
+ *
+ * 只用节点拾取的公开能力（`inputPickable`、覆写 `hitTest`、指针信号）和 `InputSource` 实现，不依赖引擎内部。
  */
-export class TouchJoystick extends Node2D {
+export class TouchJoystick extends Node2D implements InputSource {
   readonly mode: 'dynamic' | 'fixed'
   actions: JoystickActions
   radius: number
@@ -63,13 +67,13 @@ export class TouchJoystick extends Node2D {
   /** 摇杆的输出（已经扣掉死区，长度不超过 1）。没按着时是 0。 */
   vectorX = 0
   vectorY = 0
-  /** @internal 按着它的指针（由 `VirtualControls` 调用 `_press` / `_release` 维护）。 */
+  /** @internal 按着它的指针，没有按着时为 null。 */
   _pointerId: number | null = null
   private readonly _base: Sprite2D | null
   private readonly _knob: Sprite2D | null
 
   constructor(options: TouchJoystickOptions = {}) {
-    super(options)
+    super({ ...options, inputPickable: true })
     this.mode = options.mode ?? 'dynamic'
     this.actions = options.actions ?? {}
     this.radius = options.radius ?? 100
@@ -79,6 +83,14 @@ export class TouchJoystick extends Node2D {
     this._base = options.texture ? this.add(new Sprite2D({ name: 'Base', texture: options.texture })) : null
     this._knob = options.textureKnob ? this.add(new Sprite2D({ name: 'Knob', texture: options.textureKnob })) : null
     this._showVisuals(this.mode === 'fixed')
+    // 坐标和节点拾取一致：CanvasLayer 里是设计坐标，否则是世界坐标
+    this.pointerDown.connect((e) => this._press(e.pointerId, e.position), this)
+    this.pointerMove.connect((e) => {
+      if (e.pointerId === this._pointerId) this._drag(e.position)
+    }, this)
+    this.pointerUp.connect((e) => {
+      if (e.pointerId === this._pointerId) this._release()
+    }, this)
   }
 
   /** 摇杆的输出（新的 Vector2）。每帧读的话用 `vectorX` / `vectorY`，不分配内存。 */
@@ -99,23 +111,39 @@ export class TouchJoystick extends Node2D {
         console.warn(`TouchJoystick "${this.name}": unknown input action "${action}"; it will not be driven. Define it in the game options (actions: { ${action}: [] }) or with tree.input.addAction().`)
       }
     }
-    input._addStick(this)
+    input.addSource(this)
   }
 
+  /** 离开树：按着的话松开（动作状态在下一帧开始时更新）。 */
   override _onExitTree(): void {
-    this.tree.input._removeStick(this)
+    this.tree.input.removeSource(this)
+    this._release()
   }
 
-  /** @internal 拾取时由 `VirtualControls` 调用：这个位置（CanvasLayer 里是设计坐标）的按下归不归它。 */
-  _accepts(point: Vector2): boolean {
+  /**
+   * 这个位置的按下归不归它：已经被按着时第二个手指不归它；`fixed` 看 `hitArea`；
+   * `dynamic` 看 `region` 包不包含这个点（局部坐标换回摇杆所在的坐标系）。
+   */
+  override hitTest(localPoint: Vector2): boolean {
     if (this._pointerId !== null) return false
-    if (this.mode === 'fixed') return this.hitTest(this.toLocal(point))
+    if (this.mode === 'fixed') return super.hitTest(localPoint)
     const region = this.region ?? this._defaultRegion()
-    return region.contains(point)
+    return region.contains(this.globalTransform.apply(localPoint))
   }
 
-  /** @internal */
-  _press(pointerId: number, point: Vector2): void {
+  /** @internal InputSource：推向 `action` 对应方向的分量（0–1），和它无关的动作是 0。 */
+  strength(action: string): number {
+    const a = this.actions
+    if (this._pointerId === null) return 0
+    let s = 0
+    if (action === a.right && this.vectorX > s) s = this.vectorX
+    if (action === a.left && -this.vectorX > s) s = -this.vectorX
+    if (action === a.down && this.vectorY > s) s = this.vectorY
+    if (action === a.up && -this.vectorY > s) s = -this.vectorY
+    return s
+  }
+
+  private _press(pointerId: number, point: Vector2): void {
     this._pointerId = pointerId
     if (this.mode === 'dynamic') {
       const parent = this.parent
@@ -126,8 +154,7 @@ export class TouchJoystick extends Node2D {
     this.pressed.emit()
   }
 
-  /** @internal */
-  _drag(point: Vector2): void {
+  private _drag(point: Vector2): void {
     const local = this.toLocal(point)
     const len = local.length()
     const r = this.radius
@@ -146,8 +173,7 @@ export class TouchJoystick extends Node2D {
     this.vectorY = (local.y / len) * strength
   }
 
-  /** @internal */
-  _release(): void {
+  private _release(): void {
     if (this._pointerId === null) return
     this._pointerId = null
     this.vectorX = 0
@@ -155,18 +181,6 @@ export class TouchJoystick extends Node2D {
     if (this._knob) this._knob.position = Vector2.ZERO
     this._showVisuals(this.mode === 'fixed')
     this.released.emit()
-  }
-
-  /** @internal 更新动作状态时由 `VirtualControls` 调用。 */
-  _strengthOf(action: string): number {
-    const a = this.actions
-    if (this._pointerId === null) return 0
-    let s = 0
-    if (action === a.right && this.vectorX > s) s = this.vectorX
-    if (action === a.left && -this.vectorX > s) s = -this.vectorX
-    if (action === a.down && this.vectorY > s) s = this.vectorY
-    if (action === a.up && -this.vectorY > s) s = -this.vectorY
-    return s
   }
 
   /** 默认的按压区域：可见区域的左半边（CanvasLayer 里按屏幕，否则按看得到的世界范围）。 */

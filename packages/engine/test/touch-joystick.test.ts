@@ -159,17 +159,30 @@ describe('TouchJoystick', () => {
     expect(input.isActionPressed('tjUp')).toBe(true)
   })
 
-  it('一个手指按着摇杆，另一个手指同时按屏幕按钮；拖摇杆的手指滑过 passbyPress 按钮不会按下它', async () => {
+  it('一个手指按着摇杆，另一个手指同时按屏幕按钮；拖摇杆的手指滑过按钮不会按下它', async () => {
     const { g, input } = await setup({}, (_, hud) => {
       hud.add(new TouchScreenButton({ action: 'tjFire', position: v(600, 1100), hitArea: new Rect2(-60, -60, 120, 120) }))
-      hud.add(new TouchScreenButton({ action: 'tjTap', position: v(350, 1100), hitArea: new Rect2(-60, -60, 120, 120), passbyPress: true }))
+      hud.add(new TouchScreenButton({ action: 'tjTap', position: v(350, 1100), hitArea: new Rect2(-60, -60, 120, 120) }))
     })
     g.pointerDown(150, 1100, 1)
     g.pointerDown(600, 1100, 2)
     g.step()
-    g.pointerMove(350, 1100, 1) // 拖过 passby 按钮
+    g.pointerMove(350, 1100, 1) // 拖过另一个按钮
     g.step()
     expect([input.isActionPressed('tjRight'), input.isActionPressed('tjFire'), input.isActionPressed('tjTap')]).toEqual([true, true, false])
+  })
+
+  it('fixed 摇杆只配左右，当方向键用：按在哪边就是哪边，滑过去换方向不用抬手', async () => {
+    const { g, input, stick } = await setup({ mode: 'fixed', position: v(150, 1150), radius: 20, deadzone: 0, hitArea: new Rect2(-60, -30, 120, 60), actions: { left: 'tjLeft', right: 'tjRight' } })
+    g.pointerDown(150 + 30, 1150) // 右半边：超过半径，满力度
+    g.step()
+    expect([stick.isPressed, input.getActionStrength('tjRight'), input.isActionPressed('tjRight')]).toEqual([true, 1, true])
+    g.pointerMove(150 - 30, 1150) // 滑到左半边
+    g.step()
+    expect([input.isActionPressed('tjRight'), input.isActionPressed('tjLeft'), input.getActionStrength('tjUp')]).toEqual([false, true, 0])
+    g.pointerUp(150 - 30, 1150)
+    g.step()
+    expect([input.isActionPressed('tjLeft'), stick.isPressed]).toEqual([false, false])
   })
 
   it('画在上面的按钮先收到指针：区域里的按钮照常能按', async () => {

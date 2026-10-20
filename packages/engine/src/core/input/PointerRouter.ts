@@ -5,23 +5,21 @@ import type { Node2D } from '../Node2D'
 import type { PointerEvent2D } from '../pointer'
 import type { Viewport } from '../Viewport'
 import type { RawInputEvent, RawPointerEvent } from './events'
-import { hitsAt } from './hit'
-import type { VirtualControls } from './VirtualControls'
+import { canHit, hitsAt } from './hit'
 
 /**
  * 指针：记录按下的指针和最近的位置，把每个指针事件分发给它的目标——
- * 按下时拾取绘制顺序最上层、命中的节点：是屏幕控件就交给 `VirtualControls`，是可点击节点就由它捕获这个指针
- * （之后的移动、抬起都发给它），都不是就算没有被处理（会触发 `pointerPress()` 绑定）。
+ * 按下时拾取绘制顺序最上层、命中的可点击节点（`inputPickable`），由它捕获这个指针（之后的移动、抬起都发给它）；
+ * 没有命中任何节点就算没有被处理（会触发 `pointerPress()` 绑定）。屏幕按钮和摇杆也只是普通的可点击节点。
  */
 export class PointerRouter {
   private readonly _viewport: Viewport
   private readonly _topLevel: () => readonly Node[]
-  private readonly _controls: VirtualControls
   /** 当前按下的指针（世界坐标）。 */
   private readonly _pointers = new Map<number, Vector2>()
   /** 同一批指针在屏幕上的位置（设计坐标）：相机移动后，按它重新算出世界坐标。 */
   private readonly _pointersDesign = new Map<number, Vector2>()
-  /** 当前按下、且没有被任何节点或控件处理的指针；只有它们会触发 pointer 绑定。 */
+  /** 当前按下、且没有被任何节点处理的指针；只有它们会触发 pointer 绑定。 */
   private readonly _unhandled = new Set<number>()
   /** 指针 → 按下时点中的节点：之后的移动、抬起都发给它。 */
   private readonly _captures = new Map<number, Node2D>()
@@ -31,10 +29,9 @@ export class PointerRouter {
   private _justPressed = false
   private _justReleased = false
 
-  constructor(viewport: Viewport, topLevel: () => readonly Node[], controls: VirtualControls) {
+  constructor(viewport: Viewport, topLevel: () => readonly Node[]) {
     this._viewport = viewport
     this._topLevel = topLevel
-    this._controls = controls
   }
 
   /** 当前按下的指针：id → 位置（世界坐标）。 */
@@ -72,6 +69,18 @@ export class PointerRouter {
   }
 
   /**
+   * 帧首：被捕获的节点变得不可命中（隐藏、暂停、排队销毁、离开树、已销毁）时，用最后的位置给它发一次 pointerUp（不发 clicked），
+   * 并忘掉这根指针（之后它的移动和抬起忽略）。对任何被拖着的节点都成立：屏幕按钮和摇杆靠它在隐藏 / 暂停时松开。
+   */
+  cancelUnhittable(): void {
+    if (this._captures.size === 0) return
+    for (const [id, node] of this._captures) {
+      if (node.isInsideTree && !node.isFreed && canHit(node)) continue
+      this._end(id, false, this._pointers.get(id)!, this._pointersDesign.get(id)!)
+    }
+  }
+
+  /**
    * 游戏切到后台：给每个按下的指针排队一个取消事件（下一帧开始时按顺序处理）。
    * 还在队列里、没处理的按下也算：它们的抬起在后台收不到。
    */
@@ -89,17 +98,13 @@ export class PointerRouter {
     this._position = position
     this._positionDesign = design
     const id = e.pointerId
-    const controls = this._controls
 
     if (e.type === 'pointerdown') {
       this._pointers.set(id, position)
       this._pointersDesign.set(id, design)
       this._justPressed = true
-      // 按绘制顺序找最上面的：是屏幕控件就交给控件（不点中下面的节点，也不触发 pointerPress() 绑定）
       const node = this._pick(position, design)
-      if (node && controls.isControl(node)) {
-        controls.press(id, node, position, design)
-      } else if (node) {
+      if (node) {
         this._captures.set(id, node)
         node.pointerDown.emit(event(id, position, design, node))
       } else {
@@ -108,32 +113,21 @@ export class PointerRouter {
       return
     }
 
-    if (!this._pointers.has(id) && e.type !== 'pointermove') return
+    // 没按着（或已经被取消）的指针：只记下位置
+    if (!this._pointers.has(id)) return
     if (e.type !== 'pointermove') {
       this._end(id, e.type === 'pointerup', position, design)
       return
     }
+    this._pointers.set(id, position)
+    this._pointersDesign.set(id, design)
     const capture = this._captures.get(id)
-    const target = capture && capture.isInsideTree && !capture.isFreed ? capture : null
-
-    if (controls.ownsPointer(id)) {
-      this._pointers.set(id, position)
-      this._pointersDesign.set(id, design)
-      controls.drag(id, position, design)
-      return
-    }
-    if (this._pointers.has(id)) {
-      this._pointers.set(id, position)
-      this._pointersDesign.set(id, design)
-      // 捕获的节点已经销毁或离开树：这个手指不再算拖着节点
-      if (controls.move(id, position, design, target !== null)) this._unhandled.delete(id)
-    }
-    target?.pointerMove.emit(event(id, position, design, target))
+    if (capture && capture.isInsideTree && !capture.isFreed) capture.pointerMove.emit(event(id, position, design, capture))
   }
 
   /**
    * 指针 `id` 还按着时又收到它的按下：上一次的抬起丢了（真机偶尔丢 touchend，浏览器失去焦点时也可能丢 pointerup）。
-   * 把上一次的按下当作在最后的位置取消（松开按钮和摇杆，捕获它的节点收到 pointerUp）。返回是否取消了。
+   * 把上一次的按下当作在最后的位置取消（捕获它的节点收到 pointerUp）。返回是否取消了。
    * 由 `Input` 在处理按下之前调用，这样动作先松开、再按下，新的按下照常有“刚按下”。
    */
   cancelStale(id: number): boolean {
@@ -143,11 +137,10 @@ export class PointerRouter {
     return true
   }
 
-  /** 指针抬起（`up`）或取消：松开它按着的控件，捕获它的节点收到 pointerUp（抬起时还在节点里才算 clicked）。 */
+  /** 指针抬起（`up`）或取消：捕获它的节点收到 pointerUp（抬起时还在节点里才算 clicked）。 */
   private _end(id: number, up: boolean, position: Vector2, design: Vector2): void {
     const capture = this._captures.get(id)
     const target = capture && capture.isInsideTree && !capture.isFreed ? capture : null
-    this._controls.release(id)
     this._pointers.delete(id)
     this._pointersDesign.delete(id)
     this._unhandled.delete(id)
@@ -161,20 +154,15 @@ export class PointerRouter {
   }
 
   /**
-   * 绘制顺序最上层、命中的节点：可点击的节点（`inputPickable`）或屏幕控件。
+   * 绘制顺序最上层、命中的可点击节点（`inputPickable`）。
    * CanvasLayer 里的节点按设计坐标（`design`）判断，场景里的按世界坐标。
    */
   private _pick(world: Vector2, design: Vector2): Node2D | null {
     const order: Node2D[] = []
     const inLayer: boolean[] = []
     collectDrawOrder(this._topLevel(), order, inLayer)
-    const controls = this._controls
     for (let i = order.length - 1; i >= 0; i--) {
       const n = order[i]!
-      if (controls.isControl(n)) {
-        if (controls.hits(n, world, design, inLayer[i]!)) return n
-        continue
-      }
       if (n.inputPickable && hitsAt(n, world, design, inLayer[i])) return n
     }
     return null

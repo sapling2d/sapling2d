@@ -1,5 +1,7 @@
 import type { ActionName } from '../core/actions'
 import type { Texture } from '../core/assets'
+import type { InputSource } from '../core/input/source'
+import type { PointerEvent2D } from '../core/pointer'
 import { Signal } from '../core/Signal'
 import { Sprite2D, type Sprite2DOptions } from './Sprite2D'
 
@@ -8,8 +10,6 @@ export interface TouchScreenButtonOptions extends Sprite2DOptions {
   action?: ActionName
   /** 按下时显示的贴图。不设置时按下也显示 `texture`。 */
   texturePressed?: Texture | null
-  /** 手指从按钮外滑进来也算按下（方向键常用），默认 false：只有在按钮上按下才算。滑出按钮总是松开。 */
-  passbyPress?: boolean
 }
 
 /**
@@ -22,29 +22,33 @@ export interface TouchScreenButtonOptions extends Sprite2DOptions {
  * ```
  *
  * - 触摸区域：设置了 `hitArea` 就用它（可以比贴图大），否则用贴图的范围。
- * - 多点触控：每个手指独立；同一个按钮被几个手指按住时，最后一个手指离开才松开。
- * - 手指滑出按钮、抬起、触摸取消、游戏切到后台时都会松开。
- * - 按在按钮上（或滑进 passbyPress 按钮）的手指不再触发 `pointerPress()` 绑定，也不会点中下面的节点；正在拖着节点的手指滑过按钮不会按下它。
+ * - 多点触控：每个手指独立；同一个按钮被几个手指按住时，最后一个手指离开才松开。一个手指只按最上层的那个按钮。
+ * - 手指滑出按钮、抬起、触摸取消、游戏切到后台时都会松开；滑出后滑回来不再按下，从别处滑进来也不算按下
+ *   （需要滑动换方向的方向键，用只配 `left` / `right` 的 `fixed` 模式 `TouchJoystick`）。
+ * - 按在按钮上的手指不再触发 `pointerPress()` 绑定，也不会点中下面的节点。
  * - 按绘制顺序参与拾取：画在它上面的可点击节点（例如更高 CanvasLayer 里的对话框）先收到指针。
- * - 通常放在 CanvasLayer 里（固定在屏幕上）；隐藏、不能处理（暂停）时不能按下，按着的也会松开。
+ * - 通常放在 CanvasLayer 里（固定在屏幕上）；隐藏、不能处理（暂停）时不能按下，按着的会在下一帧松开。
+ *
+ * 只用节点拾取的公开能力（`inputPickable`、指针信号）和 `InputSource` 实现，不依赖引擎内部：可以照着写自己的控件。
  */
-export class TouchScreenButton extends Sprite2D {
+export class TouchScreenButton extends Sprite2D implements InputSource {
   readonly action: ActionName | null
   texturePressed: Texture | null
-  passbyPress: boolean
   /** 按下（第一个手指按住）时触发。 */
   readonly pressed = new Signal()
   /** 松开（最后一个手指离开）时触发。 */
   readonly released = new Signal()
-  /** @internal 正按住它的指针 id（由 `VirtualControls` 维护）。 */
-  readonly _pointerIds = new Set<number>()
+  /** 正按住它的指针 id。 */
+  private readonly _pointerIds = new Set<number>()
   private _normalTexture: Texture | null = null
 
   constructor(options: TouchScreenButtonOptions = {}) {
-    super(options)
+    super({ ...options, inputPickable: true })
     this.action = options.action ?? null
     this.texturePressed = options.texturePressed ?? null
-    this.passbyPress = options.passbyPress ?? false
+    this.pointerDown.connect((e) => this._onDown(e), this)
+    this.pointerMove.connect((e) => this._onMove(e), this)
+    this.pointerUp.connect((e) => this._release(e.pointerId), this)
   }
 
   /** 是否有手指正按着它。 */
@@ -58,15 +62,40 @@ export class TouchScreenButton extends Sprite2D {
     if (this.action !== null && !input.hasAction(this.action)) {
       console.warn(`TouchScreenButton "${this.name}": unknown input action "${this.action}"; pressing it changes no action. Define it in the game options (actions: { ${this.action}: [] }) or with tree.input.addAction().`)
     }
-    input._addButton(this)
+    input.addSource(this)
   }
 
+  /** 离开树：按着的话松开（动作状态在下一帧开始时更新）。 */
   override _onExitTree(): void {
-    this.tree.input._removeButton(this)
+    this.tree.input.removeSource(this)
+    if (this._pointerIds.size > 0) {
+      this._pointerIds.clear()
+      this._setPressed(false)
+    }
   }
 
-  /** @internal 由 `VirtualControls` 在第一个手指按住 / 最后一个手指离开时调用。 */
-  _setPressed(pressed: boolean): void {
+  /** @internal InputSource：按着时给 `action` 的力度是 1。 */
+  strength(action: string): number {
+    return action === this.action && this._pointerIds.size > 0 ? 1 : 0
+  }
+
+  private _onDown(e: PointerEvent2D): void {
+    if (this._pointerIds.has(e.pointerId)) return
+    this._pointerIds.add(e.pointerId)
+    if (this._pointerIds.size === 1) this._setPressed(true)
+  }
+
+  /** 滑出按钮就松开。这根手指仍被捕获着（移动和抬起还会发过来），但按钮不再认它：滑回来也不按下。 */
+  private _onMove(e: PointerEvent2D): void {
+    if (this._pointerIds.has(e.pointerId) && !this.hitTest(e.localPosition)) this._release(e.pointerId)
+  }
+
+  private _release(pointerId: number): void {
+    if (!this._pointerIds.delete(pointerId)) return
+    if (this._pointerIds.size === 0) this._setPressed(false)
+  }
+
+  private _setPressed(pressed: boolean): void {
     if (pressed) {
       if (this.texturePressed) {
         this._normalTexture = this.texture

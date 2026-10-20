@@ -125,16 +125,50 @@ describe('指针与命中测试', () => {
     expect(g.tree.input.pointerPosition?.isEqualApprox(v(375, 667))).toBe(true)
   })
 
-  it('节点在按住期间被销毁：后续事件安全丢弃', async () => {
+  it('节点在按住期间被销毁：下一帧帧首收到 pointerUp（不算 clicked），之后这根手指的事件丢弃', async () => {
     const g = await createTestGame({ main: Scene })
     const b = g.scene.add(new Button({ position: v(100, 100) }))
     g.pointerDown(100, 100)
     g.step()
     b.queueFree()
     g.step()
+    expect(b.log).toEqual(['down (100, 100)@(0, 0)', 'up (100, 100)@(0, 0)'])
+    expect(g.tree.input.isPointerPressed).toBe(false)
     g.pointerUp(100, 100)
     g.step()
-    expect(b.log).toEqual(['down (100, 100)@(0, 0)'])
+    expect(b.log).toHaveLength(2)
+  })
+
+  it('被拖着的节点隐藏或暂停时：下一帧帧首收到 pointerUp，这根手指不再算按着；重新显示后也不会再收到它的事件', async () => {
+    const g = await createTestGame({ main: Scene })
+    const b = g.scene.add(new Button({ position: v(100, 100) }))
+    g.pointerDown(100, 100)
+    g.step()
+    b.visible = false
+    g.step()
+    expect(b.log.map((l) => l.split(' ')[0])).toEqual(['down', 'up'])
+    expect(g.tree.input.pressedPointers.size).toBe(0)
+    b.visible = true
+    g.pointerMove(120, 100)
+    g.pointerUp(120, 100)
+    g.step()
+    expect(b.log).toHaveLength(2) // 没有 move、click
+
+    g.pointerDown(100, 100)
+    g.step()
+    g.tree.paused = true
+    g.step()
+    expect(b.log.map((l) => l.split(' ')[0])).toEqual(['down', 'up', 'down', 'up'])
+  })
+
+  it('拖着的节点离开树：不再收到事件，手指被忘掉', async () => {
+    const g = await createTestGame({ main: Scene })
+    const b = g.scene.add(new Button({ position: v(100, 100) }))
+    g.pointerDown(100, 100)
+    g.step()
+    g.scene.remove(b)
+    g.step()
+    expect(b.log).toEqual(['down (100, 100)@(0, 0)']) // 不在树里：没有信号
     expect(g.tree.input.isPointerPressed).toBe(false)
   })
 })
