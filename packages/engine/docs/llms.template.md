@@ -12,6 +12,7 @@
 | `sapling2d/browser` | `startGame(options)`：在浏览器里启动 |
 | `sapling2d/wechat` | `startGame(options)`：在微信小游戏里启动；另有 `loadFont`、`snapshot` |
 | `sapling2d/motion` | 插件：`motion()`、`tilt()` 绑定、`MotionInput`——加速度计 / 倾斜（见“倾斜”） |
+| `sapling2d-touch`（独立的包） | 插件：`touch()`、`TouchScreenButton`、`TouchJoystick`——屏幕按钮和摇杆，带默认皮肤（见“屏幕按钮”“摇杆”） |
 | `sapling2d/testing` | `createTestGame(options)`：无头运行，测试用 |
 | `sapling2d/vite` | `sapling()` 资源路径检查；`saplingWechat()` 构建小游戏；`startLogServer()` 接收真机日志 |
 
@@ -71,9 +72,11 @@
 
 ### 屏幕按钮（虚拟按键）
 
-<!-- example:touch-buttons -->
+屏幕按钮和摇杆在独立的包 `sapling2d-touch` 里（`pnpm add sapling2d-touch`），作为插件安装：`plugins: [touch()]` 预加载默认皮肤（灰白半透明的圆），不传贴图也能看到控件。
 
-- `TouchScreenButton`（继承 Sprite2D）：手指按住时 `action` 处于按下状态，和键盘绑定共用动作名（`isActionPressed` / `isActionJustPressed` 照常用）。信号 `pressed` / `released`，`isPressed`，`texturePressed` 按下时换图。
+<!-- example:../touch/docs/examples/touch-buttons -->
+
+- `TouchScreenButton`（继承 Sprite2D）：手指按住时 `action` 处于按下状态，和键盘绑定共用动作名（`isActionPressed` / `isActionJustPressed` 照常用）。信号 `pressed` / `released`，`isPressed`，`texturePressed` 按下时换图。贴图：不传 `texture` 用默认皮肤，`null` 只做输入不显示。
 - 触摸区域：`hitArea`（可以比贴图大，推荐），否则用贴图范围。每个手指独立；滑出按钮、抬起、触摸取消、切到后台都会松开。滑出后滑回来不再按下，从别处滑进来也不算按下——需要滑动换方向的方向键，用只配 `left` / `right` 的 `fixed` 摇杆（见下一节）。
 - 和 `pointerPress()` 的区别：`pointerPress()` 是“屏幕上任意一处没被节点处理的按下”（点屏幕开始游戏）；屏幕按钮只认自己的区域，按在按钮上的手指**不会**触发 `pointerPress()`，也不会点中下面的节点。
 - 放进 `CanvasLayer` 固定在屏幕上；隐藏、暂停（不能处理）时按不下，按着的会在下一帧松开。按绘制顺序参与拾取：画在它上面的可点击节点（例如更高层的对话框）先收到指针；一个手指只按最上层的那个按钮。
@@ -82,13 +85,13 @@
 
 ### 摇杆（方向和力度）
 
-<!-- example:touch-joystick -->
+<!-- example:../touch/docs/examples/touch-joystick -->
 
-<!-- example:touch-joystick#test -->
+<!-- example:../touch/docs/examples/touch-joystick#test -->
 
 - 动作有**力度**（0–1）：按键、`pointerPress()`、屏幕按钮按下时是 1；摇杆按推动的程度给出 0–1（已经扣掉死区）；几个来源同时作用时取最大的。力度 ≥ 0.5 时动作算按下（`isActionPressed` / `isActionJustPressed` 照常用）。
 - 读取：`getActionStrength(action)`、`getAxis(neg, pos)`（-1 到 1，不分配内存）、`getVector(negX, posX, negY, posY)`（长度不超过 1；每次分配一个 Vector2，每帧一次没问题，热循环里用 `getAxis`）。
-- `TouchJoystick`（继承 Node2D）：`actions: { left, right, up, down }`、`radius`（推到这么远力度为 1，默认 100）、`deadzone`（默认 0.2）、`texture` / `textureKnob`（不设置就不显示）。`vectorX` / `vectorY`（不分配）和 `vector`、`isPressed`，信号 `pressed` / `released`。
+- `TouchJoystick`（继承 Node2D）：`actions: { left, right, up, down }`、`radius`（推到这么远力度为 1，默认 100）、`deadzone`（默认 0.2）、`texture` / `textureKnob`（不设置用默认皮肤，`null` 不显示）。`vectorX` / `vectorY`（不分配）和 `vector`、`isPressed`，信号 `pressed` / `released`。
 - `mode: 'dynamic'`（默认）：在 `region`（默认可见区域的左半边，设计坐标）里按下的地方出现，松手后隐藏；`'fixed'`：固定在 `position`，在 `hitArea`（默认半径 1.5 × `radius` 的圆）里按下才算。只配 `left` / `right`、`radius` 很小、`deadzone: 0` 的 `fixed` 摇杆就是一个方向键：按在哪边就是哪边，手指滑过去换方向不用抬起。
 - 只认一个手指：按着摇杆的手指不触发 `pointerPress()`、不点中下面的节点、不会滑进屏幕按钮；另一个手指可以同时按屏幕按钮。抬起、触摸取消、切到后台、隐藏、暂停、移出树时松开，力度归零。
 - 放进 `CanvasLayer`。按绘制顺序参与拾取：`dynamic` 的区域里，画在它上面的按钮先收到指针（摇杆先加、按钮后加）。摇杆自己不要旋转、缩放。
@@ -418,8 +421,8 @@ fx.createTween().to(fx, { alpha: 0 }, 0.3).call(() => fx.queueFree())
 | `CharacterBody2D` | 平台游戏的角色（只和图块地图碰撞） | `shape` `velocity` `velocityX` `velocityY` `setVelocity` `moveAndSlide()` `isOnFloor` `isOnWall` `isOnCeiling` `slideCollisionCount` `getSlideCollision(i)` `collisionMask` |
 | `Camera2D` | 相机（画面跟随） | `enabled` `offset` `limitLeft` `limitTop` `limitRight` `limitBottom` `positionSmoothingEnabled` `positionSmoothingSpeed` `makeCurrent()` `isCurrent` `resetSmoothing()` `screenCenter` |
 | `CanvasLayer`（不是 Node2D） | 界面层（不跟随相机） | `layer` `visible` |
-| `TouchScreenButton` | 屏幕按钮（继承 Sprite2D） | `action` `texturePressed` `isPressed` `hitArea`；信号 `pressed` `released` |
-| `TouchJoystick` | 摇杆（继承 Node2D） | `mode`（`dynamic` / `fixed`）`actions` `radius` `deadzone` `region` `texture` `textureKnob` `vectorX` `vectorY` `vector` `isPressed`；信号 `pressed` `released` |
+| `TouchScreenButton`（`sapling2d-touch`） | 屏幕按钮（继承 Sprite2D） | `action` `texturePressed` `isPressed` `hitArea`；信号 `pressed` `released` |
+| `TouchJoystick`（`sapling2d-touch`） | 摇杆（继承 Node2D） | `mode`（`dynamic` / `fixed`）`actions` `radius` `deadzone` `region` `texture` `textureKnob` `vectorX` `vectorY` `vector` `isPressed`；信号 `pressed` `released` |
 | `TiledMap`（资源，不是节点） | Tiled 关卡 | `tiledMap(path)`；`createLayers()` `createLayer(name)` `objects(layer?)` `objectLayers` `layerNames` `width` `height` `tileSize` `pixelWidth` `pixelHeight` `tileSets` `properties` |
 | `Curve2D`（不是节点） | 曲线路径，按距离取点 | `Curve2D.catmullRom(points, { closed?, bakeInterval? })` `Curve2D.polyline(points)`；`length` `sample(distance, out)` `angleAt(distance)` `closed` |
 | `HitTester`（不是节点） | 两组对象之间的圆 / 矩形命中判定 | `forEachHit(as, bs, hit)`（`hit` 返回 true 表示 a 用掉了）、`HitTester.compact(list)`；对象需要 `x` `y` `hitShape`，可选 `dead` |
@@ -480,7 +483,7 @@ this.tree.get(MotionInput).permission   // 插件提供的服务按类取；没�
 
 - 插件在建树之后、定义动作之前按顺序安装；各入口有默认插件：浏览器的 `startGame` 和 `createTestGame` 默认装键盘（`keyboard()`），小游戏入口不装；`plugins` 追加在默认之后。
 - **插件在三个平台上都能装**：不支持的平台装一个 mock（控制台 `info` 一次），游戏照常跑——浏览器里开发、Node 里测试永远不会因为少了传感器或广告而报错。
-- 现有插件：`keyboard()`（内置在 `sapling2d`）、`motion()`（`sapling2d/motion`，见“倾斜”）。
+- 现有插件：`keyboard()`（内置在 `sapling2d`）、`motion()`（`sapling2d/motion`，见“倾斜”）、`touch()`（独立的包 `sapling2d-touch`：屏幕按钮和摇杆，带默认皮肤，见“屏幕按钮”）。
 - 自己写一个：实现 `Plugin`（`install(ctx)`：`ctx.tree`、`ctx.platform.kind`、`ctx.provide(Token, service)`、`ctx.preload(assets)`（插件自己的贴图 / 音效，和入口场景的资源一起加载，切场景不卸载），返回卸载函数）。插件包里的资源用 `tex('~<包名>/<路径>')` 引用，包的 `package.json` 声明 `"sapling2d": { "assets": "<目录>" }`，构建工具负责校验、serve、拷进包（浏览器和小游戏都是）。输入类插件把一个 `InputSource` 登记到 `tree.input.addSource(...)`：`eventTypes` 订阅事件（自己的事件用 `tree.input.enqueue` 入队，和指针事件同一个队列、帧首按序处理）、`bindingTypes` 认领绑定类型、`strength(action, bindings)` 给力度 0–1、`beginFrame()` 给轮询型设备、`releaseAll(queue)` 处理切后台。事件和绑定的类型用声明合并登记：`declare module 'sapling2d' { interface InputEventRegistry { motion: … } interface InputBindingRegistry { tilt: … } }`（都要有 `type` 字段）。向 `window` / `wx` 注册监听是插件自己的事，核心不碰。
 - 测试里用 `g.inject(event)` 注入插件的事件；屏幕按钮和摇杆就是用这套公开能力写的，可以照着看。
 

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Camera2D, CanvasLayer, key, Node2D, pointerPress, Rect2, Scene, tex, TouchScreenButton, v } from 'sapling2d'
+import { Camera2D, CanvasLayer, key, Node2D, pointerPress, Rect2, Scene, tex, v } from 'sapling2d'
+import { touch, TOUCH_SKIN, TouchScreenButton } from 'sapling2d-touch'
 import { createTestGame } from 'sapling2d/testing'
 
 declare module 'sapling2d' {
@@ -20,7 +21,7 @@ async function setup(build: (scene: Scene) => void) {
       build(this)
     }
   }
-  const g = await createTestGame({ main: Main, actions })
+  const g = await createTestGame({ main: Main, actions, plugins: [touch()] })
   g.step()
   return g
 }
@@ -319,4 +320,25 @@ describe('TouchScreenButton 审查修复', () => {
     expect(button.isPressed).toBe(false)
   })
 
+})
+
+describe('默认皮肤', () => {
+  it('不传贴图时用默认皮肤；装了 touch() 时皮肤在启动时加载；显式 null 不显示', async () => {
+    const g = await createTestGame({ main: Scene, plugins: [touch()] })
+    const skinned = g.scene.add(new TouchScreenButton({ position: v(100, 100) }))
+    const plain = g.scene.add(new TouchScreenButton({ texture: null, position: v(300, 100), hitArea: AREA }))
+    expect([skinned.texture, plain.texture, TOUCH_SKIN.button.isLoaded]).toEqual([TOUCH_SKIN.button, null, true])
+  })
+
+  it('没装 touch()：警告一次（同一个游戏里不重复），按钮照常工作', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const g = await createTestGame({ main: Scene, actions })
+    g.scene.add(new TouchScreenButton({ action: 'tbJump', position: v(100, 100), hitArea: AREA }))
+    g.scene.add(new TouchScreenButton({ position: v(300, 100), hitArea: AREA }))
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]![0])).toMatch(/plugins: \[touch\(\)\]/)
+    g.pointerDown(100, 100, 1)
+    g.step()
+    expect(g.tree.input.isActionPressed('tbJump')).toBe(true)
+  })
 })

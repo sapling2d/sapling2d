@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { Camera2D, CanvasLayer, key, Node2D, pointerPress, Rect2, Scene, tex, TouchJoystick, TouchScreenButton, v, type TouchJoystickOptions } from 'sapling2d'
+import { Camera2D, CanvasLayer, key, Node2D, pointerPress, Rect2, Scene, Sprite2D, tex, v } from 'sapling2d'
+import { touch, TOUCH_SKIN, TouchJoystick, TouchScreenButton, type TouchJoystickOptions } from 'sapling2d-touch'
 import { createTestGame } from 'sapling2d/testing'
 
 declare module 'sapling2d' {
@@ -33,7 +34,7 @@ async function setup(options: TouchJoystickOptions = {}, build?: (scene: Scene, 
       build?.(this, this.hud)
     }
   }
-  const g = await createTestGame({ main: Main, actions })
+  const g = await createTestGame({ main: Main, actions, plugins: [touch()] })
   g.step()
   const scene = g.scene as Main
   return { g, input: g.tree.input, stick: scene.stick, scene }
@@ -253,7 +254,7 @@ describe('TouchJoystick', () => {
         this.stick = hud.add(new TouchJoystick({ actions: DIRS, texture: Main.assets.base, textureKnob: Main.assets.knob }))
       }
     }
-    const g = await createTestGame({ main: Main, actions })
+    const g = await createTestGame({ main: Main, actions, plugins: [touch()] })
     g.step()
     const stick = (g.scene as Main).stick
     const [base, knob] = stick.children as Node2D[]
@@ -288,5 +289,18 @@ describe('TouchJoystick', () => {
     g.pointerMove(100, 1000)
     g.step()
     expect(stick.vectorX).toBe(-1)
+  })
+})
+
+describe('默认皮肤', () => {
+  it('不传贴图时底座和摇杆头用默认皮肤，dynamic 没按着时隐藏；显式 null 不显示', async () => {
+    const { g, stick } = await setup()
+    const [base, knob] = stick.children as Sprite2D[]
+    expect([base!.texture, knob!.texture, base!.visible]).toEqual([TOUCH_SKIN.base, TOUCH_SKIN.knob, false])
+    g.pointerDown(200, 1000)
+    g.step()
+    expect(base!.visible).toBe(true)
+    const bare = g.scene.add(new TouchJoystick({ texture: null, textureKnob: null }))
+    expect(bare.children).toHaveLength(0)
   })
 })

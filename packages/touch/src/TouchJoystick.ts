@@ -1,11 +1,5 @@
-import type { ActionName } from '../core/actions'
-import type { Texture } from '../core/assets'
-import type { InputSource } from '../core/input/source'
-import { Node2D, type Node2DOptions } from '../core/Node2D'
-import { Signal } from '../core/Signal'
-import { Rect2 } from '../math/Rect2'
-import { Vector2 } from '../math/Vector2'
-import { Sprite2D } from './Sprite2D'
+import { Node2D, Rect2, Signal, Sprite2D, Vector2, type ActionName, type InputSource, type Node2DOptions, type Texture } from 'sapling2d'
+import { _ensureSkin, TOUCH_SKIN } from './skin'
 
 /** 摇杆推向四个方向时写入的动作。不需要的方向可以不填。 */
 export interface JoystickActions {
@@ -29,7 +23,7 @@ export interface TouchJoystickOptions extends Node2DOptions {
   deadzone?: number
   /** `dynamic` 模式下能按出摇杆的区域（和指针同一个坐标系：CanvasLayer 里是设计坐标）。默认是可见区域的左半边。 */
   region?: Rect2 | null
-  /** 底座和摇杆头的贴图，都以中心对齐。不设置就不显示（只做输入）。 */
+  /** 底座和摇杆头的贴图，都以中心对齐。不设置用默认皮肤（`touch()` 插件预加载）；`null` 不显示（只做输入）。 */
   texture?: Texture | null
   textureKnob?: Texture | null
 }
@@ -39,9 +33,9 @@ export interface TouchJoystickOptions extends Node2DOptions {
  * 和键盘共用同一组动作。
  *
  * ```ts
- * // 启动参数：actions: { left: [key('KeyA')], right: [key('KeyD')], up: [key('KeyW')], down: [key('KeyS')] }
+ * // 启动参数：actions: { left: [key('KeyA')], right: [key('KeyD')], up: [key('KeyW')], down: [key('KeyS')] }, plugins: [touch()]
  * const hud = this.add(new CanvasLayer())
- * hud.add(new TouchJoystick({ actions: { left: 'left', right: 'right', up: 'up', down: 'down' }, texture: base, textureKnob: knob }))
+ * hud.add(new TouchJoystick({ actions: { left: 'left', right: 'right', up: 'up', down: 'down' } })) // 默认皮肤
  * // 每个物理步：
  * const dir = this.tree.input.getVector('left', 'right', 'up', 'down')
  * ```
@@ -71,6 +65,8 @@ export class TouchJoystick extends Node2D implements InputSource {
   _pointerId: number | null = null
   private readonly _base: Sprite2D | null
   private readonly _knob: Sprite2D | null
+  /** 用了默认皮肤（底座或摇杆头没传）。 */
+  private readonly _defaultSkin: boolean
 
   constructor(options: TouchJoystickOptions = {}) {
     super({ ...options, inputPickable: true })
@@ -80,8 +76,11 @@ export class TouchJoystick extends Node2D implements InputSource {
     this.deadzone = options.deadzone ?? 0.2
     this.region = options.region ?? null
     if (this.mode === 'fixed' && !options.hitArea) this.hitArea = { radius: this.radius * 1.5 }
-    this._base = options.texture ? this.add(new Sprite2D({ name: 'Base', texture: options.texture })) : null
-    this._knob = options.textureKnob ? this.add(new Sprite2D({ name: 'Knob', texture: options.textureKnob })) : null
+    const texture = options.texture === undefined ? TOUCH_SKIN.base : options.texture
+    const textureKnob = options.textureKnob === undefined ? TOUCH_SKIN.knob : options.textureKnob
+    this._defaultSkin = options.texture === undefined || options.textureKnob === undefined
+    this._base = texture ? this.add(new Sprite2D({ name: 'Base', texture })) : null
+    this._knob = textureKnob ? this.add(new Sprite2D({ name: 'Knob', texture: textureKnob })) : null
     this._showVisuals(this.mode === 'fixed')
     // 坐标和节点拾取一致：CanvasLayer 里是设计坐标，否则是世界坐标
     this.pointerDown.connect((e) => this._press(e.pointerId, e.position), this)
@@ -111,6 +110,7 @@ export class TouchJoystick extends Node2D implements InputSource {
         console.warn(`TouchJoystick "${this.name}": unknown input action "${action}"; it will not be driven. Define it in the game options (actions: { ${action}: [] }) or with tree.input.addAction().`)
       }
     }
+    if (this._defaultSkin) _ensureSkin(this.tree, `TouchJoystick "${this.name}"`)
     input.addSource(this)
   }
 

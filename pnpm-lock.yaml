@@ -62,6 +62,9 @@ importers:
       sapling2d:
         specifier: workspace:*
         version: link:../../packages/engine
+      sapling2d-touch:
+        specifier: workspace:*
+        version: link:../../packages/touch
     devDependencies:
       '@types/node':
         specifier: ^26.6.4
@@ -100,6 +103,9 @@ importers:
       sapling2d:
         specifier: workspace:*
         version: link:../../packages/engine
+      sapling2d-touch:
+        specifier: workspace:*
+        version: link:../../packages/touch
     devDependencies:
       '@types/node':
         specifier: ^26.6.4
@@ -177,6 +183,24 @@ importers:
       vite:
         specifier: 8.3.3
         version: 8.3.3(@types/node@26.6.4)
+      vitest:
+        specifier: 5.0.3
+        version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4))
+
+  packages/touch:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.4
+        version: 26.6.4
+      sapling2d:
+        specifier: workspace:*
+        version: link:../engine
+      tsdown:
+        specifier: 0.23.0
+        version: 0.23.0(typescript@7.0.2)
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
       vitest:
         specifier: 5.0.3
         version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4))

@@ -1,0 +1,67 @@
+{
+  "name": "sapling2d-touch",
+  "version": "0.1.0",
+  "description": "Touch controls for sapling2d: TouchScreenButton and TouchJoystick with default skins, installed as a plugin.",
+  "keywords": [
+    "sapling2d",
+    "game-engine",
+    "touch",
+    "joystick",
+    "virtual-joystick",
+    "wechat-minigame"
+  ],
+  "license": "MIT",
+  "author": "kwoktung",
+  "homepage": "https://github.com/kwoktung/sapling2d#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kwoktung/sapling2d.git",
+    "directory": "packages/touch"
+  },
+  "bugs": {
+    "url": "https://github.com/kwoktung/sapling2d/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "README.md"
+  ],
+  "sapling2d": {
+    "assets": "assets"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "assets": "node scripts/gen-assets.mjs",
+    "build": "tsdown",
+    "prepublishOnly": "node ../engine/scripts/check-publish.ts && pnpm build && pnpm test"
+  },
+  "peerDependencies": {
+    "sapling2d": ">=0.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "sapling2d": "workspace:*",
+    "tsdown": "0.23.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

@@ -1,4 +1,5 @@
-import { CanvasLayer, Rect2, Sprite2D, TouchJoystick, TouchScreenButton, v } from 'sapling2d'
+import { CanvasLayer, Rect2, Sprite2D, v } from 'sapling2d'
+import { TouchJoystick, TouchScreenButton } from 'sapling2d-touch'
 import { ASSETS } from '../assets'
 
 /** 方向键的触摸区域：盖住左右两张按钮图（各 60×60，中心相距 60）。 */
@@ -14,7 +15,7 @@ const DIM = 0.55
 export class Controls extends CanvasLayer {
   readonly left = new Sprite2D({ name: 'Left', texture: ASSETS.btnLeft, alpha: DIM })
   readonly right = new Sprite2D({ name: 'Right', texture: ASSETS.btnRight, alpha: DIM })
-  readonly move = new TouchJoystick({ name: 'Move', mode: 'fixed', actions: { left: 'left', right: 'right' }, radius: 20, deadzone: 0, hitArea: DPAD })
+  readonly move = new TouchJoystick({ name: 'Move', mode: 'fixed', actions: { left: 'left', right: 'right' }, radius: 20, deadzone: 0, hitArea: DPAD, texture: null, textureKnob: null })
   readonly jump = new TouchScreenButton({ name: 'Jump', action: 'jump', texture: ASSETS.btnJump, hitArea: new Rect2(-40, -40, 80, 80), alpha: DIM })
   private _dir = 0
 

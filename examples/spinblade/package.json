@@ -15,7 +15,8 @@
     "check": "tsc -p tsconfig.json && vitest run"
   },
   "dependencies": {
-    "sapling2d": "workspace:*"
+    "sapling2d": "workspace:*",
+    "sapling2d-touch": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

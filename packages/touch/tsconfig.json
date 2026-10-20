@@ -1,0 +1,9 @@
+{
+  // 和引擎核心一样：只有 ES2022 标准库，没有 DOM / wx（控件代码只用引擎的公开 API）。
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src"]
+}

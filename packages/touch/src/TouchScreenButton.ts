@@ -1,9 +1,5 @@
-import type { ActionName } from '../core/actions'
-import type { Texture } from '../core/assets'
-import type { InputSource } from '../core/input/source'
-import type { PointerEvent2D } from '../core/pointer'
-import { Signal } from '../core/Signal'
-import { Sprite2D, type Sprite2DOptions } from './Sprite2D'
+import { Signal, Sprite2D, type ActionName, type InputSource, type PointerEvent2D, type Sprite2DOptions, type Texture } from 'sapling2d'
+import { _ensureSkin, TOUCH_SKIN } from './skin'
 
 export interface TouchScreenButtonOptions extends Sprite2DOptions {
   /** 按住时处于按下状态的输入动作（和键盘绑定共用同一个动作名）。不设置时只发信号。 */
@@ -16,11 +12,13 @@ export interface TouchScreenButtonOptions extends Sprite2DOptions {
  * 屏幕按钮（虚拟按键）：手指按住时 `action` 处于按下状态，和键盘绑定同一个动作时两者都能触发。名字照搬 Godot。
  *
  * ```ts
- * // 启动参数：actions: { jump: [key('Space')] }
+ * // 启动参数：actions: { jump: [key('Space')] }, plugins: [touch()]
  * const hud = this.add(new CanvasLayer())
+ * hud.add(new TouchScreenButton({ action: 'jump', position: v(680, 1200) })) // 默认皮肤
  * hud.add(new TouchScreenButton({ texture: Main.assets.jump, action: 'jump', position: v(680, 1200), hitArea: new Rect2(-80, -80, 160, 160) }))
  * ```
  *
+ * - 贴图：不传 `texture` 用默认皮肤（`touch()` 插件预加载），传 `null` 只做输入不显示。
  * - 触摸区域：设置了 `hitArea` 就用它（可以比贴图大），否则用贴图的范围。
  * - 多点触控：每个手指独立；同一个按钮被几个手指按住时，最后一个手指离开才松开。一个手指只按最上层的那个按钮。
  * - 手指滑出按钮、抬起、触摸取消、游戏切到后台时都会松开；滑出后滑回来不再按下，从别处滑进来也不算按下
@@ -41,9 +39,13 @@ export class TouchScreenButton extends Sprite2D implements InputSource {
   /** 正按住它的指针 id。 */
   private readonly _pointerIds = new Set<number>()
   private _normalTexture: Texture | null = null
+  /** 用了默认皮肤（没传 `texture`）。 */
+  private readonly _defaultSkin: boolean
 
   constructor(options: TouchScreenButtonOptions = {}) {
-    super({ ...options, inputPickable: true })
+    const defaultSkin = options.texture === undefined
+    super({ ...options, texture: defaultSkin ? TOUCH_SKIN.button : options.texture, inputPickable: true })
+    this._defaultSkin = defaultSkin
     this.action = options.action ?? null
     this.texturePressed = options.texturePressed ?? null
     this.pointerDown.connect((e) => this._onDown(e), this)
@@ -62,6 +64,7 @@ export class TouchScreenButton extends Sprite2D implements InputSource {
     if (this.action !== null && !input.hasAction(this.action)) {
       console.warn(`TouchScreenButton "${this.name}": unknown input action "${this.action}"; pressing it changes no action. Define it in the game options (actions: { ${this.action}: [] }) or with tree.input.addAction().`)
     }
+    if (this._defaultSkin) _ensureSkin(this.tree, `TouchScreenButton "${this.name}"`)
     input.addSource(this)
   }
 

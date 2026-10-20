@@ -1,4 +1,5 @@
 import { key, pointerPress } from 'sapling2d'
+import { touch } from 'sapling2d-touch'
 import { Arena } from './scenes/Arena'
 
 declare module 'sapling2d' {
@@ -15,6 +16,7 @@ declare module 'sapling2d' {
 export const gameOptions = {
   main: Arena,
   background: 0x2b2420,
+  plugins: [touch()],
   actions: {
     left: [key('ArrowLeft'), key('KeyA')],
     right: [key('ArrowRight'), key('KeyD')],

@@ -1,4 +1,5 @@
-import { CanvasLayer, ColorRect, Label, Rect2, TouchJoystick, v } from 'sapling2d'
+import { CanvasLayer, ColorRect, Label, Rect2, v } from 'sapling2d'
+import { TouchJoystick } from 'sapling2d-touch'
 import { ASSETS } from '../assets'
 
 const BAR_W = 260

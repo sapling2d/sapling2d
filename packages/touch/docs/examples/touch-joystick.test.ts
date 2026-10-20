@@ -1,5 +1,6 @@
 // #region example
-import { CanvasLayer, CharacterBody2D, key, rectangle, Scene, tex, TouchJoystick, v } from 'sapling2d'
+import { CanvasLayer, CharacterBody2D, key, rectangle, Scene, tex, v } from 'sapling2d'
+import { touch, TouchJoystick } from 'sapling2d-touch'
 
 declare module 'sapling2d' {
   interface ActionRegistry {
@@ -12,6 +13,7 @@ declare module 'sapling2d' {
 
 // 键盘和摇杆共用四个方向的动作：浏览器里用 WASD，小游戏里用摇杆
 export const actions = { left: [key('KeyA')], right: [key('KeyD')], up: [key('KeyW')], down: [key('KeyS')] }
+export const plugins = [touch()]
 
 class Hero extends CharacterBody2D {
   constructor() {
@@ -43,7 +45,7 @@ import { expect, it } from 'vitest'
 import { createTestGame } from 'sapling2d/testing'
 
 it('touch-joystick', async () => {
-  const g = await createTestGame({ main: Field, actions })
+  const g = await createTestGame({ main: Field, actions, plugins })
   // #region test
   const input = g.tree.input
   g.pointerDown(200, 1000) // 左半边：摇杆出现在这里

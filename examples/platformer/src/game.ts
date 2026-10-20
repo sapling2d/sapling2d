@@ -1,4 +1,5 @@
 import { key } from 'sapling2d'
+import { touch } from 'sapling2d-touch'
 import { Level } from './scenes/Level'
 import { GameState } from './state'
 
@@ -17,6 +18,7 @@ export const gameOptions = {
   design: { width: 480, height: 272 },
   pixelArt: true,
   background: 0x5c94fc,
+  plugins: [touch()],
   actions: {
     left: [key('ArrowLeft'), key('KeyA')],
     right: [key('ArrowRight'), key('KeyD')],

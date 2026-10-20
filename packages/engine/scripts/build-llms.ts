@@ -1,5 +1,6 @@
 // 生成 llms.txt：把 docs/llms.template.md 里的 <!-- example:名字 --> 和 <!-- example:名字#test -->
-// 替换成 docs/examples/名字.test.ts 中对应 #region 的代码。示例本身是测试，所以文档里的代码一定能跑。
+// 替换成 docs/examples/名字.test.ts 中对应 #region 的代码（名字带 / 时是相对引擎目录的路径，可以引用别的包的示例）。
+// 示例本身是测试，所以文档里的代码一定能跑。
 //
 // 运行：pnpm llms（node 直接执行本文件）。test/llms.test.ts 会检查 llms.txt 是否与示例同步。
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -22,8 +23,9 @@ export function extractRegion(source: string, region: string, file: string): str
 
 export function buildLlms(root = ROOT): string {
   const template = readFileSync(join(root, 'docs', 'llms.template.md'), 'utf8')
-  return template.replace(/<!-- example:([\w-]+)(?:#(\w+))? -->/g, (_, name: string, region = 'example') => {
-    const file = join('docs', 'examples', `${name}.test.ts`)
+  return template.replace(/<!-- example:([\w./-]+)(?:#(\w+))? -->/g, (_, name: string, region = 'example') => {
+    // 带 / 的名字是相对引擎目录的路径：别的包的示例，如 ../touch/docs/examples/touch-joystick
+    const file = name.includes('/') ? `${name}.test.ts` : join('docs', 'examples', `${name}.test.ts`)
     const code = extractRegion(readFileSync(join(root, file), 'utf8'), region, file)
     return '```ts\n' + code + '\n```'
   })
