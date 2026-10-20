@@ -11,21 +11,31 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done（2026-10-20）
 
-- [ ] `test/vite-plugin.test.ts`：临时目录里造一个 `node_modules/@foo/joystick/{package.json,assets/knob.png}`（`package.json` 带 `sapling2d.assets`）和游戏 `package.json`（`dependencies: { "@foo/joystick": "*" }`）；`tex('~@foo/joystick/knob.png')` 构建成功，`dist/assets/~@foo/joystick/knob.png` 存在
-- [ ] 缺文件：`tex('~@foo/joystick/knb.png')` 报错并提示 `knob.png`
-- [ ] 没挂载的包：`tex('~@bar/x/a.png')` 的报错同时提到"没安装"和"没声明 sapling2d.assets"
-- [ ] 包在 `dependencies` 里但没有字段 → 不挂载；只在 `assetPackages` 里 → 挂载；无 scope 包名 `~foo-sfx/click.mp3` 正确拆分
-- [ ] `public/assets/~x/` 存在时 `buildStart` 报错
-- [ ] `tex('data:image/png;base64,AAAA')` 不报错
-- [ ] dev 中间件：用 `createServer()` 起开发服务器，`GET /assets/~@foo/joystick/knob.png` 返回 200 和 `image/png`；`GET /assets/~@foo/joystick/nope.png` 404
-- [ ] 现有 10 个用例不变
-- [ ] `pnpm check` 绿
+- [x] `test/vite-plugin.test.ts`：临时目录里造一个 `node_modules/@foo/joystick/{package.json,assets/knob.png}`（`package.json` 带 `sapling2d.assets`）和游戏 `package.json`（`dependencies: { "@foo/joystick": "*" }`）；`tex('~@foo/joystick/knob.png')` 构建成功，`dist/assets/~@foo/joystick/knob.png` 存在（嵌套目录 `skins/dark/base.png` 也在）
+- [x] 缺文件：`tex('~@foo/joystick/knb.png')` 报错并提示 `~@foo/joystick/knob.png`
+- [x] 没挂载的包：`tex('~@bar/x/a.png')` 的报错同时提到"没安装"和"没声明 sapling2d.assets"
+- [x] 包在 `dependencies` 里但没有字段 → 不挂载（引用它报同样的错）；只在 `assetPackages` 里 → 挂载；无 scope 包名 `~another-pkg/click.mp3` 正确拆分
+- [x] `public/assets/~mine/` 存在时 `buildStart` 报错
+- [x] `tex('data:image/png;base64,…')` 不报错
+- [x] dev 中间件：`createServer()` + `listen()`，`GET /assets/~@foo/joystick/knob.png` 返回 200 和 `image/png`；没有的文件和没挂载的包不归它管（落到 Vite 自己的处理）
+- [x] 现有 10 个用例不变（加上 `data:` 一共 19 个）
+- [x] `pnpm check` 绿（engine 508）
 
 **实现提示**
 
 - `sapling2d/vite` 由 Node 原生加载：相对导入带 `.ts` 扩展名（见 `index.ts` 末尾的注释）。
-- `createRequire(join(root, 'package.json'))` 能解析 pnpm 的符号链接和 workspace 包；解析失败（没装）要捕获。
 - 中间件放在 Vite 的 `publicDir` 处理之前（`configureServer` 返回的函数是"之后"，直接 `server.middlewares.use` 是"之前"）。
 - `transform` 跳过 `node_modules` 里的文件不变：插件自己代码里的 `~` 路径不在这里校验（插件作者在自己仓库里校验），但挂载目录整个拷贝保证运行时存在。
+
+## Comments
+
+**实现（2026-10-20）：**
+
+- **找包不用 `require.resolve('<name>/package.json')`**：很多包的 `exports` 不暴露 `package.json`（`ERR_PACKAGE_PATH_NOT_EXPORTED`）。改成从 root 沿 `node_modules` 向上找 `<dir>/node_modules/<name>/package.json`，`realpathSync` 解析 pnpm 的符号链接（workspace 包也能找到），挂载目录是真实路径，watcher 稳定。
+- **路径解析的通用化**：`transform` 里原来写死 `assetsRoot` 的三项检查改成 `base` / `wanted` / `shown` 三个变量：游戏资源 `base = assetsRoot`，插件资源 `base = 挂载目录、wanted = rest`，提示里的文件名经 `shown` 加回 `~<pkg>/` 前缀。`tiledMap` 的外部图块集检查也用 `base`，所以插件包里的 Tiled 关卡同样能查。
+- **资源 URL 前缀**跟着 `assetsDir` 走：`assetsRoot` 在 `publicDir` 里时用相对路径（默认 `/assets`），否则退回 `/assets`。
+- **构建拷贝跟随 `copyPublicDir`**：`saplingWechat` 把 `publicDir` 和 `copyPublicDir` 都关了，所以小游戏构建里 `sapling()` 不拷，由 02 负责；浏览器构建 `cpSync(recursive)` 整个挂载目录，跳过 `.DS_Store`。
+- 中间件对不存在的文件和没挂载的包都 `next()`，交给 Vite：测试里只断言不是 `image/png`（Vite 对 `.png` 的 404 形态不是我们定的）。
+- 导出了 `discoverAssetMounts` / `parseMountPath` / `MOUNT_PREFIX`，02 直接用。
