@@ -1,6 +1,6 @@
 import { key } from 'sapling2d'
 import { motion, tilt } from 'sapling2d/motion'
-import { touch } from 'sapling2d-touch'
+import { touch } from '@sapling2d/touch'
 import { Road } from './scenes/Road'
 
 declare module 'sapling2d' {

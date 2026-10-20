@@ -1,10 +1,10 @@
-import type { Node } from '../../core/Node'
-import { Signal } from '../../core/Signal'
-import { rect } from '../../math/Rect2'
-import { v } from '../../math/Vector2'
-import { CanvasLayer } from '../../nodes/CanvasLayer'
-import { ColorRect } from '../../nodes/ColorRect'
-import { Label } from '../../nodes/Label'
+import type { Node } from 'sapling2d'
+import { Signal } from 'sapling2d'
+import { rect } from 'sapling2d'
+import { v } from 'sapling2d'
+import { CanvasLayer } from 'sapling2d'
+import { ColorRect } from 'sapling2d'
+import { Label } from 'sapling2d'
 import type { AdBanner, FullscreenAd, InterstitialResult, RewardedResult } from './provider'
 
 /**

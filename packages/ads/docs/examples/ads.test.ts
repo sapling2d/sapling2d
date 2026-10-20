@@ -1,6 +1,6 @@
 // #region example
 import { ColorRect, Label, rect, Scene, v } from 'sapling2d'
-import { ads, Ads } from 'sapling2d/ads'
+import { ads, Ads } from '@sapling2d/ads'
 
 export class GameOver extends Scene {
   revived = false

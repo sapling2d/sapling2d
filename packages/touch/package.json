@@ -1,5 +1,5 @@
 {
-  "name": "sapling2d-touch",
+  "name": "@sapling2d/touch",
   "version": "0.1.0",
   "description": "Touch controls for sapling2d: TouchScreenButton and TouchJoystick with default skins, installed as a plugin.",
   "keywords": [

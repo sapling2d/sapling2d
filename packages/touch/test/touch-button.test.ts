@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Camera2D, CanvasLayer, key, Node2D, pointerPress, Rect2, Scene, tex, v } from 'sapling2d'
-import { touch, TOUCH_SKIN, TouchScreenButton } from 'sapling2d-touch'
+import { touch, TOUCH_SKIN, TouchScreenButton } from '@sapling2d/touch'
 import { createTestGame } from 'sapling2d/testing'
 
 declare module 'sapling2d' {

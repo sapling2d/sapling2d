@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "sapling2d": "workspace:*",
-    "sapling2d-touch": "workspace:*"
+    "@sapling2d/touch": "workspace:*",
+    "@sapling2d/ads": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

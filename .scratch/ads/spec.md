@@ -124,3 +124,7 @@ interface PluginContext {
 ## 不在范围内
 
 原生模板广告（`createCustomAd`）、格子广告；`Ads` 上的埋点信号（`shown` / `failed`）——返回值够用，有需要再加；浏览器的真实广告网络；多语言文案；一个 id 多实例（`multiton`）。
+
+## 后记（2026-10-20）
+
+插件已从引擎的子入口 `sapling2d/ads` 拆成独立包 `@sapling2d/ads`（`packages/ads`，只依赖 `sapling2d` 的公开 API）；`sapling2d-touch` 同时改名 `@sapling2d/touch`，资源前缀 `~@sapling2d/touch/`。本文和工单里的 `sapling2d/ads` 指的都是它。

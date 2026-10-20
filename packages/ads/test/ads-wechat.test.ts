@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Scene } from 'sapling2d'
-import { _createProviders, Ads, type WxAdError, type WxAdsApi, type WxBannerAd, type WxFullscreenAd } from 'sapling2d/ads'
+import { _createProviders, Ads, type WxAdError, type WxAdsApi, type WxBannerAd, type WxFullscreenAd } from '@sapling2d/ads'
 import { createTestGame } from 'sapling2d/testing'
-import { AdHost } from '../src/plugins/ads/mock'
-import { WechatBanner, WechatFullscreenAd } from '../src/plugins/ads/wechat'
+import { AdHost } from '../src/mock'
+import { WechatBanner, WechatFullscreenAd } from '../src/wechat'
 
 /** 假的激励视频 / 插屏：记录调用，手动触发回调。 */
 function fakeFullscreen() {

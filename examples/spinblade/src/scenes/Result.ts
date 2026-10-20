@@ -1,5 +1,5 @@
 import { ColorRect, Label, rect, Scene, v } from 'sapling2d'
-import { Ads } from 'sapling2d/ads'
+import { Ads } from '@sapling2d/ads'
 import { ASSETS } from '../assets'
 import { Arena } from './Arena'
 
@@ -12,7 +12,7 @@ const AD_BUTTON = { x: 375, y: 900, width: 360, height: 90 }
 
 /**
  * 结果画面：通关或失败；点屏幕（或按空格）再来一局。
- * 广告（`sapling2d/ads`）：进入时放一次插屏；有激励视频时显示"看视频 · 多带 4 把刀"，看完就重开并多带刀；底部 banner，离开时隐藏。
+ * 广告（`@sapling2d/ads`）：进入时放一次插屏；有激励视频时显示"看视频 · 多带 4 把刀"，看完就重开并多带刀；底部 banner，离开时隐藏。
  * 浏览器和测试里这些都是 mock；小游戏上配了广告位 id 才是真的。
  */
 export class Result extends Scene {

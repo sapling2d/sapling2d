@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Node, Node2D, rect, Scene, v } from 'sapling2d'
-import { ads, Ads, MOCK_LAYOUT } from 'sapling2d/ads'
+import { ads, Ads, MOCK_LAYOUT } from '@sapling2d/ads'
 import { createTestGame } from 'sapling2d/testing'
 
 /** 默认屏幕 750×1334 下覆盖层按钮的中心（见 MOCK_LAYOUT）。 */

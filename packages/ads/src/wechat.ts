@@ -1,5 +1,5 @@
-import { Signal } from '../../core/Signal'
-import type { SceneTree } from '../../core/SceneTree'
+import { Signal } from 'sapling2d'
+import type { SceneTree } from 'sapling2d'
 import type { AdBanner, FullscreenAd, InterstitialResult, RewardedResult } from './provider'
 
 // 用到的那一点 wx 广告 API。不引用 wx.d.ts：那会把 `wx` 全局声明带进核心的类型检查程序。

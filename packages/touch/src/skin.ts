@@ -1,16 +1,16 @@
 import { tex, type Plugin, type SceneTree } from 'sapling2d'
 
 /**
- * 默认皮肤：包里的 `assets/`（`package.json` 声明了 `"sapling2d": { "assets": "assets" }`，构建工具挂载到 `~sapling2d-touch/`，见 ADR 0011）。
+ * 默认皮肤：包里的 `assets/`（`package.json` 声明了 `"sapling2d": { "assets": "assets" }`，构建工具挂载到 `~@sapling2d/touch/`，见 ADR 0011）。
  * 灰白半透明的圆，适合压在任何画面上；游戏要换皮就给节点传自己的贴图。
  */
 export const TOUCH_SKIN = {
   /** 摇杆底座（200×200 的圆环）。 */
-  base: tex('~sapling2d-touch/joystick-base.png'),
+  base: tex('~@sapling2d/touch/joystick-base.png'),
   /** 摇杆头（96×96 的圆）。 */
-  knob: tex('~sapling2d-touch/joystick-knob.png'),
+  knob: tex('~@sapling2d/touch/joystick-knob.png'),
   /** 屏幕按钮（140×140 的圆）。 */
-  button: tex('~sapling2d-touch/button.png'),
+  button: tex('~@sapling2d/touch/button.png'),
 }
 
 /** `touch()` 提供的服务：现在只是“装了插件”的标志，以后可以放皮肤配置。 */
@@ -43,5 +43,5 @@ export function _ensureSkin(tree: SceneTree, who: string): void {
   }
   if (warned.has(tree)) return
   warned.add(tree)
-  console.warn(`${who} uses the default skin, but the touch plugin is not installed, so the skin is never loaded and the control is invisible. Add plugins: [touch()] (from 'sapling2d-touch') to the game options, or pass your own texture (null for an input-only control).`)
+  console.warn(`${who} uses the default skin, but the touch plugin is not installed, so the skin is never loaded and the control is invisible. Add plugins: [touch()] (from '@sapling2d/touch') to the game options, or pass your own texture (null for an input-only control).`)
 }

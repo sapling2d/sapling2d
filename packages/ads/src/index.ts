@@ -1,5 +1,5 @@
-import type { Plugin } from '../../core/plugin'
-import type { SceneTree } from '../../core/SceneTree'
+import type { Plugin } from 'sapling2d'
+import type { SceneTree } from 'sapling2d'
 import { AdHost, MockBanner, MockFullscreenAd, type MockMode } from './mock'
 import type { AdBanner, FullscreenAd, InterstitialResult, RewardedResult } from './provider'
 import { createWechatAds, type WxAdsApi } from './wechat'

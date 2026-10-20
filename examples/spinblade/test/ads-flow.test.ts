@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ads, Ads } from 'sapling2d/ads'
-import { touch } from 'sapling2d-touch'
+import { ads, Ads } from '@sapling2d/ads'
+import { touch } from '@sapling2d/touch'
 import { createTestGame } from 'sapling2d/testing'
 import { PLAYER } from '../src/config'
 import { gameOptions } from '../src/game'

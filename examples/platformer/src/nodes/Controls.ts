@@ -1,5 +1,5 @@
 import { CanvasLayer, Rect2, Sprite2D, v } from 'sapling2d'
-import { TouchJoystick, TouchScreenButton } from 'sapling2d-touch'
+import { TouchJoystick, TouchScreenButton } from '@sapling2d/touch'
 import { ASSETS } from '../assets'
 
 /** 方向键的触摸区域：盖住左右两张按钮图（各 60×60，中心相距 60）。 */

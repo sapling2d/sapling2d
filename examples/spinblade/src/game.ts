@@ -1,6 +1,6 @@
 import { key, pointerPress } from 'sapling2d'
-import { ads } from 'sapling2d/ads'
-import { touch } from 'sapling2d-touch'
+import { ads } from '@sapling2d/ads'
+import { touch } from '@sapling2d/touch'
 import { Arena } from './scenes/Arena'
 
 declare module 'sapling2d' {

@@ -1,6 +1,6 @@
 // #region example
 import { CanvasLayer, CharacterBody2D, key, rectangle, Scene, tex, v } from 'sapling2d'
-import { touch, TouchJoystick } from 'sapling2d-touch'
+import { touch, TouchJoystick } from '@sapling2d/touch'
 
 declare module 'sapling2d' {
   interface ActionRegistry {

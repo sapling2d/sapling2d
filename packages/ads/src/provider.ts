@@ -1,4 +1,4 @@
-import type { Signal } from '../../core/Signal'
+import type { Signal } from 'sapling2d'
 
 /** 激励视频的结果：只有 `rewarded` 该给奖励；`skipped` 是用户中途关了；`unavailable` 是没广告 / 频控 / 没配 id / 出错。 */
 export type RewardedResult = 'rewarded' | 'skipped' | 'unavailable'

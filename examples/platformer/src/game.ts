@@ -1,5 +1,5 @@
 import { key } from 'sapling2d'
-import { touch } from 'sapling2d-touch'
+import { touch } from '@sapling2d/touch'
 import { Level } from './scenes/Level'
 import { GameState } from './state'
 

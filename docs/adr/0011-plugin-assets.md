@@ -43,7 +43,7 @@ ADR 0010 之后，平台差异化的能力以插件（npm 包）提供。一个�
 
 ### 验证载体
 
-把屏幕控件搬成独立的 workspace 包 `packages/touch`（npm 名 `sapling2d-touch`）：带默认的底座 / 摇杆头 / 按钮贴图，`touch()` 插件 `preload` 它们，游戏一行不配置也能显示摇杆；浏览器、小游戏、无头测试三端通过。这同时回答了"TouchJoystick 该不该在引擎里"：有了资源机制，它就是一个普通插件。
+把屏幕控件搬成独立的 workspace 包 `packages/touch`（npm 名 `@sapling2d/touch`）：带默认的底座 / 摇杆头 / 按钮贴图，`touch()` 插件 `preload` 它们，游戏一行不配置也能显示摇杆；浏览器、小游戏、无头测试三端通过。这同时回答了"TouchJoystick 该不该在引擎里"：有了资源机制，它就是一个普通插件。
 
 ### 不做
 
@@ -55,7 +55,7 @@ Vite 原生的 `import url from 'pkg/x.png'`（会出现第二种路径形态：
 - `sapling2d/vite` 变厚：挂载发现、中间件、两处拷贝。这是有意的——差异在构建工具里，不在核心（和 ADR 0010 同一种精神）。
 - 小游戏包里会出现 `assets/~@foo/joystick/` 这样的目录；`~`、`@` 在小游戏文件路径里是否可读要真机核对，不行就在构建期改写目录名并在清单里带映射（预案，不先做）。
 - `createTestGame` 读 `~pkg/x.json` 这类文本资源时要解析到 node_modules；图片在无头下本来不读。
-- 屏幕控件搬出主入口是破坏性变化（0.4.0）：`import { TouchJoystick } from 'sapling2d-touch'`。
+- 屏幕控件搬出主入口是破坏性变化（0.4.0）：`import { TouchJoystick } from '@sapling2d/touch'`。
 
 ## Alternatives
 

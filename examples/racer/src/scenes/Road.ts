@@ -1,6 +1,6 @@
 import { CanvasLayer, ColorRect, Label, Scene, Sprite2D, tex, v } from 'sapling2d'
 import { MotionInput } from 'sapling2d/motion'
-import { TouchJoystick } from 'sapling2d-touch'
+import { TouchJoystick } from '@sapling2d/touch'
 import { CAR, LANE, ROAD } from '../config'
 import { Car } from '../nodes/Car'
 
@@ -10,7 +10,7 @@ const DOT =
 
 /**
  * 一条向下滚动的公路：倾斜手机、按 A / D 或推左下角的摇杆，左右移动车——三种输入驱动同一对动作。
- * HUD 显示传感器的权限状态和原始值，真机核对轴向和单位时直接看屏幕；摇杆用 sapling2d-touch 的默认皮肤，
+ * HUD 显示传感器的权限状态和原始值，真机核对轴向和单位时直接看屏幕；摇杆用 @sapling2d/touch 的默认皮肤，
  * 右上角的橙色圆点是 data: 图片——两者在真机上显示出来，就说明插件包资源和内嵌图片都能读。
  */
 export class Road extends Scene {
