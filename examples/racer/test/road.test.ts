@@ -40,6 +40,22 @@ describe('倾斜赛车', () => {
     expect(road.car.x).toBe(ROAD.right - CAR.width / 2)
   })
 
+  it('左下角的摇杆也能开（默认皮肤已随 touch() 加载）；data: 图片在场景资源里', async () => {
+    const { g, road } = await start()
+    const stick = road.stick
+    expect([stick.isPressed, stick.children.length]).toEqual([false, 2]) // 底座和摇杆头
+    expect((road.constructor as typeof Road).assets.dot.isLoaded).toBe(true)
+    g.pointerDown(stick.x, stick.y)
+    g.pointerMove(stick.x + 80, stick.y) // 推到底：向右
+    g.step()
+    expect([stick.isPressed, g.tree.input.getActionStrength('steerRight')]).toEqual([true, 1])
+    g.stepSeconds(0.2)
+    expect(road.car.velocityX).toBe(CAR.steerSpeed)
+    g.pointerUp(stick.x + 80, stick.y)
+    g.step()
+    expect(road.car.velocityX).toBe(0)
+  })
+
   it('无头平台当作已授权：不显示权限提示；HUD 读数显示传感器值', async () => {
     const { g, road } = await start()
     expect(g.tree.get(MotionInput).permission).toBe('granted')

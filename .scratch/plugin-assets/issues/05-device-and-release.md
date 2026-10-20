@@ -9,10 +9,16 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent（构建和日志由 agent 准备，扫码由用户操作；`pnpm publish` 需要用户确认）
+**Status:** 真机验证 done（2026-10-20，iPhone 17 / iOS 26.6.1）；`pnpm publish` 等用户确认
 
-- [ ] iOS：默认皮肤显示，日志里没有 `cannot load` 错误
-- [ ] Android（有设备的话）
-- [ ] `data:` 小图显示；大图的结论写进 `spikes/wechat/REPORT.md`
-- [ ] 不可读时：改写预案实施并补测试
+- [x] iOS：默认皮肤显示，日志里没有 `cannot load`（18 条真机日志：`boot`、16 条 `[perf]`、1 条 warn，见下）
+- [ ] Android（没有设备，跳过）
+- [x] `data:` 小图显示（24×24 的橙色圆点，racer 右上角）；~200 KB 的大图没有试——需要时再补
+- [x] 不可读时的改写预案：不需要，`~` 和 `@` 在 iOS 小游戏的分包路径里都能读
 - [ ] 两个包发布，各工单状态同步，spec 状态改为 done
+
+## Comments
+
+**真机验证（2026-10-20）：** 用 `examples/racer` 一次验完（它同时带 motion 读数、左下角默认皮肤的 fixed 摇杆、右上角 `data:` 圆点）。发布构建 0.81 MB，分包 11 KB（三张皮肤）。用户反馈"没有什么大问题"：摇杆皮肤和圆点都显示，没有资源加载错误。帧率稳定 60 fps（logic 0.37 ms、render 1.1 ms）。
+
+唯一的发现是键盘插件的：小游戏入口原来不装 `keyboard()`，于是带 `key()` 绑定的动作启动时警告 `binding type "key" has no input source`。已改为三个入口都装（小游戏里没有事件源，只是让绑定有人认领、`tree.get(Keyboard)` 三端可用），ADR 0010 / CONTEXT.md / llms.txt 同步。

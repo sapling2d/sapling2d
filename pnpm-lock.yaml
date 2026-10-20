@@ -84,6 +84,9 @@ importers:
       sapling2d:
         specifier: workspace:*
         version: link:../../packages/engine
+      sapling2d-touch:
+        specifier: workspace:*
+        version: link:../../packages/touch
     devDependencies:
       '@types/node':
         specifier: ^26.6.4
