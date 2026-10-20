@@ -40,6 +40,7 @@
   ],
   "exports": {
     ".": "./src/index.ts",
+    "./ads": "./src/plugins/ads/index.ts",
     "./browser": "./src/platform/browser/index.ts",
     "./motion": "./src/plugins/motion/index.ts",
     "./testing": "./src/testing/index.ts",
@@ -70,6 +71,10 @@
       "./motion": {
         "types": "./dist/motion.d.ts",
         "import": "./dist/motion.js"
+      },
+      "./ads": {
+        "types": "./dist/ads.d.ts",
+        "import": "./dist/ads.js"
       },
       "./testing": {
         "types": "./dist/testing.d.ts",

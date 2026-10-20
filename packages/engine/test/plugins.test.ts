@@ -110,6 +110,21 @@ describe('插件机制', () => {
     expect(order).toEqual(['b', 'a'])
   })
 
+  it('ctx.autoload：插件的 Autoload 排在游戏的 Autoload 之前，切场景后还在，tree.autoload 能取到', async () => {
+    class PluginNode extends Node {}
+    class GameNode extends Node {}
+    class A extends Scene {}
+    class B extends Scene {}
+    let created: PluginNode | null = null
+    const g = await createTestGame({ main: A, autoloads: [GameNode], plugins: [{ install: (ctx) => void (created = ctx.autoload(PluginNode)) }] })
+    const node = g.tree.autoload(PluginNode)
+    expect(node).toBe(created)
+    const siblings = node.parent!.children
+    expect(siblings.indexOf(node)).toBeLessThan(siblings.indexOf(g.tree.autoload(GameNode)))
+    await g.tree.changeScene(B)
+    expect(node.isInsideTree).toBe(true)
+  })
+
   it('卸载后来源不再参与：removeSource 生效', async () => {
     const p = dialPlugin()
     const g = await createTestGame({ main: Scene, plugins: [p], actions: { turn: [dial()] } })

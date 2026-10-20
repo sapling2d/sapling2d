@@ -182,6 +182,7 @@ export class Game<S extends Scene = Scene> {
         for (const asset of Object.values(assets)) startupAssets[`\0plugin${preloaded++}`] = asset
         tree._pin(assets)
       },
+      autoload: (cls) => tree._addAutoload(cls),
     }
     for (const plugin of options.plugins ?? []) {
       const dispose = plugin.install(ctx)

@@ -1,6 +1,7 @@
 import type { Platform } from '../platform/Platform'
 import type { AssetMap } from './assets'
-import type { SceneTree } from './SceneTree'
+import type { Node } from './Node'
+import type { NodeClass, SceneTree } from './SceneTree'
 
 /** 服务的 token：通常就是服务的类本身（`tree.get(Keyboard)`）。 */
 export type ServiceToken<T> = abstract new (...args: never[]) => T
@@ -17,6 +18,11 @@ export interface PluginContext {
    * （资源分包下载之后，进度合并成一条），并且钉住——切场景时不卸载，哪怕某个场景也列了同一张图又切走了。
    */
   preload(assets: AssetMap): void
+  /**
+   * 注册一个 Autoload（和启动参数 `autoloads` 一样的全局单例节点，切场景时保留），排在游戏自己的 Autoload 之前进树。
+   * 插件放跨场景存活的节点用（广告的 mock 覆盖层、调试面板）；之后 `tree.autoload(Cls)` 也能取到。
+   */
+  autoload<T extends Node>(cls: NodeClass<T>): T
 }
 
 /**

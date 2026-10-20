@@ -13,6 +13,7 @@ export default defineConfig({
     'wechat-polyfills': 'src/platform/wechat/polyfills.ts',
     // 插件：各自一个入口，不装不进包
     motion: 'src/plugins/motion/index.ts',
+    ads: 'src/plugins/ads/index.ts',
     testing: 'src/testing/index.ts',
     vite: 'src/vite/index.ts',
   },
