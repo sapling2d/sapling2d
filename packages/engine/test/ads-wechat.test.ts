@@ -246,6 +246,20 @@ describe('按配置挑生产者', () => {
     expect(info).toHaveBeenCalledTimes(2) // 浏览器 / 无头不提示
   })
 
+  it('激励视频创建时关掉 3.7.7 的分享页兜底（disableFallbackSharePage）', async () => {
+    const g = await createTestGame({ main: Scene })
+    const host = new AdHost()
+    g.scene.add(host)
+    let options: unknown = null
+    _createProviders(g.tree, host, { rewarded: 'r' }, {
+      createRewardedVideoAd: (o) => {
+        options = o
+        return fakeFullscreen().ad
+      },
+    })
+    expect(options).toEqual({ adUnitId: 'r', disableFallbackSharePage: true })
+  })
+
   it('整条链路：真激励视频通过 Ads 播放时暂停 / 静音，关闭后恢复', async () => {
     const g = await createTestGame({ main: Scene })
     const f = fakeFullscreen()

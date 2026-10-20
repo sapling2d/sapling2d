@@ -438,7 +438,7 @@ expect(g.scene.revived).toBe(true)
 - 失败不抛错：返回 `'unavailable'`（控制台 warn 一次，带流量主错误码的解释）。同一时间只播一个全屏广告，播放中再调用返回 `'unavailable'`，不会重复发奖励。
 - 播放期间默认 `tree.paused = true` 并静音 `Master` 总线，结束恢复后才 resolve（`pauseGame: false` 可关）。
 - mock：浏览器、无头、以及小游戏里没配 id 的类型，都是场景树里画出来的占位——激励视频 / 插屏弹一个带"看完 / 关闭"按钮的覆盖层（暂停时也能点），banner 是底部一条。浏览器里能点；测试里 `g.tap` 覆盖层的按钮（坐标见 `MOCK_LAYOUT`，默认屏幕下"看完"在 (245, 787)、"关闭"在 (505, 787)）或 `ads({ mock: 'rewarded' })` 不弹 UI 直接出结果。小游戏没配 id 时控制台 info 一次，上线前查日志。
-- 真广告要流量主的广告位 id（累计 1000 独立访客才能开通）；开发者工具的"模拟广告"同样要真的 id——随便填的 id 会收到 `error 1002（广告单元无效）`，插件按 `unavailable` 降级（不弹、按钮不显示、游戏照常）。广告位 id 用构建环境变量传（`import.meta.env.VITE_AD_REWARDED`），不要写死在代码里；没有 id 时不传，走 mock 看流程。
+- 真广告要开通流量主（满足任一：累计 UV > 500 且无违规；游戏圈活跃且发满 5 条官方帖；同主体其他小程序已有流量主并满一季度收益）并在后台自建广告位，在开发版 / 体验版里测；官方没有测试用的广告位 id。随便编的 id、或者别的 AppID 的 id 都会收到 `error 1002（广告单元无效）`，插件按 `unavailable` 降级（不弹、按钮不显示、游戏照常）。errMsg（如 "no advertisement"）不对应具体错误码，以 `errCode` 为准。广告位 id 用构建环境变量传（`import.meta.env.VITE_AD_REWARDED`），不要写死在代码里；没有 id 时不传，走 mock 看流程。
 
 ### 物理与碰撞（合成玩法）
 
@@ -1811,7 +1811,7 @@ this.tree.get(MotionInput).permission   // 插件提供的服务按类取；没�
 - 只用 WebGL1；iOS 小游戏可能没有 JIT：同时活跃的刚体控制在 60–80 个以内。模拟器和真机差异很大，以真机为准。
 - 小游戏没有键盘事件（键盘插件装着但不会触发）；触摸是多点的。`loadFont(path)` 加载包内字体（只在小游戏里）。
 - 传感器：`sapling2d/motion` 用 `wx.startAccelerometer`，不用申请权限，切到后台时插件停掉传感器；轴向和单位以真机为准，模拟器不可信。
-- 广告：`sapling2d/ads` 用流量主的 `wx.createRewardedVideoAd` / `createInterstitialAd` / `createBannerAd`；没配 id 的类型是 mock（控制台 info 一次）。激励视频播放时插件自己暂停游戏（不依赖 `onHide`）。
+- 广告：`sapling2d/ads` 用流量主的 `wx.createRewardedVideoAd` / `createInterstitialAd` / `createBannerAd`（`createBannerAd` 从基础库 3.5.5 起官方不再维护，替代是 `createCustomAd`，之后迁移）；没配 id 的类型是 mock（控制台 info 一次）。激励视频播放时插件自己暂停游戏（不依赖 `onHide`，官方没说明播放时是否触发）；基础库 3.7.7 起"无合适广告"时默认弹分享页兜底，插件关掉了它（`disableFallbackSharePage: true`），按 `unavailable` 处理。
 
 ## 性能（微信小游戏 iOS）
 

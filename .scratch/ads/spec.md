@@ -69,7 +69,7 @@ export class AdBanner {
 - 返回值是三态字符串：`unavailable`（没广告 / 频控 / 没配 id / 出错）和 `skipped`（用户中途关了）游戏通常走不同的路。
 - 同一时间只允许一个全屏广告：播放中再次调用 `showRewarded` / `showInterstitial` 直接返回 `unavailable`（不重复发奖励）。
 - `pauseGame`：`show` 之前记下 `tree.paused` 和 `audio.isBusMuted('Master')`，设为暂停 + 静音；关闭后恢复，然后才 resolve——`await` 之后的游戏代码看到的是正常运行的树。mock 覆盖层的节点 `processMode: 'always'`，暂停时也能点。
-- 小游戏的激励视频是原生全屏，社区反馈不触发 `wx.onHide`，游戏逻辑会在底下继续跑：所以暂停由插件自己做，不依赖 `focusChanged`（真机核对一下是否触发，04）。
+- 小游戏的激励视频是原生全屏，是否触发 `wx.onHide` 官方没有说明（未验证，见 spikes/wechat-ads/RESEARCH.md），游戏逻辑会在底下继续跑：所以暂停由插件自己做，不依赖 `focusChanged`（真机核对一下是否触发，04）。
 
 ## 核心新增
 
@@ -89,7 +89,7 @@ interface PluginContext {
 - **插屏**：`wx.createInterstitialAd`，同样预加载；`show()` 常因频控被拒 → `unavailable`（warn 一次）。`onClose` → `shown`。
 - **Banner**：`wx.createBannerAd({ adUnitId, style: { left, top, width } })`，`width = clamp(screen.width, 300, screen.width)`，`top` 先按估算（`width × 0.27`）贴底，`onResize({ width, height })` 后 `style.top = screen.height - height - 安全区下边距`、`style.left = (screen.width - width) / 2`，`height`（设计像素 = 屏幕像素 ÷ `viewport.scale`）更新并发 `resized`。`viewport.resized` 时重算位置。`show()` 失败 warn 一次返回 false。`hide()` 不销毁（再 `show()` 不重新加载）。
 - 基础库：激励视频 / Banner ≥ 2.0.4，插屏 ≥ 2.6.0（引擎要求 ≥ 2.25）。API 不存在时视为没配 id → mock。
-- 错误码对照（写进 warn 文案和文档）：1000 后端错误、1001 参数错误、1002 广告单元无效、1003 内部错误、1004 无合适广告、1005 广告组件审核中、1006 / 1007 / 1008 被封禁 / 关闭。
+- 错误码对照（写进 warn 文案和文档）：1000 后端错误、1001 参数错误、1002 广告单元无效、1003 内部错误、1004 无合适广告、1005 广告组件审核中、1006 广告组件被驳回、1007 广告组件被封禁、1008 广告单元已关闭；插屏 `show()` 另有 2001 启动后太快、2002 离上一次插屏 / 激励视频太近、2003 正在播别的广告、2004 渲染失败、2005 跨页面使用实例。激励视频创建时传 `disableFallbackSharePage: true`（基础库 3.7.7 起 1004 默认弹分享页、走 `onLoad({ useFallbackSharePage: true })` 而不是 `onError`，关闭后 `isEnded` 未定义）。
 
 ## Mock（浏览器、无头、小游戏没配 id）
 
@@ -106,7 +106,7 @@ interface PluginContext {
 
 - 无头（`test/ads.test.ts`）：三态返回；`mock` 四种模式；覆盖层两个按钮和遮罩吞点击；暂停 / 静音的进入和恢复（包括本来就暂停 / 静音时不乱恢复）；播放中再调用返回 `unavailable`；`ready` 的值；banner `show` / `hide` / `height` / `resized`；`PluginContext.autoload` 的节点在游戏 Autoload 之前、切场景后还在。
 - 小游戏生产者（`test/ads-wechat.test.ts`）：假 `wx`（`createRewardedVideoAd` 等返回可手动触发 `onLoad` / `onError` / `onClose` 的假对象）：预加载；未加载先 load 再 show；`isEnded` 两种和 `undefined`；错误 → `unavailable` 且同一 errCode 只 warn 一次；超时；关闭后重新 load；插屏 show 被拒；banner `style` 计算、`onResize` → `height` / `resized`、`hide` 不销毁。
-- 开发者工具的"模拟广告"**也要真的广告位 id**（实测：随便填的 id 预加载就收到 `error 1002 广告单元无效`），所以真实生产者的成功路径只能等有流量主 id（开通要累计 1000 独立访客）再验，不阻塞发布；错误路径（1002 → 全部 `unavailable`、按钮不显示、游戏照常）在模拟器里已验。mock 流程在模拟器里也已验（不配 id）。在有 id 之前 `pauseGame` 保持默认开（无论 `wx.onHide` 触不触发都不冲突）。
+- 官方没有测试用的广告位 id，也没有开发者工具的模拟广告开关（spikes/wechat-ads/RESEARCH.md）；随便编的 id 预加载就收到 `error 1002 广告单元无效`（实测）。真实生产者的成功路径要开通流量主（任一：累计 UV > 500 且无违规；游戏圈活跃 + 5 条官方帖；同主体其他小程序已有流量主满一季度）、自建广告位后在开发版 / 体验版里验，不阻塞发布；错误路径（1002 → 全部 `unavailable`、按钮不显示、游戏照常）在模拟器里已验。mock 流程在模拟器里也已验（不配 id）。在有 id 之前 `pauseGame` 保持默认开（无论 `wx.onHide` 触不触发都不冲突）。
 
 ## 验证载体
 

@@ -33,7 +33,7 @@ export interface WxBannerAd {
   onResize(cb: (res: { width: number; height: number }) => void): void
 }
 export interface WxAdsApi {
-  createRewardedVideoAd?(options: { adUnitId: string }): WxFullscreenAd
+  createRewardedVideoAd?(options: { adUnitId: string; disableFallbackSharePage?: boolean }): WxFullscreenAd
   createInterstitialAd?(options: { adUnitId: string }): WxFullscreenAd
   createBannerAd?(options: { adUnitId: string; style: { left: number; top: number; width: number } }): WxBannerAd
 }
@@ -237,7 +237,7 @@ export function createWechatAds(
   options: { rewarded?: string; interstitial?: string; banner?: string; timeoutMs: number },
 ): { rewarded: FullscreenAd | null; interstitial: FullscreenAd | null; banner: AdBanner | null } {
   return {
-    rewarded: options.rewarded && api.createRewardedVideoAd ? new WechatFullscreenAd(api.createRewardedVideoAd({ adUnitId: options.rewarded }), 'rewarded', options.timeoutMs) : null,
+    rewarded: options.rewarded && api.createRewardedVideoAd ? new WechatFullscreenAd(api.createRewardedVideoAd({ adUnitId: options.rewarded, disableFallbackSharePage: true }), 'rewarded', options.timeoutMs) : null,
     interstitial: options.interstitial && api.createInterstitialAd ? new WechatFullscreenAd(api.createInterstitialAd({ adUnitId: options.interstitial }), 'interstitial', options.timeoutMs) : null,
     banner: options.banner && api.createBannerAd ? new WechatBanner(api as Pick<Required<WxAdsApi>, 'createBannerAd'>, options.banner, tree) : null,
   }
