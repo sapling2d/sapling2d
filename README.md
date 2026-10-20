@@ -65,6 +65,7 @@ console.log(g.dump())
 | `sapling2d/wechat` | `startGame()` for WeChat Mini Games |
 | `sapling2d/motion` | `motion()` plugin: accelerometer tilt as action strength (`tilt('left')`) |
 | `sapling2d-touch` | separate package: `touch()` plugin with `TouchScreenButton` / `TouchJoystick` and default skins |
+| `sapling2d/ads` | `ads()` plugin: WeChat rewarded video / interstitial / banner, mocked in the browser and in tests |
 | `sapling2d/testing` | `createTestGame()` for headless tests |
 | `sapling2d/vite` | `sapling()` asset checks, `saplingWechat()` mini game build, `startLogServer()` |
 

@@ -13,6 +13,7 @@
 | `sapling2d/wechat` | `startGame(options)`：在微信小游戏里启动；另有 `loadFont`、`snapshot` |
 | `sapling2d/motion` | 插件：`motion()`、`tilt()` 绑定、`MotionInput`——加速度计 / 倾斜（见“倾斜”） |
 | `sapling2d-touch`（独立的包） | 插件：`touch()`、`TouchScreenButton`、`TouchJoystick`——屏幕按钮和摇杆，带默认皮肤（见“屏幕按钮”“摇杆”） |
+| `sapling2d/ads` | 插件：`ads()`、`Ads`——小游戏流量主的激励视频 / 插屏 / Banner，其它平台是 mock（见“广告”） |
 | `sapling2d/testing` | `createTestGame(options)`：无头运行，测试用 |
 | `sapling2d/vite` | `sapling()` 资源路径检查；`saplingWechat()` 构建小游戏；`startLogServer()` 接收真机日志 |
 
@@ -106,6 +107,18 @@
 - 原始值：`tree.get(MotionInput)` 的 `x` / `y` / `z`（含重力的加速度，单位 g，设备坐标：向右 +x、向上 +y、朝外 +z；已平滑，`motion({ smoothing })` 调，默认 0.2）、`roll` / `pitch`（度）、`available`、`permission`（`granted` / `denied` / `prompt` / `unsupported`）。
 - iOS 浏览器要在第一次触摸时申请权限，插件自动做；`permission === 'prompt'` 期间游戏可以显示“点击屏幕开启重力感应”。小游戏不用申请；切到后台时插件停掉传感器。桌面浏览器没有传感器：`available` 为 false，倾斜绑定一直是 0，键盘照常。
 - 无头测试：`g.inject({ type: 'motion', x, y, z })` 注入一个采样（单位 g），下一次 `step` 生效；`permission` 是 `granted`。
+
+### 广告（小游戏流量主）
+
+<!-- example:ads -->
+
+<!-- example:ads#test -->
+
+- `sapling2d/ads` 是一个插件：`plugins: [ads({ rewarded, interstitial, banner })]`，三个都是流量主的广告位 id，可以只配一部分。`tree.get(Ads)`：`showRewarded()` → `'rewarded' | 'skipped' | 'unavailable'`，**只有 `'rewarded'` 给奖励**；`showInterstitial()` → `'shown' | 'unavailable'`；`banner.show()` / `hide()` / `height`（设计像素，布局用，真机上加载后才知道）/ `resized`；`ready.rewarded` 决定要不要显示按钮；`isMock`。
+- 失败不抛错：返回 `'unavailable'`（控制台 warn 一次，带流量主错误码的解释）。同一时间只播一个全屏广告，播放中再调用返回 `'unavailable'`，不会重复发奖励。
+- 播放期间默认 `tree.paused = true` 并静音 `Master` 总线，结束恢复后才 resolve（`pauseGame: false` 可关）。
+- mock：浏览器、无头、以及小游戏里没配 id 的类型，都是场景树里画出来的占位——激励视频 / 插屏弹一个带"看完 / 关闭"按钮的覆盖层（暂停时也能点），banner 是底部一条。浏览器里能点；测试里 `g.tap` 覆盖层的按钮（坐标见 `MOCK_LAYOUT`，默认屏幕下"看完"在 (245, 787)、"关闭"在 (505, 787)）或 `ads({ mock: 'rewarded' })` 不弹 UI 直接出结果。小游戏没配 id 时控制台 info 一次，上线前查日志。
+- 真机才有真广告（流量主，累计 1000 独立访客才能开通）；开发者工具对任意 id 显示模拟广告。广告位 id 用构建环境变量传（`import.meta.env.VITE_AD_REWARDED`），不要写死在代码里。
 
 ### 物理与碰撞（合成玩法）
 
@@ -483,7 +496,7 @@ this.tree.get(MotionInput).permission   // 插件提供的服务按类取；没�
 
 - 插件在建树之后、定义动作之前按顺序安装；三个入口都默认装键盘（`keyboard()`，小游戏里没有事件源，只是让 `key()` 绑定有人认领）；`plugins` 追加在默认之后。
 - **插件在三个平台上都能装**：不支持的平台装一个 mock（控制台 `info` 一次），游戏照常跑——浏览器里开发、Node 里测试永远不会因为少了传感器或广告而报错。
-- 现有插件：`keyboard()`（内置在 `sapling2d`）、`motion()`（`sapling2d/motion`，见“倾斜”）、`touch()`（独立的包 `sapling2d-touch`：屏幕按钮和摇杆，带默认皮肤，见“屏幕按钮”）。
+- 现有插件：`keyboard()`（内置在 `sapling2d`）、`motion()`（`sapling2d/motion`，见“倾斜”）、`touch()`（独立的包 `sapling2d-touch`：屏幕按钮和摇杆，带默认皮肤，见“屏幕按钮”）、`ads()`（`sapling2d/ads`：小游戏广告，见“广告”）。
 - 自己写一个：实现 `Plugin`（`install(ctx)`：`ctx.tree`、`ctx.platform.kind`、`ctx.provide(Token, service)`、`ctx.preload(assets)`（插件自己的贴图 / 音效，和入口场景的资源一起加载，切场景不卸载），返回卸载函数）。插件包里的资源用 `tex('~<包名>/<路径>')` 引用，包的 `package.json` 声明 `"sapling2d": { "assets": "<目录>" }`，构建工具负责校验、serve、拷进包（浏览器和小游戏都是）。输入类插件把一个 `InputSource` 登记到 `tree.input.addSource(...)`：`eventTypes` 订阅事件（自己的事件用 `tree.input.enqueue` 入队，和指针事件同一个队列、帧首按序处理）、`bindingTypes` 认领绑定类型、`strength(action, bindings)` 给力度 0–1、`beginFrame()` 给轮询型设备、`releaseAll(queue)` 处理切后台。事件和绑定的类型用声明合并登记：`declare module 'sapling2d' { interface InputEventRegistry { motion: … } interface InputBindingRegistry { tilt: … } }`（都要有 `type` 字段）。向 `window` / `wx` 注册监听是插件自己的事，核心不碰。
 - 测试里用 `g.inject(event)` 注入插件的事件；屏幕按钮和摇杆就是用这套公开能力写的，可以照着看。
 
@@ -495,6 +508,7 @@ this.tree.get(MotionInput).permission   // 插件提供的服务按类取；没�
 - 只用 WebGL1；iOS 小游戏可能没有 JIT：同时活跃的刚体控制在 60–80 个以内。模拟器和真机差异很大，以真机为准。
 - 小游戏没有键盘事件（键盘插件装着但不会触发）；触摸是多点的。`loadFont(path)` 加载包内字体（只在小游戏里）。
 - 传感器：`sapling2d/motion` 用 `wx.startAccelerometer`，不用申请权限，切到后台时插件停掉传感器；轴向和单位以真机为准，模拟器不可信。
+- 广告：`sapling2d/ads` 用流量主的 `wx.createRewardedVideoAd` / `createInterstitialAd` / `createBannerAd`；没配 id 的类型是 mock（控制台 info 一次）。激励视频播放时插件自己暂停游戏（不依赖 `onHide`）。
 
 ## 性能（微信小游戏 iOS）
 
@@ -541,6 +555,7 @@ for (let i = 0; i < bullets.length; i++) {
 - **声明合并**：给组名、动作名、存档 key 加类型：`declare module 'sapling2d' { interface GroupRegistry { … } interface ActionRegistry { … } interface StorageRegistry { … } }`。
 - **忘了装插件**：定义动作时出现 `binding type "tilt" has no input source` 的警告，或 `tree.get(X)` 报 `X is not installed`，都是 `plugins: [...]` 里少了对应的插件。
 - **iOS 浏览器的传感器权限**要在用户手势里申请：`motion()` 自动在第一次触摸时申请；`permission === 'prompt'` 期间提示玩家点一下屏幕，不要在 `ready()` 里就认为有倾斜输入。
+- **广告的奖励只认 `'rewarded'`**：`'skipped'` 和 `'unavailable'` 都不给；`showRewarded()` 期间游戏是暂停的，`await` 之后的代码在恢复后才跑。没配广告位 id 时是 mock，上线前检查日志里 `[sapling2d] ads:` 的 info。
 - **Tween 在类方法里**：`this.createTween().to(this, {...})` 按 `Node2D` 的属性做类型检查；补间子类特有的属性写 `to(this as MyNode, …)`。
 - **音量是 0–1**（不是 dB）；`tree.paused` 不暂停声音。
 
