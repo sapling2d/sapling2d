@@ -39,6 +39,17 @@ describe('saplingWechat', () => {
   const read = (f: string) => readFileSync(join(dir, 'dist-wechat', f), 'utf8')
   /** game.js 里的资源清单：`GameGlobal.__saplingAssets = JSON.parse("...")`。 */
   const manifestOf = (js: string) => JSON.parse(JSON.parse(/__saplingAssets = JSON\.parse\(("(?:[^"\\]|\\.)*")\)/.exec(js)![1]!))
+  /** 给工程加一个声明了资源的依赖包 @foo/joystick（假的 node_modules）。 */
+  function mountPackage(files: Record<string, Buffer | string> = { 'knob.png': 'png', 'skins/dark/base.png': 'png' }) {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'game', private: true, dependencies: { '@foo/joystick': '1.0.0' } }))
+    const base = join(dir, 'node_modules', '@foo', 'joystick')
+    mkdirSync(join(base, 'assets'), { recursive: true })
+    writeFileSync(join(base, 'package.json'), JSON.stringify({ name: '@foo/joystick', version: '1.0.0', sapling2d: { assets: 'assets' } }))
+    for (const [f, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(base, 'assets', f)), { recursive: true })
+      writeFileSync(join(base, 'assets', f), content)
+    }
+  }
 
   it('产出单个 CommonJS 的 game.js、game.json、project.config.json，并拷贝资源', async () => {
     const run = fixture("import { v } from 'sapling2d'\nconsole.log(v(1, 2).toString())")
@@ -129,6 +140,42 @@ describe('saplingWechat', () => {
   it('产物里出现 eval / new Function / 动态 import 时构建失败', async () => {
     const run = fixture("const f = new Function('return 1'); console.log(f(), eval('2'))")
     await expect(run()).rejects.toThrow(/eval\(.*new Function\(|new Function\(|eval\(/)
+  })
+
+  it('挂载的插件包资源默认进分包（目录名原样 ~<包名>/），清单 main 不含它', async () => {
+    const run = fixture("import { v } from 'sapling2d'\nconsole.log(v(1, 2).toString())")
+    mountPackage()
+    await run()
+    expect(existsSync(join(dir, 'dist-wechat', 'assets-sub', '~@foo', 'joystick', 'knob.png'))).toBe(true)
+    expect(existsSync(join(dir, 'dist-wechat', 'assets-sub', '~@foo', 'joystick', 'skins', 'dark', 'base.png'))).toBe(true)
+    expect(existsSync(join(dir, 'dist-wechat', 'assets', '~@foo'))).toBe(false)
+    expect(manifestOf(read('game.js'))).toEqual({ main: [], subpackage: { name: 'assets', root: 'assets-sub/' } })
+  })
+
+  it('mainAssets 的 glob 作用在 ~<包名>/ 路径上：可以把插件资源放进主包，清单 main 含它', async () => {
+    const run = fixture("import { v } from 'sapling2d'\nconsole.log(v(1, 2).toString())", { mainAssets: ['boot/**', '~@foo/joystick/**'] })
+    mountPackage()
+    await run()
+    expect(existsSync(join(dir, 'dist-wechat', 'assets', '~@foo', 'joystick', 'knob.png'))).toBe(true)
+    expect(existsSync(join(dir, 'dist-wechat', 'assets-sub', '~@foo'))).toBe(false)
+    expect(manifestOf(read('game.js')).main).toEqual(['~@foo/joystick/knob.png', '~@foo/joystick/skins/dark/base.png'])
+  })
+
+  it('体积报告算进插件资源：主包里的插件文件超限时构建失败并指出它', async () => {
+    const run = fixture("import { v } from 'sapling2d'\nconsole.log(v(1, 2).toString())", { mainAssets: ['~@foo/joystick/**'] })
+    mountPackage({ 'huge.png': Buffer.alloc(MAIN_PACKAGE_LIMIT) })
+    await expect(run({ release: true })).rejects.toThrow(/Largest: assets\/~@foo\/joystick\/huge\.png 4\.00 MB/)
+  })
+
+  it('从依赖里拿掉插件包再构建：包里不再有它的目录', async () => {
+    const run = fixture("import { v } from 'sapling2d'\nconsole.log(v(1, 2).toString())")
+    mountPackage()
+    await run()
+    expect(existsSync(join(dir, 'dist-wechat', 'assets-sub', '~@foo'))).toBe(true)
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'game', private: true, dependencies: {} }))
+    await run()
+    expect(existsSync(join(dir, 'dist-wechat', 'assets-sub', '~@foo'))).toBe(false)
+    expect(existsSync(join(dir, 'dist-wechat', 'assets-sub', 'fruit.png'))).toBe(true)
   })
 })
 

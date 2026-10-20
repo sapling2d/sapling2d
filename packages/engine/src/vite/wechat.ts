@@ -2,6 +2,7 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readF
 import { createServer, type Server } from 'node:http'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import type { Plugin } from 'vite'
+import { discoverAssetMounts, MOUNT_PREFIX, parseMountPath } from './mounts.ts'
 
 export interface SaplingWechatOptions {
   /** 入口文件（相对于 Vite root），里面调用 `startGame` from 'sapling2d/wechat'。 */
@@ -19,8 +20,13 @@ export interface SaplingWechatOptions {
   /** 资源目录（相对于 root），会被拷贝进小游戏工程。默认 `public/assets`。 */
   assetsDir?: string
   /**
+   * 额外挂载资源的包（和 `sapling({ assetPackages })` 一致）。依赖里声明了 `"sapling2d": { "assets": "<dir>" }` 的包自动挂载到 `~<包名>/`，
+   * 它们的资源和 `public/assets` 一样进包（默认进分包，`mainAssets` 里写 `'~<包名>/**'` 可以放进主包）。
+   */
+  assetPackages?: string[]
+  /**
    * 哪些资源放在主包（启动页和 startGame 完成前用到的资源），其余放进资源分包，启动页显示后再下载。
-   * glob（相对于资源目录，支持 `*`、`**`、`?`）或函数。默认 `'boot/**'`。
+   * glob（相对于资源目录，支持 `*`、`**`、`?`）或函数。默认 `'boot/**'`。插件包的资源路径是 `~<包名>/...`。
    * 主包上限 4 MB（含 game.js），所有包合计 30 MB。
    */
   mainAssets?: string | string[] | ((path: string) => boolean)
@@ -80,6 +86,8 @@ export function saplingWechat(options: SaplingWechatOptions): Plugin {
   /** 写进 game.js 的主包资源清单（构建开始时的资源目录）。 */
   let injectedMain: string[] = []
   let logger: { info(msg: string): void } | null = null
+  /** 挂载的插件资源目录（包名 → 目录），和 public/assets 一起进包。 */
+  let mounts = new Map<string, string>()
 
   return {
     name: 'sapling2d:wechat',
@@ -107,6 +115,7 @@ export function saplingWechat(options: SaplingWechatOptions): Plugin {
 
     configResolved(config) {
       logger = config.logger
+      mounts = discoverAssetMounts(root, options.assetPackages ?? [], (m) => config.logger.warn(m))
     },
 
     /**
@@ -122,7 +131,7 @@ export function saplingWechat(options: SaplingWechatOptions): Plugin {
 
     load(id) {
       if (id === RESOLVED_VIRTUAL_MANIFEST) {
-        const plan = planAssets(assetsRoot, isMain)
+        const plan = planAssets(assetsRoot, isMain, mounts)
         injectedMain = plan.main
         const manifest = { main: plan.main, subpackage: plan.sub.length ? { name: SUBPACKAGE_NAME, root: `${SUBPACKAGE_DIR}/` } : null }
         return `GameGlobal.__saplingAssets = JSON.parse(${JSON.stringify(JSON.stringify(manifest))})\n`
@@ -148,7 +157,7 @@ export function saplingWechat(options: SaplingWechatOptions): Plugin {
       if (found.length) {
         throw new Error(`[sapling2d:wechat] game.js contains ${found.join(', ')}, which WeChat Mini Games do not allow.`)
       }
-      const plan = planAssets(assetsRoot, isMain)
+      const plan = planAssets(assetsRoot, isMain, mounts)
       if (plan.main.join('\n') !== injectedMain.join('\n')) {
         this.warn('main-package assets changed since the build started (files added to or removed from boot/): restart the build so game.js gets the new list.')
       }
@@ -167,11 +176,12 @@ export function saplingWechat(options: SaplingWechatOptions): Plugin {
         // 不让开发者工具再转译（es6 / enhance）：game.js 已经是 ES2017，转成 ES5 后上传体积会变成约 1.1–2.1 倍、无法预估（实测见 checkPackageSize）
         setting: { es6: false, enhance: false, minified: false, urlCheck: logUrl === null },
       })
-      // 每次都重新拷贝：删掉的资源不能留在包里
+      // 每次都重新拷贝：删掉的资源（和卸掉的插件包）不能留在包里
       rmSync(join(outDir, MAIN_ASSETS_DIR), { recursive: true, force: true })
       rmSync(join(outDir, SUBPACKAGE_DIR), { recursive: true, force: true })
-      for (const f of plan.main) copyAsset(assetsRoot, f, join(outDir, MAIN_ASSETS_DIR))
-      for (const f of plan.sub) copyAsset(assetsRoot, f, join(outDir, SUBPACKAGE_DIR))
+      const source = (f: string) => assetSource(assetsRoot, mounts, f)
+      for (const f of plan.main) copyAsset(source(f), f, join(outDir, MAIN_ASSETS_DIR))
+      for (const f of plan.sub) copyAsset(source(f), f, join(outDir, SUBPACKAGE_DIR))
       // 分包目录里必须有 game.js（入口），分包下载完时执行
       if (plan.sub.length) writeFileSync(join(outDir, SUBPACKAGE_DIR, 'game.js'), '// sapling2d asset subpackage\n')
       // 小游戏的代码包只收一部分扩展名：Tiled 自己的扩展名可能在上传 / 预览时被丢掉，真机上读不到关卡
@@ -181,8 +191,8 @@ export function saplingWechat(options: SaplingWechatOptions): Plugin {
       }
       const report = checkPackageSize({
         gameJs: Buffer.byteLength(code),
-        main: plan.main.map((f) => ({ file: f, size: statSync(join(assetsRoot, f)).size })),
-        sub: plan.sub.reduce((sum, f) => sum + statSync(join(assetsRoot, f)).size, 0),
+        main: plan.main.map((f) => ({ file: f, size: statSync(source(f)).size })),
+        sub: plan.sub.reduce((sum, f) => sum + statSync(source(f)).size, 0),
         release,
       })
       logger?.info(report.summary)
@@ -245,17 +255,34 @@ function mb(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`
 }
 
-/** 资源目录里的文件（`/` 分隔的相对路径）分到主包和分包。资源目录不存在时都为空。 */
-export function planAssets(assetsRoot: string, isMain: (path: string) => boolean): { main: string[]; sub: string[] } {
+/**
+ * 资源目录里的文件和挂载的插件包的文件（`/` 分隔的相对路径，插件的是 `~<包名>/...`）分到主包和分包。
+ * 资源目录不存在时只有插件的文件。
+ */
+export function planAssets(assetsRoot: string, isMain: (path: string) => boolean, mounts: ReadonlyMap<string, string> = new Map()): { main: string[]; sub: string[] } {
   const main: string[] = []
   const sub: string[] = []
-  if (!existsSync(assetsRoot)) return { main, sub }
-  const files = (readdirSync(assetsRoot, { recursive: true, withFileTypes: true }) as Dirent[])
-    .filter((d) => d.isFile() && d.name !== '.DS_Store')
-    .map((d) => relative(assetsRoot, join(d.parentPath, d.name)).split(sep).join('/'))
-    .sort()
+  const files = listFiles(assetsRoot)
+  for (const [pkg, dir] of mounts) for (const f of listFiles(dir)) files.push(`${MOUNT_PREFIX}${pkg}/${f}`)
+  files.sort()
   for (const f of files) (isMain(f) ? main : sub).push(f)
   return { main, sub }
+}
+
+/** `root` 下的所有文件（`/` 分隔的相对路径，排好序，跳过 .DS_Store）；目录不存在时为空。 */
+function listFiles(root: string): string[] {
+  if (!existsSync(root)) return []
+  return (readdirSync(root, { recursive: true, withFileTypes: true }) as Dirent[])
+    .filter((d) => d.isFile() && d.name !== '.DS_Store')
+    .map((d) => relative(root, join(d.parentPath, d.name)).split(sep).join('/'))
+    .sort()
+}
+
+/** 一个资源路径对应的源文件：插件包的在它挂载的目录里，其余在资源目录里。 */
+export function assetSource(assetsRoot: string, mounts: ReadonlyMap<string, string>, path: string): string {
+  const mount = parseMountPath(path)
+  const dir = mount && mounts.get(mount.pkg)
+  return dir ? join(dir, mount.rest) : join(assetsRoot, path)
 }
 
 /** `mainAssets` 选项 → 判断函数。glob 支持 `**`（任意层目录）、`*`（不含 /）、`?`。 */
@@ -285,10 +312,10 @@ function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${re}$`)
 }
 
-function copyAsset(assetsRoot: string, file: string, destDir: string): void {
+function copyAsset(source: string, file: string, destDir: string): void {
   const dest = join(destDir, file)
   mkdirSync(dirname(dest), { recursive: true })
-  copyFileSync(join(assetsRoot, file), dest)
+  copyFileSync(source, dest)
 }
 
 function writeJson(path: string, data: unknown): void {
