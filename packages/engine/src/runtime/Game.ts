@@ -1,4 +1,4 @@
-import { loadAssets } from '../core/assets'
+import { loadAssets, type AssetMap } from '../core/assets'
 import type { Scene, SceneClass } from '../core/Scene'
 import { SceneTree, type NodeClass } from '../core/SceneTree'
 import type { ActionName } from '../core/actions'
@@ -171,7 +171,18 @@ export class Game<S extends Scene = Scene> {
     })
     // 先装插件再定义动作：定义动作时才能检查绑定有没有来源认领
     const disposers: (() => void)[] = []
-    const ctx: PluginContext = { tree, platform, provide: (token, service) => tree._provide(token, service) }
+    /** 插件登记的资源：和入口场景的资源一起加载，并钉住。key 不重要（加载按资源去重），只要不和场景的撞 */
+    const startupAssets: AssetMap = {}
+    let preloaded = 0
+    const ctx: PluginContext = {
+      tree,
+      platform,
+      provide: (token, service) => tree._provide(token, service),
+      preload: (assets) => {
+        for (const asset of Object.values(assets)) startupAssets[`\0plugin${preloaded++}`] = asset
+        tree._pin(assets)
+      },
+    }
     for (const plugin of options.plugins ?? []) {
       const dispose = plugin.install(ctx)
       if (dispose) disposers.push(dispose)
@@ -191,9 +202,10 @@ export class Game<S extends Scene = Scene> {
       await platform.prepareAssets((done) => tree._setLoadProgress(done * PREPARE_SHARE))
       from = PREPARE_SHARE
     }
-    // 先把入口场景的资源加载完（进度走到 1），启动页同意后再切换；changeScene 里不会再加载
+    // 先把插件登记的资源和入口场景的资源加载完（进度走到 1），启动页同意后再切换；changeScene 里不会再加载
     tree._setLoadProgress(from)
-    await loadAssets(options.main.assets, platform, tree.audio, (done) => tree._setLoadProgress(from + done * (1 - from)))
+    Object.assign(startupAssets, options.main.assets)
+    await loadAssets(startupAssets, platform, tree.audio, (done) => tree._setLoadProgress(from + done * (1 - from)))
     tree._setLoadProgress(1)
     // 没有帧循环（无头测试）时启动页不会推进：不等它，否则等计时器的 loaded() 永远完成不了
     if (options.start) await screen?.loaded?.()

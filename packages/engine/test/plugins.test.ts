@@ -1,5 +1,8 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { key, Keyboard, Node, Node2D, pointerPress, rect, Scene, v, type InputBinding, type InputSource, type Plugin, type PluginContext, type RawInputEvent } from 'sapling2d'
+import { key, Keyboard, Node, Node2D, pointerPress, rect, Scene, tex, v, type InputBinding, type InputSource, type Plugin, type PluginContext, type RawInputEvent } from 'sapling2d'
 import { createTestGame } from 'sapling2d/testing'
 
 // 一个外部插件会这样登记自己的事件和绑定
@@ -117,6 +120,64 @@ describe('插件机制', () => {
     expect(p.disposed).toBe(true)
     g.step()
     expect(g.tree.input.isActionPressed('turn')).toBe(false)
+  })
+})
+
+describe('插件资源（preload / 钉住 / ~<包名>/）', () => {
+  /** 每个用例用自己的路径：tex() 按路径缓存句柄，跨用例共享会互相影响加载状态。 */
+  let n = 0
+  const skin = () => `~@foo/skin/icon-${++n}.png`
+
+  it('preload 的资源在 createTestGame 返回时已加载（和入口场景的资源一起）', async () => {
+    const icon = tex(skin())
+    const own = tex(skin())
+    class Main extends Scene {
+      static override assets = { own }
+    }
+    const plugin: Plugin = { install: (ctx) => ctx.preload({ icon }) }
+    const g = await createTestGame({ main: Main, plugins: [plugin] })
+    expect([icon.isLoaded, own.isLoaded, g.tree.loadProgress]).toEqual([true, true, 1])
+  })
+
+  it('钉住：场景也列了插件的图，切走后插件的图不卸载，场景自己的图卸载', async () => {
+    const icon = tex(skin())
+    const own = tex(skin())
+    class A extends Scene {
+      static override assets = { icon, own }
+    }
+    class B extends Scene {}
+    const plugin: Plugin = { install: (ctx) => ctx.preload({ icon }) }
+    const g = await createTestGame({ main: A, plugins: [plugin] })
+    await g.tree.changeScene(B)
+    expect([icon.isLoaded, own.isLoaded]).toEqual([true, false])
+  })
+
+  it('没钉住的资源照常卸载（对照）', async () => {
+    const own = tex(skin())
+    class A extends Scene {
+      static override assets = { own }
+    }
+    class B extends Scene {}
+    const g = await createTestGame({ main: A })
+    await g.tree.changeScene(B)
+    expect(own.isLoaded).toBe(false)
+  })
+
+  describe('无头测试读插件包的文本资源', () => {
+    let dir = ''
+    afterEach(() => dir && rmSync(dir, { recursive: true, force: true }))
+
+    it('~<包名>/ 从工程（root）的 node_modules 里找；没装或没声明字段时报错', async () => {
+      dir = mkdtempSync(join(tmpdir(), 'sapling-test-mounts-'))
+      const base = join(dir, 'node_modules', '@foo', 'levels')
+      mkdirSync(join(base, 'assets', 'maps'), { recursive: true })
+      writeFileSync(join(base, 'package.json'), JSON.stringify({ name: '@foo/levels', version: '1.0.0', sapling2d: { assets: 'assets' } }))
+      writeFileSync(join(base, 'assets', 'maps', 'hello.txt'), 'hi')
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'game', private: true }))
+      const g = await createTestGame({ main: Scene, root: dir })
+      await expect(g.platform.loadText('~@foo/levels/maps/hello.txt')).resolves.toBe('hi')
+      await expect(g.platform.loadText('~nope/x.txt')).rejects.toThrow(/package "nope" is not installed, or its package\.json does not declare "sapling2d"/)
+    })
   })
 })
 

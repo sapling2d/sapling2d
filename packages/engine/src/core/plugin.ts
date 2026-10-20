@@ -1,4 +1,5 @@
 import type { Platform } from '../platform/Platform'
+import type { AssetMap } from './assets'
 import type { SceneTree } from './SceneTree'
 
 /** 服务的 token：通常就是服务的类本身（`tree.get(Keyboard)`）。 */
@@ -11,6 +12,11 @@ export interface PluginContext {
   readonly platform: Platform
   /** 提供一个服务，游戏之后用 `tree.get(token)` 取。同一个 token 提供两次报错。 */
   provide<T>(token: ServiceToken<T>, service: T): void
+  /**
+   * 登记插件自己的资源（默认皮肤之类，路径一般是 `~<包名>/...`，见 ADR 0011）：和入口场景的资源一起在启动时加载
+   * （资源分包下载之后，进度合并成一条），并且钉住——切场景时不卸载，哪怕某个场景也列了同一张图又切走了。
+   */
+  preload(assets: AssetMap): void
 }
 
 /**

@@ -481,7 +481,7 @@ this.tree.get(MotionInput).permission   // 插件提供的服务按类取；没�
 - 插件在建树之后、定义动作之前按顺序安装；各入口有默认插件：浏览器的 `startGame` 和 `createTestGame` 默认装键盘（`keyboard()`），小游戏入口不装；`plugins` 追加在默认之后。
 - **插件在三个平台上都能装**：不支持的平台装一个 mock（控制台 `info` 一次），游戏照常跑——浏览器里开发、Node 里测试永远不会因为少了传感器或广告而报错。
 - 现有插件：`keyboard()`（内置在 `sapling2d`）、`motion()`（`sapling2d/motion`，见“倾斜”）。
-- 自己写一个：实现 `Plugin`（`install(ctx)`：`ctx.tree`、`ctx.platform.kind`、`ctx.provide(Token, service)`，返回卸载函数）。输入类插件把一个 `InputSource` 登记到 `tree.input.addSource(...)`：`eventTypes` 订阅事件（自己的事件用 `tree.input.enqueue` 入队，和指针事件同一个队列、帧首按序处理）、`bindingTypes` 认领绑定类型、`strength(action, bindings)` 给力度 0–1、`beginFrame()` 给轮询型设备、`releaseAll(queue)` 处理切后台。事件和绑定的类型用声明合并登记：`declare module 'sapling2d' { interface InputEventRegistry { motion: … } interface InputBindingRegistry { tilt: … } }`（都要有 `type` 字段）。向 `window` / `wx` 注册监听是插件自己的事，核心不碰。
+- 自己写一个：实现 `Plugin`（`install(ctx)`：`ctx.tree`、`ctx.platform.kind`、`ctx.provide(Token, service)`、`ctx.preload(assets)`（插件自己的贴图 / 音效，和入口场景的资源一起加载，切场景不卸载），返回卸载函数）。插件包里的资源用 `tex('~<包名>/<路径>')` 引用，包的 `package.json` 声明 `"sapling2d": { "assets": "<目录>" }`，构建工具负责校验、serve、拷进包（浏览器和小游戏都是）。输入类插件把一个 `InputSource` 登记到 `tree.input.addSource(...)`：`eventTypes` 订阅事件（自己的事件用 `tree.input.enqueue` 入队，和指针事件同一个队列、帧首按序处理）、`bindingTypes` 认领绑定类型、`strength(action, bindings)` 给力度 0–1、`beginFrame()` 给轮询型设备、`releaseAll(queue)` 处理切后台。事件和绑定的类型用声明合并登记：`declare module 'sapling2d' { interface InputEventRegistry { motion: … } interface InputBindingRegistry { tilt: … } }`（都要有 `type` 字段）。向 `window` / `wx` 注册监听是插件自己的事，核心不碰。
 - 测试里用 `g.inject(event)` 注入插件的事件；屏幕按钮和摇杆就是用这套公开能力写的，可以照着看。
 
 ## 微信小游戏

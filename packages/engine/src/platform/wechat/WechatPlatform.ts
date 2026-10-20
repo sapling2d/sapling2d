@@ -78,15 +78,16 @@ export class WechatPlatform implements Platform {
     )
   }
 
-  /** 包内图片（构建时 public/assets 被拷贝到小游戏工程：`boot/` 在主包，其余在资源分包）。 */
+  /** 包内图片（构建时 public/assets 被拷贝到小游戏工程：`boot/` 在主包，其余在资源分包）；内嵌的图片（`tex('data:…')`）直接用。 */
   loadImage(path: string): Promise<LoadedImage> {
-    return this.assets.resolve(path).then(
-      (file) =>
+    const file = path.startsWith('data:') ? Promise.resolve(path) : this.assets.resolve(path)
+    return file.then(
+      (src) =>
         new Promise((resolve, reject) => {
           const img = wx.createImage()
           img.onload = () => resolve({ resource: img, width: img.width, height: img.height })
-          img.onerror = (err) => reject(new Error(`cannot load ${file}: ${JSON.stringify(err)}`))
-          img.src = file
+          img.onerror = (err) => reject(new Error(`cannot load ${src.startsWith('data:') ? 'data: image' : src}: ${JSON.stringify(err)}`))
+          img.src = src
         }),
     )
   }

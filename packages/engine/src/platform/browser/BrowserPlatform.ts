@@ -108,13 +108,14 @@ export class BrowserPlatform implements Platform {
     return res.text()
   }
 
+  /** 内嵌的图片（`tex('data:…')`）直接用，其余相对资源目录。 */
   loadImage(path: string): Promise<LoadedImage> {
     return new Promise((resolve, reject) => {
       const img = new Image()
       img.crossOrigin = 'anonymous'
       img.onload = () => resolve({ resource: img, width: img.naturalWidth, height: img.naturalHeight })
-      img.onerror = () => reject(new Error(`cannot load ${img.src}`))
-      img.src = this.assetsBaseUrl + path
+      img.onerror = () => reject(new Error(`cannot load ${path.startsWith('data:') ? 'data: image' : img.src}`))
+      img.src = path.startsWith('data:') ? path : this.assetsBaseUrl + path
     })
   }
 }

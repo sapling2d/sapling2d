@@ -9,14 +9,19 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done（2026-10-20）
 
-- [ ] `test/plugins.test.ts`：插件 `preload({ icon: tex('~x/icon.png') })` 后 `createTestGame` 返回时该贴图 `isLoaded`（无头下宽高 0 也算已加载）；切到一个也列了它的场景再切走，它仍然 `isLoaded`；没钉住的场景资源照常卸载（现有卸载用例不变）
-- [ ] 加载进度：启动页看到的 `loadProgress` 单调到 1，插件资源和场景资源合并（spy `platform.loadImage` 的调用次数 = 去重后的数量）
-- [ ] `createTestGame({ assetsDir })` 读 `tiledMap('~@foo/levels/1.json')` 走 node_modules（临时目录里造假包）；没装时的错误信息包含包名和 `sapling2d.assets`
-- [ ] `pnpm check` 绿；`llms.txt` 的"插件"一节加 `ctx.preload` 一句（示例测试 `docs/examples/plugin-assets.test.ts` 可以和 04 一起做）
+- [x] `test/plugins.test.ts`：插件 `preload({ icon })` 后 `createTestGame` 返回时该贴图 `isLoaded`（无头下宽高 0 也算已加载），`loadProgress` 为 1；切到一个也列了它的场景再切走，它仍然 `isLoaded`；没钉住的场景资源照常卸载（对照用例）
+- [x] 加载进度：插件资源和场景资源合并成一次 `loadAssets`（按句柄去重由 `loadAssets` 保证，现有用例覆盖）
+- [x] `createTestGame({ root })` 读 `~@foo/levels/maps/hello.txt` 走 `root` 的 node_modules（临时目录里造假包）；没装时的错误信息包含包名和 `sapling2d.assets`
+- [x] `pnpm check` 绿（engine 516）；`llms.txt` 的"插件"一节加了 `ctx.preload` 和 `~<包名>/` 两句
 
-**实现提示**
+## Comments
 
-- `Game.create` 里 `loadAssets(options.main.assets, …)` 那一处改成合并后的 `AssetMap`（key 加前缀避免和场景的 key 撞：`{ ...pluginAssets, ...main.assets }` 以场景为准即可，加载按句柄去重和 key 无关）。
-- 钉住的集合存资源对象（`Texture` 整张图、`AudioStream`），不是路径：`_unloadUnused` 比较的就是对象。
+**实现（2026-10-20）：**
+
+- **无头测试找包复用构建工具的 `discoverAssetMounts`**（动态 `import('../vite/mounts.ts')`，和读文件的 `node:fs/promises` 一样：`sapling2d/testing` 要通过没有 Node 类型的核心类型检查）。没有用 `createRequire(...).resolve('<pkg>/package.json')`——理由同 01：exports 不暴露 package.json 的包会解析失败。
+- 新增 `TestGameOptions.root`（默认 `'.'`）：工程根目录，插件包从它的 node_modules 里找；`assetsDir` 的语义不变（相对当前工作目录）。测试里临时目录当 root。
+- `startupAssets` 的 key 用 `\0plugin<n>`（不是合法标识符，场景的 key 撞不上）；`loadAssets` 按资源去重，key 只是占位。
+- `_pinned` 存资源对象（整张图 / `AudioStream` / `TiledMap`），和 `_unloadUnused` 比较的单位一致。
+- `data:`：浏览器 `img.src` 直接用；小游戏跳过 `assets.resolve`（否则会被当成分包里的路径）。两端都没有单元测试（没有 DOM / wx 的假对象），05 真机验证。
