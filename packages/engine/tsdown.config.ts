@@ -11,6 +11,8 @@ export default defineConfig({
     wechat: 'src/platform/wechat/index.ts',
     // 单独导出：saplingWechat() 的虚拟入口先 import 它，再 import 游戏入口，保证先于任何 pixi.js 模块执行
     'wechat-polyfills': 'src/platform/wechat/polyfills.ts',
+    // 插件：各自一个入口，不装不进包
+    motion: 'src/plugins/motion/index.ts',
     testing: 'src/testing/index.ts',
     vite: 'src/vite/index.ts',
   },

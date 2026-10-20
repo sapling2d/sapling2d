@@ -41,6 +41,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./browser": "./src/platform/browser/index.ts",
+    "./motion": "./src/plugins/motion/index.ts",
     "./testing": "./src/testing/index.ts",
     "./vite": "./src/vite/index.ts",
     "./wechat": "./src/platform/wechat/index.ts",
@@ -65,6 +66,10 @@
       "./wechat-polyfills": {
         "types": "./dist/wechat-polyfills.d.ts",
         "import": "./dist/wechat-polyfills.js"
+      },
+      "./motion": {
+        "types": "./dist/motion.d.ts",
+        "import": "./dist/motion.js"
       },
       "./testing": {
         "types": "./dist/testing.d.ts",

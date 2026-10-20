@@ -116,6 +116,7 @@ export type KeyBinding = { readonly type: 'key'; readonly code: string }   // �
 export function motion(options?: { smoothing?: number }): Plugin   // smoothing 默认 0.2（指数平滑系数，0 = 不平滑）
 export class MotionInput {
   readonly x: number; readonly y: number; readonly z: number   // 含重力的加速度，单位 g，设备坐标：屏幕向右 +x、向上 +y、朝外 +z；平滑后
+  readonly roll: number; readonly pitch: number                 // 倾斜角（度）：左边压低 roll > 0，上边压低 pitch > 0
   readonly available: boolean       // 这个平台有没有传感器（headless 为 true）
   readonly permission: 'granted' | 'denied' | 'prompt' | 'unsupported'
 }
@@ -125,7 +126,7 @@ export type RawMotionEvent = { type: 'motion'; x: number; y: number; z: number }
 ```
 
 - 浏览器：`devicemotion` 的 `accelerationIncludingGravity` ÷ 9.81。iOS 13+：在第一次 `pointerdown` / `touchend`（捕获阶段的一次性监听，和 `BrowserAudio` 的解锁一样）里同步调用 `DeviceMotionEvent.requestPermission()`，结果写进 `permission`；拒绝了就不再尝试。
-- 小游戏：`wx.startAccelerometer({ interval: 'game' })` + `wx.onAccelerometerChange`（已经是 g 单位；轴向真机核对）。`tree.focusChanged`：false → `wx.stopAccelerometer`，true → 重新 start。补 `wx.d.ts`。
+- 小游戏：`wx.startAccelerometer({ interval: 'game' })` + `wx.onAccelerometerChange`（已经是 g 单位；轴向真机核对）。`tree.focusChanged`：false → `wx.stopAccelerometer`，true → 重新 start。不引用 `wx.d.ts`（那会把 `wx` 全局带进核心的类型检查程序），插件自己声明用到的几个成员。
 - headless：没有生产者，`available = true`，`g.inject({ type: 'motion', x, y, z })`。
 - 来源：`eventTypes: ['motion']`、`bindingTypes: ['tilt']`；`handle` 做平滑并更新 `x/y/z`；`strength` 从 `x/y` 算倾斜角再归一化。没有每帧代码。
 - 演示：`examples/racer`（目录里只剩未跟踪的 `dist/` 和 `node_modules/`，可直接用）：竖屏公路，车左右移动，`steerLeft` / `steerRight` 同时绑 `key('KeyA')` / `tilt('left')`，游戏只读 `getAxis`。小游戏和浏览器两个入口。`permission === 'prompt'` 时显示"点击屏幕开启重力感应"。

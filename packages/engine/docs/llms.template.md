@@ -11,6 +11,7 @@
 | `sapling2d` | 节点、数学、资源、物理、音频、存储……（不含渲染和平台代码，可以在 Node 里运行） |
 | `sapling2d/browser` | `startGame(options)`：在浏览器里启动 |
 | `sapling2d/wechat` | `startGame(options)`：在微信小游戏里启动；另有 `loadFont`、`snapshot` |
+| `sapling2d/motion` | 插件：`motion()`、`tilt()` 绑定、`MotionInput`——加速度计 / 倾斜（见“倾斜”） |
 | `sapling2d/testing` | `createTestGame(options)`：无头运行，测试用 |
 | `sapling2d/vite` | `sapling()` 资源路径检查；`saplingWechat()` 构建小游戏；`startLogServer()` 接收真机日志 |
 
@@ -88,6 +89,17 @@
 - `mode: 'dynamic'`（默认）：在 `region`（默认可见区域的左半边，设计坐标）里按下的地方出现，松手后隐藏；`'fixed'`：固定在 `position`，在 `hitArea`（默认半径 1.5 × `radius` 的圆）里按下才算。只配 `left` / `right`、`radius` 很小、`deadzone: 0` 的 `fixed` 摇杆就是一个方向键：按在哪边就是哪边，手指滑过去换方向不用抬起。
 - 只认一个手指：按着摇杆的手指不触发 `pointerPress()`、不点中下面的节点、不会滑进屏幕按钮；另一个手指可以同时按屏幕按钮。抬起、触摸取消、切到后台、隐藏、暂停、移出树时松开，力度归零。
 - 放进 `CanvasLayer`。按绘制顺序参与拾取：`dynamic` 的区域里，画在它上面的按钮先收到指针（摇杆先加、按钮后加）。摇杆自己不要旋转、缩放。
+
+### 倾斜（运动传感器）
+
+<!-- example:motion -->
+
+<!-- example:motion#test -->
+
+- `sapling2d/motion` 是一个插件：`plugins: [motion()]` 安装。`tilt(dir, { deadzone?, full? })` 把倾斜角换成 0–1 的力度（默认 5° 以内是 0，30° 是 1），和键盘共用动作。`dir`：`left` / `right`（左右压低）、`forward` / `back`（上边 / 下边压低；基线是手机平放，手持有几十度初始倾斜，多数游戏只用左右）。以竖屏持机为准。
+- 原始值：`tree.get(MotionInput)` 的 `x` / `y` / `z`（含重力的加速度，单位 g，设备坐标：向右 +x、向上 +y、朝外 +z；已平滑，`motion({ smoothing })` 调，默认 0.2）、`roll` / `pitch`（度）、`available`、`permission`（`granted` / `denied` / `prompt` / `unsupported`）。
+- iOS 浏览器要在第一次触摸时申请权限，插件自动做；`permission === 'prompt'` 期间游戏可以显示“点击屏幕开启重力感应”。小游戏不用申请；切到后台时插件停掉传感器。桌面浏览器没有传感器：`available` 为 false，倾斜绑定一直是 0，键盘照常。
+- 无头测试：`g.inject({ type: 'motion', x, y, z })` 注入一个采样（单位 g），下一次 `step` 生效；`permission` 是 `granted`。
 
 ### 物理与碰撞（合成玩法）
 
