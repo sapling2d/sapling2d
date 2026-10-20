@@ -1,5 +1,5 @@
 /// <reference path="./wx.d.ts" />
-import type { RawInputEvent } from '../../core/Input'
+import type { RawPointerEvent } from '../../core/Input'
 import type { ScreenInfo } from '../../core/Viewport'
 import type { LoadedImage, Platform } from '../Platform'
 import { _createClock } from './clock'
@@ -16,6 +16,7 @@ import { subscribeTouches } from './touch'
  * 各项的真机实测结论见 spikes/wechat/REPORT.md。
  */
 export class WechatPlatform implements Platform {
+  readonly kind = 'wechat' as const
   /** 资源从主包还是分包读（清单由 saplingWechat 构建时写入）。 */
   readonly assets = new WechatAssetPaths(wx, GameGlobal.__saplingAssets as WechatAssetManifest | undefined)
   readonly audio = new WechatAudioBackend(wx, this.assets)
@@ -91,7 +92,7 @@ export class WechatPlatform implements Platform {
   }
 
   /** wx.onTouchStart / Move / End / Cancel → 统一的指针事件（多点触控）。小游戏没有键盘。 */
-  onInput(callback: (event: RawInputEvent) => void): () => void {
+  onInput(callback: (event: RawPointerEvent) => void): () => void {
     return subscribeTouches(wx, callback)
   }
 

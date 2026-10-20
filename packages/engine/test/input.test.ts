@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { key, Node, Node2D, pointerPress, rect, Scene, Sprite2D, tex, v, type PointerEvent2D } from 'sapling2d'
+import { key, Keyboard, Node, Node2D, pointerPress, rect, Scene, Sprite2D, tex, v, type PointerEvent2D } from 'sapling2d'
 import { createTestGame } from 'sapling2d/testing'
 
 declare module 'sapling2d' {
@@ -200,7 +200,7 @@ describe('InputMap', () => {
     g.keyUp('Space')
     g.step()
     expect(rec.frames).toEqual(['jump!', '', 'drop! drop', 'drop', 'drop^'])
-    expect(g.tree.input.isKeyPressed('Space')).toBe(false)
+    expect(g.tree.get(Keyboard).isPressed('Space')).toBe(false)
   })
 
   it('同一帧内按下又松开：justPressed 和 justReleased 都为 true', async () => {

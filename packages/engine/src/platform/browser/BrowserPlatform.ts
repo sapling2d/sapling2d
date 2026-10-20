@@ -1,4 +1,4 @@
-import type { RawInputEvent } from '../../core/Input'
+import type { RawPointerEvent } from '../../core/Input'
 import { MemoryStorageBackend, type StorageBackend } from '../../storage/backend'
 import { BrowserAudioBackend } from './BrowserAudio'
 import type { ScreenInfo } from '../../core/Viewport'
@@ -12,6 +12,7 @@ export interface BrowserPlatformOptions {
 
 /** 浏览器平台：requestAnimationFrame 帧循环，HTMLImageElement 加载图片。 */
 export class BrowserPlatform implements Platform {
+  readonly kind = 'browser' as const
   readonly canvas: HTMLCanvasElement
   readonly assetsBaseUrl: string
   readonly audio: BrowserAudioBackend
@@ -62,9 +63,9 @@ export class BrowserPlatform implements Platform {
 
   /**
    * 指针：在画布上按下，之后的移动和抬起在整个窗口上监听（拖出画布也不丢）。坐标相对于画布左上角。
-   * 键盘：在窗口上监听，忽略按住不放的自动重复。不使用 Pixi 的事件系统（见 ADR 0001）。
+   * 键盘由键盘插件自己监听（`keyboard()`，`startGame` 默认安装）。不使用 Pixi 的事件系统（见 ADR 0001）。
    */
-  onInput(callback: (event: RawInputEvent) => void): () => void {
+  onInput(callback: (event: RawPointerEvent) => void): () => void {
     const canvas = this.canvas
     const pointer = (type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel') => (e: PointerEvent) => {
       const r = canvas.getBoundingClientRect()
@@ -78,36 +79,18 @@ export class BrowserPlatform implements Platform {
     const onMove = pointer('pointermove')
     const onUp = pointer('pointerup')
     const onCancel = pointer('pointercancel')
-    // 记住按住的键：窗口失焦（alt-tab、点到别的窗口）时 keyup 会发到别处，这里补发，避免按键“卡住”
-    const held = new Set<string>()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.repeat) return
-      if (e.type === 'keydown') held.add(e.code)
-      else held.delete(e.code)
-      callback({ type: e.type === 'keydown' ? 'keydown' : 'keyup', code: e.code })
-    }
-    const onBlur = () => {
-      for (const code of held) callback({ type: 'keyup', code })
-      held.clear()
-    }
     const noMenu = (e: Event) => e.preventDefault()
 
     canvas.addEventListener('pointerdown', onDown)
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onCancel)
-    window.addEventListener('keydown', onKey)
-    window.addEventListener('keyup', onKey)
-    window.addEventListener('blur', onBlur)
     canvas.addEventListener('contextmenu', noMenu)
     return () => {
       canvas.removeEventListener('pointerdown', onDown)
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onCancel)
-      window.removeEventListener('keydown', onKey)
-      window.removeEventListener('keyup', onKey)
-      window.removeEventListener('blur', onBlur)
       canvas.removeEventListener('contextmenu', noMenu)
     }
   }

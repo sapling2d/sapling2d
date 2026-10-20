@@ -15,6 +15,7 @@ import { Tween } from './Tween'
 import type { GroupName, GroupNodeType } from './groups'
 import { Node, type DumpNode } from './Node'
 import { assetResources, type AssetMap } from './assets'
+import type { ServiceToken } from './plugin'
 import type { Scene, SceneConstructor } from './Scene'
 import { Viewport } from './Viewport'
 
@@ -81,7 +82,7 @@ export class SceneTree {
   readonly fxRng: RandomNumberGenerator
   /** 视口：设计分辨率、可见区域、安全区和坐标换算。 */
   readonly viewport: Viewport
-  /** 输入：动作、键盘、指针状态。 */
+  /** 输入：动作、指针状态；键盘等设备由插件接入（`tree.get(Keyboard)`）。 */
   readonly input: Input
   /** 音频：播放声音、总线音量。 */
   readonly audio: AudioServer
@@ -92,6 +93,8 @@ export class SceneTree {
   private readonly _root = new Node({ name: 'root' })
   private _scene: Scene | null = null
   private _autoloads = new Map<NodeClass, Node>()
+  /** 插件提供的服务（`PluginContext.provide`），按 token 查找。 */
+  private readonly _services = new Map<ServiceToken<unknown>, unknown>()
   private _accumulator = 0
   private _physicsFrames = 0
   /** 没暂停时执行的物理步数：`time` = 它 × 步长（计数而不是累加小数，不积累误差）。 */
@@ -229,6 +232,26 @@ export class SceneTree {
       throw new Error(`Autoload ${cls.name} is not registered. Pass it in the game options: autoloads: [${cls.name}].`)
     }
     return node as T
+  }
+
+  // ---------------------------------------------------------------- 插件服务
+
+  /**
+   * 取插件提供的服务，token 通常就是服务的类：`this.tree.get(Keyboard).isPressed('Space')`。
+   * 对应的插件没有安装时报错（插件在启动参数 `plugins: [...]` 里安装）。
+   */
+  get<T>(token: ServiceToken<T>): T {
+    const service = this._services.get(token)
+    if (service === undefined) {
+      throw new Error(`${token.name} is not installed. Pass its plugin in the game options: plugins: [...].`)
+    }
+    return service as T
+  }
+
+  /** @internal 插件安装时提供服务（`PluginContext.provide`）。 */
+  _provide<T>(token: ServiceToken<T>, service: T): void {
+    if (this._services.has(token)) throw new Error(`${token.name} is already provided by another plugin.`)
+    this._services.set(token, service)
   }
 
   // ---------------------------------------------------------------- 场景

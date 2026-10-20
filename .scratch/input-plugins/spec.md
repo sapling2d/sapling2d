@@ -60,16 +60,17 @@ export interface InputSource {
   handle?(event: RawInputEvent): void
   beginFrame?(): void
   strength?(action: string, bindings: readonly InputBinding[]): number
+  releaseAll?(queue: RawInputEvent[]): void   // 切后台：把按着的东西 push 成松开事件（queue 里没处理的按下也算）
 }
 input.addSource(source): void
 input.removeSource(source): void
 input.enqueue(event: RawInputEvent): void   // 原 _enqueue 公开；Game 和 g.inject 都用它
 
-// 开放类型（声明合并，和 ActionRegistry 一样）
-export interface InputEventRegistry { pointer: RawPointerEvent }
-export type RawInputEvent = InputEventRegistry[keyof InputEventRegistry]
-export interface InputBindingRegistry { pointer: { readonly type: 'pointer' } }
-export type InputBinding = InputBindingRegistry[keyof InputBindingRegistry]
+// 开放类型。注册表声明在 src/index.ts（和 ActionRegistry 一样）；内置的键盘插件直接登记在表里，外部插件用 declare module 'sapling2d' 合并
+export interface InputEventRegistry { pointer: RawPointerEvent; key: RawKeyEvent }
+export type RawInputEvent = InputEventRegistry[keyof InputEventRegistry]      // core/input/events.ts
+export interface InputBindingRegistry { pointer: PointerBinding; key: KeyBinding }
+export type InputBinding = InputBindingRegistry[keyof InputBindingRegistry]   // core/input/bindings.ts
 ```
 
 `_flush` 的顺序：
@@ -82,7 +83,7 @@ export type InputBinding = InputBindingRegistry[keyof InputBindingRegistry]
 
 力度：`max` 遍历所有来源的 `strength`，到 1 提前退出。`addAction` 时，绑定的 `type` 没有任何来源的 `bindingTypes` 认领 → `console.warn`（"binding type 'tilt' has no input source; install its plugin (plugins: [...])"），和 TouchScreenButton 未知动作的警告一致。
 
-来源和切后台：`Input._releaseAll` 只处理指针。插件在 `tree.focusChanged(false)` 里把自己按着的东西 `enqueue` 成松开事件（`Game` 先调 `_releaseAll` 再 emit `focusChanged`，都在下一帧帧首按序处理）。
+来源和切后台：`Input._releaseAll` 先让 `PointerRouter` 排队指针取消，再调每个来源的 `releaseAll(queue)`，来源把自己按着的东西 push 成松开事件（队列里还没处理的按下也要算：它们的松开在后台收不到）。全部在下一帧帧首按序处理。传感器的 start / stop 这类生命周期仍用 `tree.focusChanged`。
 
 ### 键盘插件（内置，`src/plugins/keyboard.ts`，从 `sapling2d` 导出）
 
@@ -91,12 +92,11 @@ export function keyboard(): Plugin
 export function key(code: string): InputBinding          // { type: 'key', code }
 export class Keyboard { isPressed(code: string): boolean } // tree.get(Keyboard)
 export type RawKeyEvent = { type: 'keydown' | 'keyup'; code: string }
-declare module '../core/input/events' { interface InputEventRegistry { key: RawKeyEvent } }
-declare module '../core/input/ActionMap' { interface InputBindingRegistry { key: KeyBinding } }
+export type KeyBinding = { readonly type: 'key'; readonly code: string }   // 两者直接登记在 index.ts 的注册表里
 ```
 
-- `install`：`provide(Keyboard, kb)`、`tree.input.addSource(kb)`（`bindingTypes: ['key']`、`eventTypes: ['keydown', 'keyup']`）。
-- `kind === 'browser'`：`window` 上监听 `keydown` / `keyup`（忽略 `repeat`）→ `enqueue`；`blur` 时给按着的键补发 keyup（队列里还没处理的按下只有生产者知道）。`tree.focusChanged(false)` 时来源也把自己按着的键排队成 keyup。
+- `install`：`provide(Keyboard, kb)`、`tree.input.addSource(kb)`（`bindingTypes: ['key']`、`eventTypes: ['keydown', 'keyup']`、`releaseAll`）。
+- `kind === 'browser'`：`window` 上监听 `keydown` / `keyup`（忽略 `repeat`）→ `enqueue`；`blur` 时给按着的键补发 keyup。核心的 tsconfig 没有 DOM 库，插件只声明自己用到的几个成员（`WindowLike` / `KeyEventLike`），从 `globalThis.window` 取。
 - `kind === 'wechat'` / `'headless'`：无生产者（小游戏没键盘；测试用 `g.inject` / `g.pressKey`）。不打印任何东西——键盘不存在是正常情况。
 
 ### 屏幕控件（`nodes/TouchScreenButton.ts`、`nodes/TouchJoystick.ts`，留在 `sapling2d` 主入口）

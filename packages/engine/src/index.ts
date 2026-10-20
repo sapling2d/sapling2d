@@ -7,14 +7,49 @@ export { Rect2, rect } from './math/Rect2'
 export { Curve2D, type CurvePoint, type Curve2DOptions } from './math/Curve2D'
 export { Viewport, MAX_RENDER_RESOLUTION, type StretchAspect, type DesignResolution, type ScreenInfo } from './core/Viewport'
 export { RandomNumberGenerator } from './math/RandomNumberGenerator'
-export type { Platform } from './platform/Platform'
+export type { Platform, PlatformKind } from './platform/Platform'
 export { HeadlessPlatform } from './platform/HeadlessPlatform'
 export { Signal, type SignalResult } from './core/Signal'
 export { Tween, type TweenProps, type TweenableKey } from './core/Tween'
 export { Ease, type EaseFn } from './math/ease'
 export { Timer, SceneTreeTimer, type TimerOptions } from './nodes/Timer'
-export { Input, key, pointerPress, type InputBinding, type RawInputEvent } from './core/Input'
+export { Input, pointerPress, type InputBinding, type PointerBinding, type RawInputEvent, type RawPointerEvent, type InputSource } from './core/Input'
 export type { ActionName } from './core/actions'
+export type { Plugin, PluginContext, ServiceToken } from './core/plugin'
+export { keyboard, key, Keyboard, type RawKeyEvent, type KeyBinding } from './plugins/keyboard'
+
+import type { PointerBinding, RawPointerEvent } from './core/Input'
+import type { KeyBinding, RawKeyEvent } from './plugins/keyboard'
+
+/**
+ * 原始输入事件注册表。核心只有指针事件；内置的键盘插件直接登记在这里，外部插件用声明合并加入自己的事件。
+ * 每种事件都要有 `type` 字段（字符串字面量），`Input` 按它把事件路由给订阅了该类型的 `InputSource`：
+ *
+ * ```ts
+ * declare module 'sapling2d' {
+ *   interface InputEventRegistry { motion: { type: 'motion'; x: number; y: number; z: number } }
+ * }
+ * ```
+ */
+export interface InputEventRegistry {
+  pointer: RawPointerEvent
+  key: RawKeyEvent
+}
+
+/**
+ * 动作绑定注册表。核心只有 `pointerPress()`；内置的键盘插件直接登记在这里，外部插件用声明合并加入自己的绑定。
+ * 每种绑定都要有 `type` 字段，和认领它的 `InputSource.bindingTypes` 对应：
+ *
+ * ```ts
+ * declare module 'sapling2d' {
+ *   interface InputBindingRegistry { tilt: { type: 'tilt'; dir: 'left' | 'right' } }
+ * }
+ * ```
+ */
+export interface InputBindingRegistry {
+  pointer: PointerBinding
+  key: KeyBinding
+}
 export type { PointerEvent2D, CircleHitArea } from './core/pointer'
 export { Transform2D } from './math/Transform2D'
 export type { GroupName, GroupNodeType } from './core/groups'

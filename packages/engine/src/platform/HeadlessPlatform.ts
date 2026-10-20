@@ -1,5 +1,5 @@
 import { HeadlessAudioBackend } from '../audio/HeadlessAudio'
-import type { RawInputEvent } from '../core/Input'
+import type { RawPointerEvent } from '../core/Input'
 import { MemoryStorageBackend } from '../storage/backend'
 import type { ScreenInfo } from '../core/Viewport'
 import type { LoadedImage, Platform } from './Platform'
@@ -9,13 +9,14 @@ import type { LoadedImage, Platform } from './Platform'
  * `requestFrame` 注册的回调只在 `advance()` 时触发。
  */
 export class HeadlessPlatform implements Platform {
+  readonly kind = 'headless' as const
   /** 不发声、只记录的音频；测试里用 `log` 断言播放了什么。 */
   readonly audio = new HeadlessAudioBackend()
   /** 内存存储：每个测试游戏独立。 */
   readonly storage = new MemoryStorageBackend()
   private _screen: ScreenInfo
   private _screenListeners = new Set<(screen: ScreenInfo) => void>()
-  private _inputListeners = new Set<(event: RawInputEvent) => void>()
+  private _inputListeners = new Set<(event: RawPointerEvent) => void>()
   private _focusListeners = new Set<(focused: boolean) => void>()
   private _time = 0
   private _nextId = 1
@@ -46,13 +47,13 @@ export class HeadlessPlatform implements Platform {
     return () => this._screenListeners.delete(callback)
   }
 
-  onInput(callback: (event: RawInputEvent) => void): () => void {
+  onInput(callback: (event: RawPointerEvent) => void): () => void {
     this._inputListeners.add(callback)
     return () => this._inputListeners.delete(callback)
   }
 
-  /** 注入一个原始输入事件（窗口坐标）。它会在下一帧开始时被处理。 */
-  injectInput(event: RawInputEvent): void {
+  /** 注入一个原始指针事件（窗口坐标）。它会在下一帧开始时被处理。插件的事件用 `tree.input.enqueue`（测试里是 `g.inject`）。 */
+  injectInput(event: RawPointerEvent): void {
     for (const cb of [...this._inputListeners]) cb(event)
   }
 

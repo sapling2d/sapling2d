@@ -1,19 +1,17 @@
 import { Vector2 } from '../math/Vector2'
 import type { ActionName } from './actions'
-import { ActionMap, type ActionSource, type InputBinding } from './input/ActionMap'
-import type { RawInputEvent } from './input/events'
+import { ActionMap, type ActionSource } from './input/ActionMap'
+import type { InputBinding } from './input/bindings'
+import { isPointerEvent, type RawInputEvent } from './input/events'
 import { PointerRouter } from './input/PointerRouter'
+import type { InputSource } from './input/source'
 import { VirtualControls, type VirtualButton, type VirtualStick } from './input/VirtualControls'
 import type { Node } from './Node'
 import type { Viewport } from './Viewport'
 
-export type { InputBinding } from './input/ActionMap'
-export type { RawInputEvent } from './input/events'
-
-/** 键盘按键绑定。`code` 是 KeyboardEvent.code，如 'Space'、'KeyA'、'ArrowLeft'。 */
-export function key(code: string): InputBinding {
-  return { type: 'key', code }
-}
+export type { InputBinding, PointerBinding } from './input/bindings'
+export type { RawInputEvent, RawPointerEvent } from './input/events'
+export type { InputSource } from './input/source'
 
 /** 指针按下绑定：屏幕上任意位置的按下（被 inputPickable 节点处理掉的不算）。 */
 export function pointerPress(): InputBinding {
@@ -36,27 +34,44 @@ export function pointerPress(): InputBinding {
  * }
  * ```
  *
- * 内部由几部分组成：`ActionMap`（动作状态）、`PointerRouter`（指针分发给节点）、`VirtualControls`（屏幕按钮和摇杆）。
- * 这里持有事件队列和键盘状态，把按键、指针、控件汇总成动作的力度。
+ * 核心只认识指针和动作：`ActionMap`（动作状态）、`PointerRouter`（指针分发给节点）。
+ * 键盘、屏幕控件、传感器等都是 `InputSource`（`addSource`），由插件和节点登记；它们的事件走同一个队列（`enqueue`）。
  */
 export class Input {
   private _queue: RawInputEvent[] = []
-  private readonly _keysDown = new Set<string>()
+  /** 处理中的队列。和 `_queue` 轮换使用：处理期间入队的事件进另一个数组、下一帧处理，每帧不分配。 */
+  private _spare: RawInputEvent[] = []
   private readonly _actions = new ActionMap()
   private readonly _controls = new VirtualControls()
   private readonly _pointer: PointerRouter
+  private readonly _sources: InputSource[] = []
+  private readonly _strengthSources: InputSource[] = []
+  private readonly _frameSources: InputSource[] = []
+  /** 事件类型 → 订阅它的来源。 */
+  private readonly _routes = new Map<string, InputSource[]>()
+  /** 遍历来源时用的副本（复用）：回调里可能增删来源。帧首和事件分发各一个，互不覆盖。 */
+  private readonly _frameScratch: InputSource[] = []
+  private readonly _dispatchScratch: InputSource[] = []
+  /** 已经警告过的、没有来源认领的绑定类型。 */
+  private readonly _warnedTypes = new Set<string>()
   /** 给 `ActionMap` 的力度来源（构造时建一次）。 */
   private readonly _source: ActionSource = { strength: (action, bindings) => this._strength(action, bindings) }
 
   /** @internal */
   constructor(viewport: Viewport, topLevel: () => readonly Node[]) {
     this._pointer = new PointerRouter(viewport, topLevel, this._controls)
+    this.addSource(this._controls)
   }
 
   // ---------------------------------------------------------------- 动作
 
-  /** 定义（或覆盖）一个动作。也可以在启动参数 `actions` 里一次性定义。 */
+  /** 定义（或覆盖）一个动作。也可以在启动参数 `actions` 里一次性定义。绑定的类型没有来源认领时打印警告。 */
   addAction(name: ActionName, bindings: InputBinding[]): void {
+    for (const b of bindings) {
+      if (b.type === 'pointer' || this._warnedTypes.has(b.type) || this._claims(b.type)) continue
+      this._warnedTypes.add(b.type)
+      console.warn(`Input action "${name}": binding type "${b.type}" has no input source, so it will never press the action. Install its plugin in the game options (plugins: [...]).`)
+    }
     this._actions.add(name, bindings)
   }
 
@@ -127,22 +142,35 @@ export class Input {
     this._actions.endPhysicsStep()
   }
 
-  /** 动作 `action` 当前的力度：屏幕按钮、绑定的按键和指针、摇杆里最大的。 */
+  /** 动作 `action` 当前的力度：`pointerPress()` 绑定和所有来源里最大的。 */
   private _strength(action: string, bindings: readonly InputBinding[]): number {
-    let strength = this._controls.buttonCount(action) > 0 ? 1 : 0
-    for (let i = 0; strength < 1 && i < bindings.length; i++) {
-      const b = bindings[i]!
-      if (b.type === 'key' ? this._keysDown.has(b.code) : this._pointer.hasUnhandled) strength = 1
+    let strength = 0
+    if (this._pointer.hasUnhandled) {
+      for (let i = 0; i < bindings.length; i++) {
+        if (bindings[i]!.type === 'pointer') {
+          strength = 1
+          break
+        }
+      }
     }
-    return strength < 1 ? this._controls.stickStrength(action, strength) : strength
+    const sources = this._strengthSources
+    for (let i = 0; strength < 1 && i < sources.length; i++) {
+      const s = sources[i]!.strength!(action, bindings)
+      if (s > strength) strength = s
+    }
+    return strength
   }
 
-  // ---------------------------------------------------------------- 原始状态
-
-  /** 键盘按键是否按下（只有浏览器平台有键盘）。 */
-  isKeyPressed(code: string): boolean {
-    return this._keysDown.has(code)
+  /** 是否有来源认领绑定类型 `type`。 */
+  private _claims(type: string): boolean {
+    for (let i = 0; i < this._sources.length; i++) {
+      const types = this._sources[i]!.bindingTypes
+      if (types && types.includes(type)) return true
+    }
+    return false
   }
+
+  // ---------------------------------------------------------------- 指针状态
 
   /** 最近一次指针事件的位置（世界坐标，没有相机时就是设计坐标）；还没有任何指针事件时为 null。 */
   get pointerPosition(): Vector2 | null {
@@ -169,47 +197,77 @@ export class Input {
     return this._pointer.pointers
   }
 
-  // ---------------------------------------------------------------- 内部
+  // ---------------------------------------------------------------- 扩展点
 
-  /** @internal 平台事件入队。 */
-  _enqueue(event: RawInputEvent): void {
+  /** 登记一个输入来源（插件、屏幕控件）。重复登记只算一次。 */
+  addSource(source: InputSource): void {
+    if (this._sources.includes(source)) return
+    this._sources.push(source)
+    if (source.strength) this._strengthSources.push(source)
+    if (source.beginFrame) this._frameSources.push(source)
+    if (source.eventTypes) {
+      for (const type of source.eventTypes) {
+        const list = this._routes.get(type)
+        if (list) list.push(source)
+        else this._routes.set(type, [source])
+      }
+    }
+  }
+
+  removeSource(source: InputSource): void {
+    remove(this._sources, source)
+    remove(this._strengthSources, source)
+    remove(this._frameSources, source)
+    for (const list of this._routes.values()) remove(list, source)
+  }
+
+  /** 原始输入事件入队，下一帧开始时按顺序处理。平台的指针事件和插件的事件都走这里。 */
+  enqueue(event: RawInputEvent): void {
     this._queue.push(event)
   }
 
-  /** @internal 每帧开始时由 SceneTree 调用：清掉上一帧的 just 状态，按顺序处理队列。 */
+  // ---------------------------------------------------------------- 内部
+
+  /** @internal 每帧开始时由 SceneTree 调用：清掉上一帧的 just 状态，来源的帧首处理，然后按顺序处理队列。 */
   _flush(): void {
     this._actions.beginFrame()
     this._pointer.beginFrame()
-    // 按着的按钮变得不能按（隐藏、暂停、被移除）时松开；动作状态在这里统一更新，所有节点在同一帧看到变化
-    this._controls.releaseUnusable()
+    // 来源的帧首处理（按着的屏幕按钮变得不能按时松开、轮询手柄）；动作状态在这里统一更新，所有节点在同一帧看到变化
+    const frameSources = snapshot(this._frameSources, this._frameScratch)
+    for (let i = 0; i < frameSources.length; i++) frameSources[i]!.beginFrame!()
     this._actions.update(this._source)
     const queue = this._queue
-    this._queue = []
-    for (const e of queue) {
-      if ('code' in e) {
-        if (e.type === 'keydown') this._keysDown.add(e.code)
-        else this._keysDown.delete(e.code)
-      } else {
+    if (queue.length === 0) return
+    this._queue = this._spare
+    this._spare = queue
+    for (let i = 0; i < queue.length; i++) {
+      const e = queue[i]!
+      if (isPointerEvent(e)) {
         // 同一个指针还按着又收到按下：上一次的抬起丢了。先按取消处理并更新动作（先松开再按下），新的按下才有“刚按下”
         if (e.type === 'pointerdown' && this._pointer.cancelStale(e.pointerId)) this._actions.update(this._source)
         this._pointer.handle(e)
       }
+      const subscribers = this._routes.get(e.type)
+      if (subscribers) {
+        const sources = snapshot(subscribers, this._dispatchScratch)
+        for (let j = 0; j < sources.length; j++) sources[j]!.handle!(e)
+      }
       this._actions.update(this._source)
     }
+    queue.length = 0
   }
 
   /**
-   * @internal 游戏切到后台：松开所有按下的指针和按键（排队成取消 / 松开事件，下一帧开始时按顺序处理）。
+   * @internal 游戏切到后台：松开所有按下的指针，并让每个来源松开自己按着的东西（排队成取消 / 松开事件，下一帧开始时按顺序处理）。
    * 还在队列里、没处理的按下也算：它们的抬起在后台收不到。
    */
   _releaseAll(): void {
-    const keys = new Set(this._keysDown)
-    for (const e of this._queue) if (e.type === 'keydown') keys.add(e.code)
     this._pointer.releaseAll(this._queue)
-    for (const code of keys) this._queue.push({ type: 'keyup', code })
+    const sources = this._sources.slice() // 切后台很少发生，直接复制
+    for (let i = 0; i < sources.length; i++) sources[i]!.releaseAll?.(this._queue)
   }
 
-  // ---------------------------------------------------------------- 屏幕控件（由节点进出树时调用）
+  // ---------------------------------------------------------------- 屏幕控件（由节点进出树时调用；工单 02 移除）
 
   /** @internal TouchScreenButton 进入树时调用。 */
   _addButton(button: VirtualButton): void {
@@ -230,4 +288,16 @@ export class Input {
   _removeStick(stick: VirtualStick): void {
     this._controls.removeStick(stick)
   }
+}
+
+function remove<T>(list: T[], item: T): void {
+  const i = list.indexOf(item)
+  if (i >= 0) list.splice(i, 1)
+}
+
+/** `list` 的副本（写进复用的 `out`）：遍历时回调增删来源也不会漏掉或多算。 */
+function snapshot(list: readonly InputSource[], out: InputSource[]): InputSource[] {
+  out.length = 0
+  for (let i = 0; i < list.length; i++) out.push(list[i]!)
+  return out
 }

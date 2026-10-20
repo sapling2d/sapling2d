@@ -3,6 +3,7 @@ import type { Scene, SceneClass } from '../core/Scene'
 import { SceneTree, type NodeClass } from '../core/SceneTree'
 import type { ActionName } from '../core/actions'
 import type { InputBinding } from '../core/Input'
+import type { Plugin, PluginContext } from '../core/plugin'
 import { Viewport, type DesignResolution } from '../core/Viewport'
 import type { PhysicsSettings } from '../physics/PhysicsWorld'
 import type { Platform } from '../platform/Platform'
@@ -95,6 +96,11 @@ export interface GameOptions<S extends Scene> {
   design?: DesignResolution
   /** 输入动作：`{ drop: [pointerPress(), key('Space')] }`。之后用 `tree.input.isActionPressed('drop')` 查询。 */
   actions?: Partial<Record<ActionName, InputBinding[]>>
+  /**
+   * 插件（见 Plugin）：平台差异化的能力，如传感器、小游戏的广告。按顺序安装，在定义动作之前。
+   * 各平台的 `startGame` 和 `createTestGame` 会在前面加上自己的默认插件（浏览器和测试：键盘）。
+   */
+  plugins?: Plugin[]
   /** 物理设置：`{ pixelsPerMeter: 50, gravity: v(0, 980), velocityIterations: 8, positionIterations: 3 }`。 */
   physics?: PhysicsSettings
   /** 切到后台时挂起主循环（不推进时间、不渲染），默认 true。为 false 时只触发 `tree.focusChanged`。 */
@@ -122,14 +128,17 @@ export class Game<S extends Scene = Scene> {
   private _unsubscribeScreen: () => void
   private _unsubscribeInput: () => void
   private _unsubscribeFocus: () => void
+  /** 插件的卸载函数（安装顺序）。 */
+  private readonly _disposers: (() => void)[]
   private _suspended = false
 
-  private constructor(platform: Platform, renderer: Renderer | null, tree: SceneTree, pauseOnBackground: boolean) {
+  private constructor(platform: Platform, renderer: Renderer | null, tree: SceneTree, pauseOnBackground: boolean, disposers: (() => void)[]) {
     this._platform = platform
     this._renderer = renderer
     this.tree = tree
+    this._disposers = disposers
     this._unsubscribeScreen = platform.onScreenChange((screen) => tree.viewport._update(screen))
-    this._unsubscribeInput = platform.onInput((event) => tree.input._enqueue(event))
+    this._unsubscribeInput = platform.onInput((event) => tree.input.enqueue(event))
     this._unsubscribeFocus = platform.onFocusChange((focused) => {
       if (pauseOnBackground) {
         this._suspended = !focused
@@ -146,26 +155,33 @@ export class Game<S extends Scene = Scene> {
   }
 
   /**
-   * 创建游戏：注册 Autoload，显示启动页，准备资源包，加载入口场景的资源，然后让入口场景进入树。
+   * 创建游戏：安装插件，定义动作，注册 Autoload，显示启动页，准备资源包，加载入口场景的资源，然后让入口场景进入树。
    * `start: true` 时启动页进入树后就开始帧循环（各平台的 startGame）；否则由调用方驱动帧（无头测试），这时不等启动页的 `loaded()`。
    */
   static async create<S extends Scene>(options: GameOptions<S> & { platform: Platform; renderer?: Renderer | null; start?: boolean }): Promise<Game<S>> {
-    const viewport = new Viewport(options.design ?? { width: 750, height: 1334 }, options.platform.getScreenInfo())
+    const platform = options.platform
+    const viewport = new Viewport(options.design ?? { width: 750, height: 1334 }, platform.getScreenInfo())
     const tree = new SceneTree({
       viewport,
       ...(options.seed === undefined ? {} : { seed: options.seed }),
       ...(options.physics ? { physics: options.physics } : {}),
-      audioBackend: options.platform.audio,
-      storageBackend: options.platform.storage,
+      audioBackend: platform.audio,
+      storageBackend: platform.storage,
       ...(options.storagePrefix ? { storagePrefix: options.storagePrefix } : {}),
     })
+    // 先装插件再定义动作：定义动作时才能检查绑定有没有来源认领
+    const disposers: (() => void)[] = []
+    const ctx: PluginContext = { tree, platform, provide: (token, service) => tree._provide(token, service) }
+    for (const plugin of options.plugins ?? []) {
+      const dispose = plugin.install(ctx)
+      if (dispose) disposers.push(dispose)
+    }
     for (const [name, bindings] of Object.entries(options.actions ?? {})) {
       if (bindings) tree.input.addAction(name as ActionName, bindings)
     }
     for (const cls of options.autoloads ?? []) tree._addAutoload(cls)
-    const platform = options.platform
     tree._setAssetLoader((assets, onProgress) => loadAssets(assets, platform, tree.audio, onProgress))
-    const game = new Game<S>(platform, options.renderer ?? null, tree, options.pauseOnBackground ?? true)
+    const game = new Game<S>(platform, options.renderer ?? null, tree, options.pauseOnBackground ?? true, disposers)
     const loading = options.loading === undefined ? DefaultLoadingScene : options.loading
     const screen: (Scene & LoadingScreen) | null = loading ? await tree.changeScene(loading) : null
     if (options.start) game.start()
@@ -240,8 +256,11 @@ export class Game<S extends Scene = Scene> {
     this._frameId = null
   }
 
+  /** 停止帧循环，卸载插件（按安装的相反顺序），断开平台订阅，销毁渲染器。 */
   destroy(): void {
     this.stop()
+    for (let i = this._disposers.length - 1; i >= 0; i--) this._disposers[i]!()
+    this._disposers.length = 0
     this._unsubscribeScreen()
     this._unsubscribeInput()
     this._unsubscribeFocus()

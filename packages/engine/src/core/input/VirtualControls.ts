@@ -1,6 +1,7 @@
 import type { Vector2 } from '../../math/Vector2'
 import type { Node2D } from '../Node2D'
 import { canHit, hitsAt } from './hit'
+import type { InputSource } from './source'
 
 /** 用到的 TouchScreenButton 字段（core 不依赖 nodes/）。 */
 export interface VirtualButton extends Node2D {
@@ -29,8 +30,10 @@ export interface VirtualStick extends Node2D {
  *
  * - 按钮：多个手指可以同时按一个按钮；一个手指可以同时按下它下面的几个按钮；`passbyPress` 的按钮可以滑进去按下
  * - 摇杆：一个手指按住后独占，之后的移动和抬起只交给摇杆
+ *
+ * 作为 `InputSource` 登记在 `Input` 里（帧首松开不能按的控件、给动作力度）。工单 02 会把它拆掉，控件改为只用公开 API。
  */
-export class VirtualControls {
+export class VirtualControls implements InputSource {
   private readonly _buttons: VirtualButton[] = []
   private readonly _buttonSet = new Set<Node2D>()
   /** 遍历按钮时用的副本（复用）：按钮的信号回调可能增删按钮。 */
@@ -155,6 +158,18 @@ export class VirtualControls {
       this._buttonReleased(button)
       i = -1 // 信号回调可能增删了按钮：从头再看一遍（已经松开的会被跳过）
     }
+  }
+
+  // ---------------------------------------------------------------- InputSource
+
+  /** 帧首：按着的控件变得不能按时松开。 */
+  beginFrame(): void {
+    this.releaseUnusable()
+  }
+
+  /** 屏幕按钮按着时是 1，否则是摇杆给的力度。 */
+  strength(action: string): number {
+    return this.buttonCount(action) > 0 ? 1 : this.stickStrength(action, 0)
   }
 
   // ---------------------------------------------------------------- 动作力度

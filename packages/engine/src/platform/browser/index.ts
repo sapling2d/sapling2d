@@ -1,4 +1,5 @@
 import type { Scene } from '../../core/Scene'
+import { keyboard } from '../../plugins/keyboard'
 import { PixiRenderer } from '../../render/PixiRenderer'
 import { Game, type GameOptions } from '../../runtime/Game'
 import { BrowserPlatform } from './BrowserPlatform'
@@ -16,6 +17,7 @@ export interface BrowserGameOptions<S extends Scene> extends GameOptions<S> {
 
 /**
  * 在浏览器里启动游戏：创建画布和渲染器、加载入口场景的资源，然后开始帧循环。
+ * 默认安装键盘插件（`keyboard()`），`plugins` 里的插件追加在它之后。
  *
  * ```ts
  * import { startGame } from 'sapling2d/browser'
@@ -31,7 +33,7 @@ export async function startGame<S extends Scene>(options: BrowserGameOptions<S>)
     ...(options.pixelArt ? { pixelArt: true } : {}),
   })
   // 启动页进入树后就开始帧循环，加载期间有画面
-  return Game.create({ ...options, platform, renderer, start: true })
+  return Game.create({ ...options, plugins: [keyboard(), ...(options.plugins ?? [])], platform, renderer, start: true })
 }
 
 function createFullscreenCanvas(): HTMLCanvasElement {

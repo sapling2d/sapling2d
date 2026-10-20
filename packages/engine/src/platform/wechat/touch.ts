@@ -1,4 +1,4 @@
-import type { RawInputEvent } from '../../core/Input'
+import type { RawPointerEvent } from '../../core/Input'
 
 /** wx 触摸事件里引擎用到的部分（见 spikes/wechat/REPORT.md 第 5 节）。 */
 export interface WxTouchEvent {
@@ -24,7 +24,7 @@ export interface WxTouchApi {
  * pointerId 是触摸的 identifier，坐标是窗口逻辑像素（clientX / clientY，与 getWindowInfo 一致）。
  * 返回取消订阅的函数。
  */
-export function subscribeTouches(api: WxTouchApi, callback: (event: RawInputEvent) => void): () => void {
+export function subscribeTouches(api: WxTouchApi, callback: (event: RawPointerEvent) => void): () => void {
   const make = (type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel'): TouchListener => (e) => {
     for (const t of e.changedTouches) callback({ type, pointerId: t.identifier, x: t.clientX, y: t.clientY })
   }

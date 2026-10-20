@@ -9,7 +9,7 @@ import { Arena } from './scenes/Arena'
 export function installTouchDebug(game: Game): void {
   const tree = game.tree
   const input = tree.input
-  const original = input._enqueue.bind(input)
+  const original = input.enqueue.bind(input)
   let presses = 0
   let maxDrag = 0
   let maxStrength = 0
@@ -17,7 +17,7 @@ export function installTouchDebug(game: Game): void {
 
   const stick = () => (tree.currentScene instanceof Arena ? tree.currentScene.hud?.joystick ?? null : null)
 
-  input._enqueue = (e: RawInputEvent) => {
+  input.enqueue = (e: RawInputEvent) => {
     original(e)
     if (e.type !== 'pointerdown' && e.type !== 'pointerup' && e.type !== 'pointercancel') return
     const d = tree.viewport.screenToDesign(v(e.x, e.y))

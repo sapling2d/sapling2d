@@ -1,7 +1,6 @@
-/** 动作绑定：键盘按键（KeyboardEvent.code，如 'Space'、'KeyA'、'ArrowLeft'），或任意一次未被节点处理的指针按下。 */
-export type InputBinding = { readonly type: 'key'; readonly code: string } | { readonly type: 'pointer' }
+import type { InputBinding } from './bindings'
 
-/** 动作的力度从哪里来：按键、指针、屏幕按钮、摇杆由 `Input` 汇总。 */
+/** 动作的力度从哪里来：指针绑定和各个输入来源由 `Input` 汇总。 */
 export interface ActionSource {
   /** 动作 `action`（绑定是 `bindings`）当前的力度，0–1。 */
   strength(action: string, bindings: readonly InputBinding[]): number

@@ -1,10 +1,12 @@
 import type { HeadlessAudioBackend } from '../audio/HeadlessAudio'
+import type { RawInputEvent } from '../core/Input'
 import type { DumpNode } from '../core/Node'
 import type { Scene } from '../core/Scene'
 import type { ScreenInfo } from '../core/Viewport'
 import { Vector2 } from '../math/Vector2'
 import { SceneTree, type DumpOptions } from '../core/SceneTree'
 import { HeadlessPlatform } from '../platform/HeadlessPlatform'
+import { keyboard } from '../plugins/keyboard'
 import { Game, type GameOptions } from '../runtime/Game'
 
 export interface TestGameOptions<S extends Scene> extends GameOptions<S> {
@@ -59,6 +61,8 @@ export interface TestGame<S extends Scene> {
   /** 只注入按键按下 / 松开（不推进时间）。 */
   keyDown(code: string): void
   keyUp(code: string): void
+  /** 注入任意原始输入事件（插件的事件也走这里，如 `{ type: 'motion', … }`），下一次 step 开始时处理。 */
+  inject(event: RawInputEvent): void
   /** 场景树的文本转储；`{ json: true }` 时返回结构化数据。 */
   dump(options: DumpOptions & { json: true }): DumpNode[]
   dump(options?: DumpOptions): string
@@ -67,6 +71,7 @@ export interface TestGame<S extends Scene> {
 /**
  * 在无头模式下启动游戏：不渲染，时间完全由 `step()` 驱动，结果是确定的。
  * 入口场景的 `static assets` 会被“加载”（无头模式不读文件，贴图宽高为 0）。
+ * 默认安装键盘插件（`g.pressKey` 靠它），`plugins` 里的插件追加在它之后。
  *
  * ```ts
  * const g = await createTestGame({ main: GameScene, seed: 1 })
@@ -86,7 +91,7 @@ export async function createTestGame<S extends Scene>(options: TestGameOptions<S
   const platform = new HeadlessPlatform(options.screen ?? { width: design.width, height: design.height, pixelRatio: 1 }, (path) => readNodeFile(`${assetsDir}/${path}`))
   const prefix = options.storagePrefix ?? 'sapling2d:'
   for (const [k, value] of Object.entries(options.storage ?? {})) platform.storage.setItem(prefix + k, JSON.stringify(value))
-  const game = await Game.create({ ...options, loading: options.loading ?? null, seed: options.seed ?? 1, platform })
+  const game = await Game.create({ ...options, plugins: [keyboard(), ...(options.plugins ?? [])], loading: options.loading ?? null, seed: options.seed ?? 1, platform })
   const tree = game.tree
 
   const frameMs = 1000 / SceneTree.PHYSICS_TICKS_PER_SECOND
@@ -104,8 +109,9 @@ export async function createTestGame<S extends Scene>(options: TestGameOptions<S
   const pointerDown = (x: number, y: number, id?: number) => pointer('pointerdown', x, y, id)
   const pointerMove = (x: number, y: number, id?: number) => pointer('pointermove', x, y, id)
   const pointerUp = (x: number, y: number, id?: number) => pointer('pointerup', x, y, id)
-  const keyDown = (code: string) => platform.injectInput({ type: 'keydown', code })
-  const keyUp = (code: string) => platform.injectInput({ type: 'keyup', code })
+  const inject = (event: RawInputEvent) => tree.input.enqueue(event)
+  const keyDown = (code: string) => inject({ type: 'keydown', code })
+  const keyUp = (code: string) => inject({ type: 'keyup', code })
 
   return {
     game,
@@ -114,6 +120,7 @@ export async function createTestGame<S extends Scene>(options: TestGameOptions<S
     pointerUp,
     keyDown,
     keyUp,
+    inject,
     tap(x, y, pointerId) {
       pointerDown(x, y, pointerId)
       step()
