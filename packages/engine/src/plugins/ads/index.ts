@@ -2,9 +2,14 @@ import type { Plugin } from '../../core/plugin'
 import type { SceneTree } from '../../core/SceneTree'
 import { AdHost, MockBanner, MockFullscreenAd, type MockMode } from './mock'
 import type { AdBanner, FullscreenAd, InterstitialResult, RewardedResult } from './provider'
+import { createWechatAds, type WxAdsApi } from './wechat'
 
 export type { AdBanner, InterstitialResult, RewardedResult } from './provider'
 export { MOCK_LAYOUT, MOCK_BANNER_RATIO } from './mock'
+export type { WxAdsApi, WxFullscreenAd, WxBannerAd, WxAdError } from './wechat'
+
+/** 默认的超时（毫秒）。 */
+const DEFAULT_TIMEOUT_MS = 15000
 
 export interface AdsOptions {
   /** 激励视频的广告位 id（小游戏流量主）。不配就是 mock。 */
@@ -115,14 +120,30 @@ export function ads(options: AdsOptions = {}): Plugin {
   return {
     install(ctx) {
       const host = ctx.autoload(AdHost)
-      const mode = options.mock ?? 'ui'
-      // 小游戏的真广告由 wechat.ts 接入（工单 02）；这里三端都先是 mock
-      const rewarded: FullscreenAd = new MockFullscreenAd(host, 'rewarded', mode)
-      const interstitial: FullscreenAd = new MockFullscreenAd(host, 'interstitial', mode)
-      const banner: AdBanner = new MockBanner(host)
-      const service = new Ads(ctx.tree, rewarded, interstitial, banner, true, options.pauseGame ?? true)
+      const wx = ctx.platform.kind === 'wechat' ? (globalThis as unknown as { wx?: WxAdsApi }).wx : undefined
+      const providers = _createProviders(ctx.tree, host, options, wx)
+      const service = new Ads(ctx.tree, providers.rewarded, providers.interstitial, providers.banner, providers.isMock, options.pauseGame ?? true)
       ctx.provide(Ads, service)
       return () => service._dispose()
     },
+  }
+}
+
+/**
+ * @internal 按平台和配置挑生产者：小游戏上配了 id（且基础库有这个 API）的类型是真广告，其余是 mock。
+ * `wx` 为 undefined 就是非小游戏平台。导出给测试喂假 `wx`。
+ */
+export function _createProviders(tree: SceneTree, host: AdHost, options: AdsOptions, wx: WxAdsApi | undefined): { rewarded: FullscreenAd; interstitial: FullscreenAd; banner: AdBanner; isMock: boolean } {
+  const mode = options.mock ?? 'ui'
+  const real = wx ? createWechatAds(wx, tree, { ...options, timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS }) : { rewarded: null, interstitial: null, banner: null }
+  if (wx) {
+    const missing = (['rewarded', 'interstitial', 'banner'] as const).filter((k) => !real[k])
+    if (missing.length) console.info(`[sapling2d] ads: no adUnitId (or no API on this base library) for ${missing.join(', ')}; using the mock. Pass ads({ ${missing.map((k) => `${k}: 'adunit-…'`).join(', ')} }) for real ads.`)
+  }
+  return {
+    rewarded: real.rewarded ?? new MockFullscreenAd(host, 'rewarded', mode),
+    interstitial: real.interstitial ?? new MockFullscreenAd(host, 'interstitial', mode),
+    banner: real.banner ?? new MockBanner(host),
+    isMock: !real.rewarded && !real.interstitial && !real.banner,
   }
 }
