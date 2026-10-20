@@ -20,7 +20,7 @@ describe('saplingWechat', () => {
     mkdirSync(join(dir, 'public', 'assets'), { recursive: true })
     writeFileSync(join(dir, 'public', 'assets', 'fruit.png'), 'png')
     writeFileSync(join(dir, 'src', 'main.ts'), main)
-    return (opts: { release?: boolean; logUrl?: string | null; warnings?: string[] } = {}) =>
+    return (opts: { release?: boolean | 'default'; logUrl?: string | null; warnings?: string[] } = {}) =>
       build({
         root: dir,
         logLevel: opts.warnings ? 'warn' : 'silent',
@@ -32,7 +32,7 @@ describe('saplingWechat', () => {
             { find: /^sapling2d\/wechat-polyfills$/, replacement: join(SRC, 'platform', 'wechat', 'polyfills.ts') },
           ],
         },
-        plugins: [saplingWechat({ entry: 'src/main.ts', appid: 'wx-test', orientation: 'landscape', release: opts.release ?? false, logUrl: opts.logUrl ?? null, ...pluginOptions })],
+        plugins: [saplingWechat({ entry: 'src/main.ts', appid: 'wx-test', orientation: 'landscape', ...(opts.release === 'default' ? {} : { release: opts.release ?? false }), logUrl: opts.logUrl ?? null, ...pluginOptions })],
       })
   }
 
@@ -93,6 +93,20 @@ describe('saplingWechat', () => {
     writeFileSync(join(dir, 'public', 'assets', 'boot', 'huge.png'), Buffer.alloc(MAIN_PACKAGE_LIMIT))
     await expect(run({ release: true })).rejects.toThrow(/main package is .* over the 4\.00 MB limit\. Largest: assets\/boot\/huge\.png 4\.00 MB/)
     await run({ release: false }) // 开发构建不报错
+  })
+
+  it('不传 release：vite build 是发布构建（压缩、无 sourcemap、超限失败），--watch 是开发构建', async () => {
+    const run = fixture("import { v } from 'sapling2d'\nconsole.log(v(1, 2).toString())")
+    await run({ release: 'default' })
+    expect(read('game.js')).not.toContain('sourceMappingURL')
+    mkdirSync(join(dir, 'public', 'assets', 'boot'))
+    writeFileSync(join(dir, 'public', 'assets', 'boot', 'huge.png'), Buffer.alloc(MAIN_PACKAGE_LIMIT))
+    await expect(run({ release: 'default' })).rejects.toThrow(/over the 4\.00 MB limit/)
+    // --watch 会一直监听：只看 config 钩子给 Vite 的选项
+    const configOf = (plugin: ReturnType<typeof saplingWechat>, user: object) => (plugin.config as (c: object, env: object) => { build: { minify: unknown; sourcemap: unknown } })(user, { command: 'build', mode: 'production' })
+    expect(configOf(saplingWechat({ entry: 'src/main.ts' }), { root: dir, build: { watch: {} } }).build).toMatchObject({ minify: false, sourcemap: 'inline' })
+    expect(configOf(saplingWechat({ entry: 'src/main.ts' }), { root: dir }).build).toMatchObject({ minify: true, sourcemap: false })
+    expect(configOf(saplingWechat({ entry: 'src/main.ts', release: true }), { root: dir, build: { watch: {} } }).build).toMatchObject({ minify: true, sourcemap: false })
   })
 
   it('所有资源都在主包时不生成分包；重新构建时删掉的资源不会留在包里', async () => {

@@ -31,8 +31,8 @@ export interface SaplingWechatOptions {
    */
   mainAssets?: string | string[] | ((path: string) => boolean)
   /**
-   * 发布构建：压缩、不带 sourcemap。默认读环境变量 SAPLING_RELEASE=1。
-   * 开发构建带内联 sourcemap，体积会超过 4MB，只能在模拟器里跑；真机预览必须用发布构建。
+   * 发布构建：压缩、不带 sourcemap，包超限时构建失败。默认 `vite build` 是发布构建，`vite build --watch` 是开发构建。
+   * 开发构建带内联 sourcemap，体积会超过 4MB，只能在模拟器里跑；真机预览和上传必须用发布构建。
    */
   release?: boolean
   /**
@@ -73,11 +73,12 @@ const FORBIDDEN: [RegExp, string][] = [
  * export default defineConfig({ plugins: [sapling(), saplingWechat({ entry: 'src/main.wechat.ts' })] })
  * ```
  *
- * 开发：`vite build -c vite.wechat.config.ts --watch`，用微信开发者工具打开输出目录（它会自动重新编译）。
- * 真机预览：`SAPLING_RELEASE=1 vite build -c vite.wechat.config.ts`。
+ * 开发：`vite build -c vite.wechat.config.ts --watch`（开发构建），用微信开发者工具打开输出目录（它会自动重新编译）。
+ * 真机预览、上传：`vite build -c vite.wechat.config.ts`（发布构建）。
  */
 export function saplingWechat(options: SaplingWechatOptions): Plugin {
-  const release = options.release ?? process.env.SAPLING_RELEASE === '1'
+  /** 发布构建（`config` 里定下来：没传 `release` 时，`--watch` 是开发构建，否则是发布构建）。 */
+  let release = false
   const logUrl = options.logUrl === undefined ? (process.env.SAPLING_LOG_URL ?? null) : options.logUrl
   let root = ''
   let outDir = ''
@@ -92,6 +93,7 @@ export function saplingWechat(options: SaplingWechatOptions): Plugin {
   return {
     name: 'sapling2d:wechat',
     config(config) {
+      release = options.release ?? !config.build?.watch
       root = resolve(config.root ?? process.cwd())
       outDir = resolve(root, options.outDir ?? 'dist-wechat')
       assetsRoot = resolve(root, options.assetsDir ?? join('public', 'assets'))

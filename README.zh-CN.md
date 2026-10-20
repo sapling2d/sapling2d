@@ -83,7 +83,7 @@ export default defineConfig({
 })
 ```
 
-运行 `vite build -c vite.wechat.config.ts --watch`，再用微信开发者工具打开 `dist-wechat/`。环境变量 `WX_APPID` 设为你的 AppID 或测试号。开发构建会超过 4 MB，真机预览要加 `SAPLING_RELEASE=1`。
+运行 `vite build -c vite.wechat.config.ts --watch`，再用微信开发者工具打开 `dist-wechat/`。环境变量 `WX_APPID` 设为你的 AppID 或测试号。`--watch` 是开发构建（内联 sourcemap，超过 4 MB，只能在模拟器里跑）；真机预览和上传用不带 `--watch` 的 `vite build -c vite.wechat.config.ts`，它是发布构建（压缩、无 sourcemap）。`saplingWechat({ release })` 可以强制指定。
 
 ## 仓库结构
 

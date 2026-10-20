@@ -33,7 +33,7 @@ pnpm --filter example-sprite exec vite --config ../../spikes/tilemap/vite.config
 
 # 真机
 node spikes/tilemap/log-server.ts
-WX_APPID=... SAPLING_RELEASE=1 SAPLING_LOG_URL=http://<局域网 IP>:7777/log \
+WX_APPID=... SAPLING_LOG_URL=http://<局域网 IP>:7777/log \
   pnpm --filter example-sprite exec vite build -c ../../spikes/tilemap/vite.wechat.config.ts
 ```
 

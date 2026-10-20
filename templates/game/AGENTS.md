@@ -15,7 +15,7 @@ This is a [sapling2d](../../packages/engine/llms.txt) game: Godot-style node tre
 2. **Run `pnpm check`** (= `tsc` + `vitest run`). Vitest does not type-check, so a green `pnpm test` alone is not enough.
 3. **Look at the game state** without a browser: `console.log(g.dump())` prints the node tree (`Name (Type) prop=value`). Use it to understand failures before guessing.
 4. **See it in a browser** with `pnpm dev` (Vite). In the page console, `sapling.tree.dump()` shows the live tree.
-5. **WeChat:** `pnpm dev:wechat` writes `dist-wechat/`; open it in WeChat DevTools. Set `WX_APPID` (a test account works). For a phone, build with `SAPLING_RELEASE=1` and use DevTools' preview QR.
+5. **WeChat:** `pnpm dev:wechat` writes `dist-wechat/`; open it in WeChat DevTools. Set `WX_APPID` (a test account works). `dev:wechat` is a dev build for the simulator; for a phone, run `pnpm build:wechat` (a release build) and use DevTools' preview QR.
    - To read phone logs in the terminal: `pnpm log-server`, then build with `SAPLING_LOG_URL=http://<LAN IP>:7777/log` (the phone needs 开发调试 on). `snapshot('label')` from `sapling2d/wechat` saves a PNG of the phone screen under `logs/`.
    - The DevTools simulator differs from real phones; trust the phone.
 

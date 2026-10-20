@@ -83,7 +83,7 @@ export default defineConfig({
 })
 ```
 
-Then run `vite build -c vite.wechat.config.ts --watch` and open `dist-wechat/` in WeChat DevTools. Set `WX_APPID` to your AppID or test account. Use `SAPLING_RELEASE=1` for real-device previews, since dev builds go over the 4 MB limit.
+Then run `vite build -c vite.wechat.config.ts --watch` and open `dist-wechat/` in WeChat DevTools. Set `WX_APPID` to your AppID or test account. A `--watch` build is a dev build (inline sourcemap, over the 4 MB limit, simulator only); for real-device previews and uploads run `vite build -c vite.wechat.config.ts` without `--watch`, which is a release build (minified, no sourcemap). `saplingWechat({ release })` forces either.
 
 ## Repository
 

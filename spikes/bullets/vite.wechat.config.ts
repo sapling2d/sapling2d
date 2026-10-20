@@ -1,5 +1,5 @@
 // 弹幕压测的微信小游戏构建（真机测帧率）。见 REPORT.md「真机」一节。
-// WX_APPID=... SAPLING_RELEASE=1 SAPLING_LOG_URL=http://<局域网 IP>:7777/log \
+// WX_APPID=... SAPLING_LOG_URL=http://<局域网 IP>:7777/log \
 //   pnpm --filter example-sprite exec vite build -c ../../spikes/bullets/vite.wechat.config.ts
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
