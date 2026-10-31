@@ -126,6 +126,28 @@ importers:
         specifier: 5.0.3
         version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4))
 
+  examples/spine:
+    dependencies:
+      '@sapling2d/spine':
+        specifier: workspace:*
+        version: link:../../packages/spine
+      '@sapling2d/touch':
+        specifier: workspace:*
+        version: link:../../packages/touch
+      sapling2d:
+        specifier: workspace:*
+        version: link:../../packages/engine
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.4
+        version: 26.6.4
+      vite:
+        specifier: 8.3.3
+        version: 8.3.3(@types/node@26.6.4)
+      vitest:
+        specifier: 5.0.3
+        version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4))
+
   examples/sprite:
     dependencies:
       sapling2d:
@@ -211,6 +233,31 @@ importers:
         specifier: 5.0.3
         version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4))
 
+  packages/spine:
+    dependencies:
+      '@esotericsoftware/spine-core':
+        specifier: ^4.3.13
+        version: 4.3.13
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.4
+        version: 26.6.4
+      pixi.js:
+        specifier: ~8.22.0
+        version: 8.22.0
+      sapling2d:
+        specifier: workspace:*
+        version: link:../engine
+      tsdown:
+        specifier: 0.23.0
+        version: 0.23.0(typescript@7.0.2)
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: 5.0.3
+        version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4))
+
   packages/touch:
     devDependencies:
       '@types/node':
@@ -249,6 +296,9 @@ importers:
         version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4))
 
 packages:
+
+  '@esotericsoftware/spine-core@4.3.13':
+    resolution: {integrity: sha512-iGs/40qOWSQYicABebDzFSwFOS1Nsm0dCCS8sGqbpVuThRKdLYeI1cVJpmATSpEmtcetEABTmh97NoBnt7XLDw==}
 
   '@jridgewell/resolve-uri@3.1.2':
     resolution: {integrity: sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==}
@@ -1090,6 +1140,8 @@ packages:
     resolution: {integrity: sha512-CgaU0/PPjCAIEZ3WQroosOxTY3eeKldAN3h+vk8pMNz4+jl1CZzBR4pW+K/rRPF112VooCL5FdjJoiMNjDrL2A==}
 
 snapshots:
+
+  '@esotericsoftware/spine-core@4.3.13': {}
 
   '@jridgewell/resolve-uri@3.1.2': {}
 

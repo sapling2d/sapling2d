@@ -1,0 +1,12 @@
+pma.png
+	size: 64, 64
+	filter: Linear, Linear
+	pma: true
+box
+	bounds: 0, 0, 32, 32
+box-red
+	bounds: 32, 0, 32, 32
+armMesh
+	bounds: 0, 32, 50, 16
+spark
+	bounds: 48, 32, 16, 16

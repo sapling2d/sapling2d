@@ -1,0 +1,9 @@
+minimal.png
+	size: 64, 64
+	filter: Linear, Linear
+box
+	bounds: 0, 0, 32, 32
+box-red
+	bounds: 32, 0, 32, 32
+armMesh
+	bounds: 0, 32, 50, 16

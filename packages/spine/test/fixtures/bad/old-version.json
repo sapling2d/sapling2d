@@ -1,0 +1,51 @@
+{
+"skeleton": { "hash": "test", "spine": "4.2.33", "x": -16, "y": -16, "width": 76, "height": 32, "images": "./images/" },
+"bones": [
+	{ "name": "root" },
+	{ "name": "arm", "parent": "root", "length": 50, "x": 10 },
+	{ "name": "hand", "parent": "arm", "x": 50 }
+],
+"slots": [
+	{ "name": "clip", "bone": "root" },
+	{ "name": "body", "bone": "root", "attachment": "box" },
+	{ "name": "arm", "bone": "arm", "attachment": "armMesh" },
+	{ "name": "fx", "bone": "hand", "blend": "additive" }
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"clip": { "clip": { "type": "clipping", "end": "body", "vertexCount": 4, "vertices": [ -100, -100, 100, -100, 100, 100, -100, 100 ] } },
+			"body": { "box": { "width": 32, "height": 32 } },
+			"arm": { "armMesh": { "type": "mesh", "uvs": [ 0, 0, 1, 0, 1, 1, 0, 1 ], "triangles": [ 0, 1, 2, 2, 3, 0 ], "vertices": [ 0, 8, 50, 8, 50, -8, 0, -8 ], "hull": 4, "width": 50, "height": 16 } },
+			"fx": { "spark": { "width": 16, "height": 16 } }
+		}
+	},
+	{
+		"name": "red",
+		"attachments": {
+			"body": { "box": { "path": "box-red", "width": 32, "height": 32 } }
+		}
+	}
+],
+"events": {
+	"hit": { "int": 1 },
+	"step": {}
+},
+"animations": {
+	"swing": {
+		"bones": { "arm": { "rotate": [ { "time": 0, "value": 0 }, { "time": 1, "value": 90 } ] } },
+		"events": [ { "time": 0.5, "name": "hit", "int": 7, "float": 1.5, "string": "hard" } ]
+	},
+	"blink": {
+		"slots": { "fx": { "attachment": [ { "time": 0, "name": "spark" }, { "time": 0.25, "name": null } ] } }
+	},
+	"reorder": {
+		"drawOrder": [ { "time": 0.1, "offsets": [ { "slot": "fx", "offset": -2 } ] } ]
+	},
+	"walk": {
+		"bones": { "root": { "translate": [ { "time": 0, "x": 0, "y": 0 }, { "time": 0.5, "x": 20, "y": 0 } ] } },
+		"events": [ { "time": 0.25, "name": "step" } ]
+	}
+}
+}
