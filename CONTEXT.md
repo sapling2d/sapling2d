@@ -29,6 +29,7 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - **SpineBoneNode** — `SpineSprite` 的直接子节点，每帧把自己的变换设成一根骨骼的世界变换（跟随模式；y 轴取反换成引擎的局部坐标，翻转时缩放带符号）。挂枪口特效、武器、血条。
 - **Headless** — 不创建渲染器、仅运行节点树与物理的模式，用于确定性测试（`createTestGame`）。
 - **alpha / modulate** — `Node2D` 的外观属性：`alpha`（不透明度 0–1）和 `modulate`（颜色乘子 0xRRGGBB）作用于整个子树、父子相乘；`selfModulate` 只作用于节点自己的贴图 / 文字。补间时颜色按 RGB 通道插值。
+- **clipRect** — `Node2D` 的裁剪矩形（`Rect2 | null`，局部坐标，默认 null）：只画矩形里的部分，节点自己的内容和整个子树都被裁，嵌套取交集，随节点变换走；子树里的 `CanvasLayer` 自成一层不受影响。拾取和渲染共用同一套规则：被裁掉的部分点不到（`clicked` 也要求抬起时在裁剪区里），正在拖着的节点滚出裁剪区不被打断。渲染层用 Pixi 的容器 mask（矩形 Graphics，stencil；真机实测见 `spikes/clip/REPORT.md`），放在节点容器的第 0 个子对象，只在矩形变化时重建几何。
 - **Render sync** — 渲染层每帧把脏节点状态同步到懒创建的 Pixi 显示对象。用户代码不接触 Pixi 对象（逃生口：`unsafePixi`）。非 Node2D 节点不产生显示对象，其子节点挂到最近的 Node2D 祖先下。
 - **Texture / tex()** — 贴图资源句柄，`tex('fruit.png')` 按路径去重；路径相对于资源目录。
 - **SpriteSheet / Atlas** — 图集：一张大图切成多帧。`sheet(path, { columns, rows })` 按网格切；`atlas(path, data)` 读打包工具导出的 JSON、按名字取帧。每一帧都是 `Texture`（子区域），共用整张图的显存；加载、卸载以整张图为单位。
@@ -61,7 +62,7 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - **TouchScreenButton** — 屏幕按钮（虚拟按键，继承 Sprite2D）：手指按住时让一个输入动作处于按下状态，和键盘绑定共用动作名；每个手指独立，滑出、抬起、取消、切到后台都会松开；滑出后滑回来不再按下，一个手指只按最上层的那个按钮。按在按钮上的手指不触发 `pointerPress()`。只用节点拾取的公开能力加 `InputSource` 实现，不在核心里（ADR 0010）：在独立的包 `@sapling2d/touch` 里，`touch()` 插件预加载默认皮肤（ADR 0011），不传贴图也能看到控件。
 - **TouchJoystick** — 虚拟摇杆（继承 Node2D）：手指拖动时按方向和力度（0–1）驱动四个方向的输入动作，游戏用 `input.getVector(...)` 读取，和键盘共用动作名。`dynamic`（在区域里按下的地方出现）或 `fixed`；只认一个手指。只配 `left` / `right`、半径小、`deadzone: 0` 的 `fixed` 摇杆就是一个可以滑动换方向的方向键。实现方式同 TouchScreenButton。
 - **Action strength** — 输入动作的力度（0–1）：数字输入（按键、`pointerPress()`、屏幕按钮）是 1，摇杆和倾斜是推动 / 倾斜的程度；几个来源取最大；力度 ≥ 0.5 时动作算按下。
-- **Pointer picking** — `inputPickable` 加 `hitArea`（Sprite2D 默认用贴图范围，子类可覆写 `hitTest`）的节点会收到 `pointerDown` / `pointerMove` / `pointerUp` / `clicked`；只有绘制顺序最上层的节点收到；按下后该指针被节点捕获。被捕获的节点变得不可命中（隐藏、暂停、排队销毁、离开树）时，下一帧帧首收到一次 `pointerUp`（不发 `clicked`），这根指针之后的事件忽略。被节点处理掉的按下不触发 `pointerPress()` 动作。
+- **Pointer picking** — `inputPickable` 加 `hitArea`（Sprite2D 默认用贴图范围，子类可覆写 `hitTest`）的节点会收到 `pointerDown` / `pointerMove` / `pointerUp` / `clicked`；只有绘制顺序最上层的节点收到，被自己或祖先的 `clipRect` 裁掉的部分点不到；按下后该指针被节点捕获。被捕获的节点变得不可命中（隐藏、暂停、排队销毁、离开树）时，下一帧帧首收到一次 `pointerUp`（不发 `clicked`），这根指针之后的事件忽略。被节点处理掉的按下不触发 `pointerPress()` 动作。
 - **Audio** — `this.tree.audio`。资源用 `sfx(path)`（预解码，可叠加）和 `music(path)`（流式）声明。一次性音效 `tree.audio.play(stream, { volume, loop, bus })` 返回 Voice；节点用 `AudioStreamPlayer`（同一时间一个声音，离开树时停止）。平台只实现很薄的 `AudioBackend`。浏览器在第一次手势时自动解锁：之前请求的音乐排队，音效丢弃。后台时挂起。
 - **Audio bus** — `Master` / `Music` / `SFX` 三条音量总线，音量是 0–1 线性值（不是 Godot 的 dB）；实际音量 = 声音 × 总线 × Master，静音为 0。
 - **Storage** — `this.tree.storage.get(key, default)` / `set` / `remove` / `has` / `keys` / `clear`，同步、JSON、自动加前缀（默认 `sapling2d:`，`storagePrefix` 可改）。数据损坏或类型与默认值不一致时返回默认值。key 和值可通过声明合并 `StorageRegistry` 加类型。平台只实现 `StorageBackend`（浏览器 localStorage，不可用时退回内存）。

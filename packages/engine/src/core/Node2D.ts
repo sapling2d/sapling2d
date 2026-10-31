@@ -1,7 +1,7 @@
 import { identityAffine, type Affine } from '../math/Affine'
 import { Rect2 } from '../math/Rect2'
 import { Transform2D } from '../math/Transform2D'
-import { Vector2 } from '../math/Vector2'
+import { fmt, Vector2 } from '../math/Vector2'
 import { Node, type NodeOptions } from './Node'
 import type { CircleHitArea, PointerEvent2D } from './pointer'
 import { Signal } from './Signal'
@@ -25,6 +25,11 @@ export interface Node2DOptions extends NodeOptions {
   inputPickable?: boolean
   /** 点击区域（局部坐标）。不设置时，Sprite2D 用贴图范围，其他节点无法被点中。 */
   hitArea?: Rect2 | CircleHitArea | null
+  /**
+   * 裁剪矩形（局部坐标）：只画这个矩形里的部分——节点自己的内容和整个子树都被裁，嵌套时取交集。
+   * 指针拾取遵守同样的裁剪（被裁掉的部分点不到）。子树里的 CanvasLayer 自成一层，不受影响。默认 null（不裁剪）。
+   */
+  clipRect?: Rect2 | null
 }
 
 /**
@@ -55,6 +60,7 @@ export class Node2D extends Node {
   private _modulate: number
   private _selfModulate: number
   private _blendMode: BlendMode
+  private _clipRect: Rect2 | null
   private _pointerDown: Signal<[event: PointerEvent2D]> | null = null
   private _pointerMove: Signal<[event: PointerEvent2D]> | null = null
   private _pointerUp: Signal<[event: PointerEvent2D]> | null = null
@@ -90,6 +96,7 @@ export class Node2D extends Node {
     this._blendMode = checkBlendMode(options.blendMode ?? 'inherit')
     this.inputPickable = options.inputPickable ?? false
     this.hitArea = options.hitArea ?? null
+    this._clipRect = options.clipRect ?? null
   }
 
   get position(): Vector2 {
@@ -230,6 +237,33 @@ export class Node2D extends Node {
   }
 
   /** @internal 值是颜色（0xRRGGBB）的属性；Tween 对它们按 RGB 通道插值。 */
+  /**
+   * 裁剪矩形（局部坐标），null 为不裁剪。只画矩形里的部分：节点自己的内容和整个子树都被裁，嵌套时取交集；
+   * 指针拾取遵守同样的裁剪。子树里的 CanvasLayer 自成一层，不受祖先裁剪。`Rect2` 不可变：改范围就赋一个新的。
+   */
+  get clipRect(): Rect2 | null {
+    return this._clipRect
+  }
+
+  set clipRect(value: Rect2 | null) {
+    if (value === this._clipRect) return
+    this._clipRect = value
+    this._version++
+  }
+
+  /**
+   * @internal 一个点（和本节点同一画布的坐标：场景里是世界坐标，CanvasLayer 里是设计坐标）是否落在本节点及所有祖先的裁剪矩形内。
+   * 没有裁剪的节点总是 true。只在指针按下 / 抬起时调用，可以分配。
+   */
+  _insideClips(point: Vector2): boolean {
+    for (let n: Node | null = this; n; n = n._canvasParent) {
+      if (!(n instanceof Node2D) || !n._clipRect) continue
+      const inverse = n.globalTransform.inverse()
+      if (!inverse || !n._clipRect.contains(inverse.apply(point))) return false
+    }
+    return true
+  }
+
   get _colorProps(): ReadonlySet<string> {
     return COLOR_PROPS
   }
@@ -381,6 +415,7 @@ export class Node2D extends Node {
       modulate: this._modulate !== WHITE ? hex(this._modulate) : undefined,
       selfModulate: this._selfModulate !== WHITE ? hex(this._selfModulate) : undefined,
       blendMode: this._blendMode !== 'inherit' ? this._blendMode : undefined,
+      clipRect: this._clipRect ? `(${fmt(this._clipRect.x)}, ${fmt(this._clipRect.y)}, ${fmt(this._clipRect.width)}, ${fmt(this._clipRect.height)})` : undefined,
     }
   }
 }

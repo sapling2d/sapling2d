@@ -4,16 +4,20 @@
 
 **Blocked by:** 01 — 真机 spike
 
-**Status:** ready-for-agent
+**Status:** done（2026-10-31）
 
-- [ ] `new Node2D({ clipRect: rect(0, 0, 200, 100) })` 与 `node.clipRect = …` / `= null` 均生效；`Rect2` 赋值即替换，改动触发 `_version++`
-- [ ] 渲染同步测试（`PixiRenderer._createForSyncTests()`）：设了 `clipRect` 的节点容器有 mask 且几何等于矩形；改矩形后几何更新；置 null 后 mask 移除并销毁；节点销毁时不留下 Graphics；`CanvasLayer` 子树的容器不带祖先的 mask
-- [ ] 拾取测试（`createTestGame`）：裁剪外的可点击子节点 `g.tap` 不发 `pointerDown` / `clicked`，且这次按下也不触发 `pointerPress()` 动作时的"未处理"路径被容器自己接住的场景可用（容器 `inputPickable` 时由容器收到）；嵌套两层只有同时在两个矩形内才命中；节点自己 `clipRect` 外的自身内容点不到；`CanvasLayer` 里的节点不受场景里祖先 `clipRect` 影响
-- [ ] 按下在裁剪区内、抬起在裁剪区外（仍在节点 `hitArea` 内）→ `pointerUp` 发、`clicked` 不发
-- [ ] 正在被拖动的节点滚出裁剪区不会触发帧首的 `cancelUnhittable` 抬起
-- [ ] draw-order 交叉验证测试新增用例：同一棵树里渲染同步被裁掉的节点在拾取里也点不到
-- [ ] `g.dump()` 非 null 时显示 `clipRect=(x, y, w, h)`，格式与 `Rect2.toString` 一致；dump 属性表更新
-- [ ] 祖先链检查只发生在按下 / 抬起路径；每帧渲染同步在 `clipRect` 未变时不分配
-- [ ] `CONTEXT.md` 词汇表加 `clipRect`；`llms.template.md` 在界面层（CanvasLayer）或纯色矩形一节后加"裁剪（clipRect）"小节和可运行示例（`docs/examples`），常见陷阱加"CanvasLayer 不受祖先裁剪"；`pnpm --filter sapling2d llms` 后 `llms.test.ts` 通过
-- [ ] 有相机时裁剪随节点世界变换走（相机平移后裁剪位置正确）：浏览器里用一个示例手动确认并在工单评论里记录
-- [ ] `pnpm check` 绿
+- [x] `new Node2D({ clipRect: rect(0, 0, 200, 100) })` 与 `node.clipRect = …` / `= null` 均生效；`Rect2` 赋值即替换，改动触发 `_version++`
+- [x] 渲染同步测试（`PixiRenderer._createForSyncTests()`）：设了 `clipRect` 的节点容器有 mask 且几何等于矩形；改矩形后几何更新；置 null 后 mask 移除并销毁；节点销毁时不留下 Graphics；`CanvasLayer` 子树的容器不带祖先的 mask
+- [x] 拾取测试（`createTestGame`）：裁剪外的可点击子节点 `g.tap` 不发 `pointerDown` / `clicked`，且这次按下也不触发 `pointerPress()` 动作时的"未处理"路径被容器自己接住的场景可用（容器 `inputPickable` 时由容器收到）；嵌套两层只有同时在两个矩形内才命中；节点自己 `clipRect` 外的自身内容点不到；`CanvasLayer` 里的节点不受场景里祖先 `clipRect` 影响
+- [x] 按下在裁剪区内、抬起在裁剪区外（仍在节点 `hitArea` 内）→ `pointerUp` 发、`clicked` 不发
+- [x] 正在被拖动的节点滚出裁剪区不会触发帧首的 `cancelUnhittable` 抬起
+- [x] draw-order 交叉验证测试新增用例：同一棵树里渲染同步被裁掉的节点在拾取里也点不到
+- [x] `g.dump()` 非 null 时显示 `clipRect=(x, y, w, h)`，格式与 `Rect2.toString` 一致；dump 属性表更新
+- [x] 祖先链检查只发生在按下 / 抬起路径；每帧渲染同步在 `clipRect` 未变时不分配
+- [x] `CONTEXT.md` 词汇表加 `clipRect`；`llms.template.md` 在界面层（CanvasLayer）或纯色矩形一节后加"裁剪（clipRect）"小节和可运行示例（`docs/examples`），常见陷阱加"CanvasLayer 不受祖先裁剪"；`pnpm --filter sapling2d llms` 后 `llms.test.ts` 通过
+- [x] 有相机时裁剪随节点世界变换走（相机平移后裁剪位置正确）：浏览器里用一个示例手动确认并在工单评论里记录
+- [x] `pnpm check` 绿
+
+## Comments
+
+**2026-10-31：** 完成。`Node2D.clipRect`（选项 + 属性，`_version++`，dump 显示 `clipRect=(x, y, w, h)`）；渲染层给节点容器挂矩形 Graphics 作 mask（容器第 0 个子对象，`_syncChildren` 把它算进节点自己的显示对象，矩形不变不重建，置 null 移除并销毁，节点离树随显示对象销毁）；拾取在 `hitsAt` 和 `clicked` 判定里都检查自己与祖先的裁剪（`Node2D._insideClips`，到 CanvasLayer 为止），`cancelUnhittable` 不变。测试：`test/clip.test.ts`（14 个：属性 / dump、渲染同步、拾取含旋转缩放、CanvasLayer、相机、拖出裁剪区不取消）、`test/draw-order.test.ts` 新增 Pixi mask 与拾取的交叉验证（随机树里也加了 clipRect）、`docs/examples/clip.test.ts`。文档：llms 模板新节"裁剪（clipRect）"、节点清单 / dump 表 / 常见陷阱，CONTEXT 词条。浏览器：`spikes/clip` 改用真 `clipRect`，`?hold=correct&camera=1` 下相机平移时裁剪边随容器移动、`keep` 黑边正常，控制台无警告。`pnpm check` 全绿（engine 520 个测试）。

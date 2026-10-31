@@ -32,8 +32,12 @@ interface View {
   version: number
   /** 最近一次同步到它的帧号；同步结束时帧号不是本帧的显示对象属于已离开树的节点。 */
   frame: number
-  /** 节点自己的内容（贴图、文字等），在容器的第 0 个；只有容器的 Node2D 为 null。 */
+  /** 节点自己的内容（贴图、文字等），紧跟在裁剪遮罩之后；只有容器的 Node2D 为 null。 */
   content: NodeContent | null
+  /** `clipRect` 的遮罩（容器的第 0 个子对象，同时是容器的 mask）；没有裁剪时为 null。 */
+  clip: Graphics | null
+  /** 上次同步时的 `clipRect`（按引用比较：Rect2 不可变，改范围就是换对象）。 */
+  clipRect: Rect2 | null
 }
 
 /**
@@ -46,6 +50,7 @@ interface View {
  *   其子节点挂到最近的 Node2D 祖先下；同一容器里按 zIndex 稳定排序交给 Pixi 的 `sortableChildren`；CanvasLayer 按 `sortLayers` / `worldSlot` 排
  * - 离开树的节点，显示对象在下一次同步时销毁
  * - 画布尺寸跟随屏幕；场景整体按视口缩放、平移到设计坐标；`keep` 模式裁剪到设计区域
+ * - `clipRect`：节点容器的 mask 是一个矩形 Graphics（stencil，见 spikes/clip/REPORT.md），放在容器的第 0 个子对象；只在矩形变化时重建几何
  */
 export class PixiRenderer implements Renderer {
   private readonly _renderer: WebGLRenderer
@@ -203,18 +208,25 @@ export class PixiRenderer implements Renderer {
    * `depth` 选用哪个复用数组：每层递归一个，同一层的兄弟调用依次复用（上一个用完才轮到下一个）。
    * `content`：`parent` 所属节点的内容（内容层永远在第 0 个、最底层，有覆盖层时紧跟在后面），没有时为 null。
    */
-  private _syncChildren(nodes: readonly Node[], parent: Container, depth: number, content: NodeContent | null): void {
+  private _syncChildren(nodes: readonly Node[], parent: Container, depth: number, view: View | null): void {
     const ordered = (this._orderedByDepth[depth] ??= [])
     ordered.length = 0
     for (let i = 0; i < nodes.length; i++) this._visit(nodes[i]!, ordered, depth)
 
-    // 保持顺序：内容层、覆盖层（闪白）在前，之后是子节点的容器
+    // 保持顺序：裁剪遮罩、内容层、覆盖层（闪白）在前，之后是子节点的容器
     const current = parent.children
-    const offset = contentCount(content)
-    let inOrder = current.length === offset + ordered.length && (offset < 2 || current[1] === content!.overlay)
+    const clip = view?.clip ?? null
+    const content = view?.content ?? null
+    const offset = ownCount(view)
+    let inOrder = current.length === offset + ordered.length
+    let k = 0
+    if (inOrder && clip) inOrder = current[k++] === clip
+    if (inOrder && content) inOrder = current[k++] === content.display
+    if (inOrder && content?.overlay) inOrder = current[k++] === content.overlay
     for (let i = 0; inOrder && i < ordered.length; i++) inOrder = current[offset + i] === ordered[i]
     if (inOrder) return
     parent.removeChildren()
+    if (clip) parent.addChild(clip)
     if (content) parent.addChild(content.display)
     if (content?.overlay) parent.addChild(content.overlay)
     for (let i = 0; i < ordered.length; i++) parent.addChild(ordered[i]!)
@@ -234,9 +246,8 @@ export class PixiRenderer implements Renderer {
     }
     const view = this._syncNode(node)
     ordered.push(view.container)
-    // 叶子节点（大多数子弹、精灵）不用递归：除非它的容器里还留着已经移走的子节点，或者内容刚多了覆盖层
-    const content = view.content
-    if (children.length > 0 || view.container.children.length !== contentCount(content)) this._syncChildren(children, view.container, depth + 1, content)
+    // 叶子节点（大多数子弹、精灵）不用递归：除非它的容器里还留着已经移走的子节点，或者内容刚多了覆盖层 / 裁剪遮罩
+    if (children.length > 0 || view.container.children.length !== ownCount(view)) this._syncChildren(children, view.container, depth + 1, view)
   }
 
   private _visitLayer(node: CanvasLayerLike, depth: number): void {
@@ -304,7 +315,7 @@ export class PixiRenderer implements Renderer {
       container.sortableChildren = true
       const content = createContent(node, this._ctx)
       if (content) container.addChild(content.display)
-      view = { container, transformVersion: -1, version: -1, frame: 0, content }
+      view = { container, transformVersion: -1, version: -1, frame: 0, content, clip: null, clipRect: null }
       this._views.set(node, view)
       node._view = container
     }
@@ -328,9 +339,38 @@ export class PixiRenderer implements Renderer {
       c.alpha = node.alpha
       c.tint = node.modulate // Pixi v8 的容器 tint 会乘到所有子对象上
       c.blendMode = node.blendMode // 'inherit' 时跟随父容器：和 Pixi 的默认值一致，叠加作用到整棵子树
+      if (node.clipRect !== view.clipRect) this._syncClip(node, view)
     }
     view.content?.sync(node, this._ctx, changed)
     return view
+  }
+
+  /**
+   * `clipRect` 变了：建 / 改 / 拆容器的矩形遮罩。遮罩是容器的第 0 个子对象（跟着容器的变换走，所以矩形直接用局部坐标），
+   * 同时设为容器的 mask；Pixi 对 Container 类型的 mask 走 stencil，嵌套自然取交集。
+   */
+  private _syncClip(node: Node2D, view: View): void {
+    const rect = node.clipRect
+    view.clipRect = rect
+    const c = view.container
+    if (!rect) {
+      const g = view.clip
+      if (g) {
+        c.mask = null
+        g.removeFromParent()
+        g.destroy()
+        view.clip = null
+      }
+      return
+    }
+    let g = view.clip
+    if (!g) {
+      g = new Graphics({ label: '__clip' })
+      view.clip = g
+      c.addChildAt(g, 0)
+      c.mask = g
+    }
+    g.clear().rect(rect.x, rect.y, rect.width, rect.height).fill(0xffffff)
   }
 
   /**
@@ -361,13 +401,24 @@ export class PixiRenderer implements Renderer {
   private _destroyView(node: Node2D, view: View): void {
     view.container.removeFromParent()
     view.content?.destroy()
+    if (view.clip) {
+      view.container.mask = null
+      view.clip.destroy()
+      view.clip = null
+    }
     view.container.destroy({ children: false })
     this._views.delete(node)
     if (node._view === view.container) node._view = null
   }
 }
 
-/** 节点容器开头属于节点自己内容的显示对象个数：内容层 + 覆盖层（有的话）。 */
+/** 节点容器开头属于节点自己的显示对象个数：裁剪遮罩（有的话）+ 内容层 + 覆盖层（有的话）。 */
+function ownCount(view: View | null): number {
+  if (!view) return 0
+  return (view.clip ? 1 : 0) + contentCount(view.content)
+}
+
+/** 内容层 + 覆盖层（有的话）。 */
 function contentCount(content: NodeContent | null): number {
   return content ? (content.overlay ? 2 : 1) : 0
 }

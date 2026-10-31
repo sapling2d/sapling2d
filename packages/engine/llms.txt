@@ -1342,6 +1342,52 @@ expect(g.scene.fade.isFreed).toBe(true) // 黑幕淡出后删掉
 - 透明度用 `alpha`；`color`、`size` 都能补间（颜色按 RGB 通道插值）。没有 `hitArea` 时点击区域就是这个矩形（无头模式下也是），所以也能当简单的按钮底板。**当按钮或遮罩用时要设 `inputPickable: true`**：不设的话照常画出来，但点不到、也挡不住下面的点击，没有任何提示。
 - 和贴图一起合批绘制（白色贴图染色），几十个血条不会增加绘制调用。圆、圆环之类的形状用贴图加 `modulate`。
 
+### 裁剪（clipRect）
+
+```ts
+import { ColorRect, Label, Node2D, rect, Scene, v } from 'sapling2d'
+
+/** 商店列表：一个 300×400 的窗口只显示窗口里的卡片，滚出窗口的部分既看不见也点不到。 */
+export class Shop extends Scene {
+  readonly window = new Node2D({ position: v(225, 400), clipRect: rect(0, 0, 300, 400) })
+  readonly content = new Node2D() // 滚动时移动它
+  picked = ''
+
+  override ready() {
+    this.add(this.window)
+    this.window.add(new ColorRect({ size: v(300, 400), color: 0x203040 })) // 窗口底色，和裁剪区一样大
+    this.window.add(this.content)
+    for (let i = 0; i < 8; i++) {
+      const card = this.content.add(new ColorRect({ name: `Card${i}`, position: v(20, 20 + i * 110), size: v(260, 90), color: 0x4060a0, inputPickable: true }))
+      card.add(new Label({ text: `道具 ${i + 1}`, position: v(16, 28) }))
+      card.clicked.connect(() => (this.picked = card.name))
+    }
+  }
+
+  /** 第 i 张卡片滚到窗口顶部（最简单的滚动：直接改内容的 y）。 */
+  scrollTo(i: number) {
+    this.content.y = -i * 110
+  }
+}
+```
+
+```ts
+g.tap(375, 465) // 窗口顶部的第一张卡片
+expect(g.scene.picked).toBe('Card0')
+g.scene.scrollTo(4)
+g.tap(375, 465) // 同一个位置现在是第五张
+expect(g.scene.picked).toBe('Card4')
+g.tap(375, 820) // 第八张卡片的下半部分在窗口外：看不见，也点不到
+expect(g.scene.picked).toBe('Card4')
+expect(g.dump()).toContain('clipRect=(0, 0, 300, 400)')
+```
+
+- `Node2D.clipRect`（`Rect2 | null`，局部坐标，默认 null）：只画矩形里的部分——节点自己的内容和整个子树都被裁，嵌套时取交集；随节点的变换走（旋转、缩放、相机都照常）。
+- 拾取遵守同一套规则：被裁掉的部分点不到，`clicked` 也要求抬起时在裁剪区里；正在拖着的节点滚出裁剪区不会被打断。被裁掉的位置算空白，会触发 `pointerPress()` 动作。
+- 子树里的 `CanvasLayer` 自成一层，**不受**祖先裁剪。
+- 用途：滚动列表的窗口（例子）、按比例填充的进度条（填充节点铺满整条，改它的 `clipRect`，九宫格不变形）、只露出一部分的图。圆形或贴图形状的遮罩暂不支持。
+- 实现是 stencil（真机实测 10 个裁剪容器约 0.45 ms，见 `spikes/clip/REPORT.md`）；几何只在 `clipRect` 变时重建。`Rect2` 不可变，改范围就赋一个新的。
+
 ### 九宫格（NineSliceSprite）
 
 ```ts
@@ -1794,7 +1840,7 @@ it('blend mode', async () => {
 | 节点 | 用途 | 关键成员 |
 |---|---|---|
 | `Node` | 基类 | `add` `remove` `queueFree` `callDeferred` `addToGroup` `createTween` `processMode` `tree` |
-| `Node2D` | 带变换 | `position` `x` `y` `rotation` `scale` `visible` `zIndex` `alpha` `modulate` `selfModulate` `blendMode` `globalPosition` `toLocal` `toGlobal`；`inputPickable` `hitArea` + 信号 `pointerDown` `pointerMove` `pointerUp` `clicked` |
+| `Node2D` | 带变换 | `position` `x` `y` `rotation` `scale` `visible` `zIndex` `alpha` `modulate` `selfModulate` `blendMode` `clipRect` `globalPosition` `toLocal` `toGlobal`；`inputPickable` `hitArea` + 信号 `pointerDown` `pointerMove` `pointerUp` `clicked` |
 | `Scene` | 场景根 | `static assets` |
 | `Sprite2D` | 贴图 | `texture` `centered`（默认 true：以贴图的锚点或中心为原点）`offset` `flipH` `flipV` `flash` `flashColor` |
 | `AnimatedSprite2D` | 帧动画（继承 Sprite2D） | `frames` / `animations` `fps` `loop` `autoplay` `play()` `pause()` `stop()` `frame` `speedScale` `isPlaying` `animation`；信号 `frameChanged` `animationFinished` |
@@ -1846,7 +1892,7 @@ const g = await createTestGame({ main: GameScene, seed: 1, screen?, storage?, au
 | 节点 | 属性 |
 |---|---|
 | 所有节点 | `groups`、`processMode` |
-| `Node2D` 及子类 | `position`（总是显示）、`rotationDegrees`、`scale`、`visible`、`zIndex`、`alpha`、`modulate` / `selfModulate`（`#ff6666` 形式）、`blendMode` |
+| `Node2D` 及子类 | `position`（总是显示）、`rotationDegrees`、`scale`、`visible`、`zIndex`、`alpha`、`modulate` / `selfModulate`（`#ff6666` 形式）、`blendMode`、`clipRect`（`(x, y, w, h)`） |
 | `Sprite2D` | `texture`（路径；图集的帧是 `sprites.png#enemy_red` / `explosion.png#3`）、`centered`、`offset`、`flipH`、`flipV`、`flash`、`flashColor` |
 | `AnimatedSprite2D` | 同 Sprite2D，加 `animation`（有多套时）、`frame`（总是显示）、`playing` |
 | `SpineSprite` | `skeleton`（路径，总是显示）、`animation`、`playing`、`skin`、`speedScale`、`flipH`、`flipV`；`SpineBoneNode` 显示 `bone` |
@@ -1925,6 +1971,7 @@ for (let i = 0; i < bullets.length; i++) {
 - **物理回调里的增删**：接触信号在物理步之后派发，回调里 `queueFree` / `add` 都安全；新刚体在下一个物理步才创建，之前设置的速度和冲量会排队。
 - **改碰撞形状会重新触发接触信号**：移动、改变、禁用或增删一个刚体的 `CollisionShape2D` 时，引擎会重建它的形状，正在接触它的对象会先收到一次 `bodyExited`、再收到一次 `bodyEntered`。需要稳定的进出判断时，尽量在节点创建时定好形状，不要在接触中修改。
 - **刚体的位置由物理决定**：给 `RigidBody2D` 的 `position` 赋值等于瞬移并清零速度；`scale` 不影响碰撞形状。
+- **`clipRect` 不裁 CanvasLayer**：裁剪容器下面的 `CanvasLayer` 自成一层、照常全屏显示。弹窗里要一起裁掉的东西不要放进 CanvasLayer。被裁掉的区域点不到，但算空白：会触发 `pointerPress()` 动作。
 - **不支持路径查找**：没有 `getNode('A/B')`；用字段（`this.player = this.add(...)`）、`getNodesInGroup` 或 `autoload`。
 - **发布构建会压缩类名**：节点不传 `name` 时默认用类名，但真机发布包里类名会被压缩（变成 `cP` 之类）。逻辑里不要依赖默认名字或 `constructor.name`：要按名字找就显式传 `name`，判断类型用 `instanceof`。
 - **`this.tree` 只在树里可用**：不要在构造函数里用；放到 `ready()`。

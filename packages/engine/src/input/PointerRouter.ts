@@ -137,7 +137,7 @@ export class PointerRouter {
     return true
   }
 
-  /** 指针抬起（`up`）或取消：捕获它的节点收到 pointerUp（抬起时还在节点里才算 clicked）。 */
+  /** 指针抬起（`up`）或取消：捕获它的节点收到 pointerUp（抬起时还在节点里、没被裁剪掉才算 clicked）。 */
   private _end(id: number, up: boolean, position: Vector2, design: Vector2): void {
     const capture = this._captures.get(id)
     const target = capture && capture.isInsideTree && !capture.isFreed ? capture : null
@@ -149,7 +149,8 @@ export class PointerRouter {
     if (target) {
       const ev = event(id, position, design, target)
       target.pointerUp.emit(ev)
-      if (up && target.hitTest(ev.localPosition)) target.clicked.emit(ev)
+      // 抬起时还在节点里、且没落在被裁剪掉的部分才算点击
+      if (up && target.hitTest(ev.localPosition) && target._insideClips(ev.position)) target.clicked.emit(ev)
     }
   }
 

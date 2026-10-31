@@ -1,11 +1,12 @@
 /**
  * 裁剪 spike 的场景（平台无关）。三个阶段：
- * - correct：嵌套三层的裁剪（外层不旋转、中层 15°、内层 -30°）+ 伸出设计区的背景（`keep` 模式的全屏 mask）
+ * - correct：嵌套三层的裁剪（外层不旋转、中层 15°、内层 -30°）+ 伸出设计区的背景（`keep` 模式的全屏 mask）；`CorrectScene.camera` 时加一个左右平移的相机
+ *
+ * 第一版用 `unsafePixi` 自己挂 mask（见 REPORT）；引擎有了 `clipRect` 之后改用它，用来做浏览器里的人工核对。
  * - masked：10 个带裁剪的容器 × 20 个来回弹的精灵（一半容器旋转 10°）
  * - plain：同样的 10 × 20，不裁剪（对照组）
  */
-import { CanvasLayer, ColorRect, Label, Node2D, Rect2, Scene, Sprite2D, tex, v, type Game, type GameOptions } from 'sapling2d'
-import { ClipMasks } from './clip'
+import { Camera2D, CanvasLayer, ColorRect, Label, Node2D, Rect2, Scene, Sprite2D, tex, v, type Game, type GameOptions } from 'sapling2d'
 
 export const ASSETS = { fruit: tex('fruit.png'), enemy: tex('enemy.png') }
 
@@ -27,22 +28,29 @@ export class Hud extends CanvasLayer {
 }
 
 class Box extends Node2D {
-  constructor(name: string, readonly clipRect: Rect2, color: number, extra: Partial<{ position: ReturnType<typeof v>; rotationDegrees: number }> = {}) {
-    super({ name, position: extra.position ?? v(0, 0) })
+  constructor(name: string, clip: Rect2, color: number, extra: Partial<{ position: ReturnType<typeof v>; rotationDegrees: number }> = {}) {
+    super({ name, position: extra.position ?? v(0, 0), clipRect: clip })
     if (extra.rotationDegrees !== undefined) this.rotationDegrees = extra.rotationDegrees
     // 底色比裁剪区各边大 40：裁剪生效时边缘应该是“直的、正好在 rect 上”，失效时能看到多出来的一圈
-    this.add(new ColorRect({ name: 'Bg', position: v(clipRect.x - 40, clipRect.y - 40), size: v(clipRect.width + 80, clipRect.height + 80), color, alpha: 0.85 }))
+    this.add(new ColorRect({ name: 'Bg', position: v(clip.x - 40, clip.y - 40), size: v(clip.width + 80, clip.height + 80), color, alpha: 0.85 }))
   }
+}
 
-  override ready() {
-    this.tree.system(ClipMasks).add(this, this.clipRect)
+/** 左右来回平移的相机（?camera=1）：裁剪应该跟着容器一起移动。 */
+class PanCamera extends Camera2D {
+  private _t = 0
+  override process(dt: number) {
+    this._t += dt
+    this.x = 375 + Math.sin(this._t) * 150
   }
 }
 
 export class CorrectScene extends Scene {
   static assets = ASSETS
+  static camera = false
 
   override ready() {
+    if (CorrectScene.camera) this.add(new PanCamera({ position: v(375, 667) }))
     // 伸出设计区（750×1334）的背景：keep 模式下设计区外应是黑边
     this.add(new ColorRect({ name: 'Outside', position: v(-400, -600), size: v(1550, 2600), color: 0x3a2a5a }))
     this.add(new ColorRect({ name: 'Design', size: v(750, 1334), color: 0x16233a }))
@@ -98,10 +106,9 @@ export class StressScene extends Scene {
     for (let i = 0; i < 10; i++) {
       const col = i % 2
       const row = Math.floor(i / 2)
-      const box = this.add(new Node2D({ name: `Box${i}`, position: v(60 + col * 360, 60 + row * 250) }))
+      const box = this.add(new Node2D({ name: `Box${i}`, position: v(60 + col * 360, 60 + row * 250), clipRect: StressScene.masked ? new Rect2(0, 0, W, H) : null }))
       if (i % 2 === 1) box.rotationDegrees = 10
       box.add(new ColorRect({ position: v(-40, -40), size: v(W + 80, H + 80), color: 0x1f3b5c, alpha: 0.9 }))
-      if (StressScene.masked) this.tree.system(ClipMasks).add(box, new Rect2(0, 0, W, H))
       for (let j = 0; j < 20; j++) {
         const b = box.add(new Bouncer(W, H))
         b.position = v(rng.randf() * W, rng.randf() * H)
@@ -142,7 +149,7 @@ export function runPhases(game: Game, opts: { hold?: Phase | null; snapshot: (la
     return `fps ${s.fps.toFixed(1)} interval max ${f(s.intervalMax)} | logic ${f(s.logicAvg)} max ${f(s.logicMax)} | render ${f(s.renderAvg)} max ${f(s.renderMax)} ms`
   }
   const hudTimer = setInterval(() => {
-    hud.label.text = `clip spike · ${current}${opts.hold ? ' (hold)' : ''}\nframes ${hud.frames}  masks ${game.tree.system(ClipMasks).count}\n${perf()}`
+    hud.label.text = `clip spike · ${current}${opts.hold ? ' (hold)' : ''}\nframes ${hud.frames}  clipped ${countClipped(game.tree.currentScene)}\n${perf()}`
   }, 500)
   const perfTimer = setInterval(() => {
     const line = perf()
@@ -187,4 +194,11 @@ export function runPhases(game: Game, opts: { hold?: Phase | null; snapshot: (la
   function sleep(ms: number) {
     return new Promise((r) => setTimeout(r, ms))
   }
+}
+
+function countClipped(node: { children: readonly unknown[] } | null): number {
+  if (!node) return 0
+  let n = (node as { clipRect?: Rect2 | null }).clipRect ? 1 : 0
+  for (const c of node.children) n += countClipped(c as { children: readonly unknown[] })
+  return n
 }
