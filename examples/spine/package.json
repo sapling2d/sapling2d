@@ -9,6 +9,7 @@
     "dev:wechat": "vite build -c vite.wechat.config.ts --watch",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json",
+    "log-server": "node log-server.ts",
     "check": "tsc -p tsconfig.json && vitest run"
   },
   "dependencies": {

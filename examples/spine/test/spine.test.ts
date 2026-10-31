@@ -71,3 +71,15 @@ describe('spineboy', () => {
     expect(boy.state.getTrack(1)).toBeNull()
   })
 })
+
+describe('压力测试场景', () => {
+  it('addBenchBoys 加 9 个跑步 / 走路的 spineboy，动画各自推进', async () => {
+    const { g, scene } = await start()
+    scene.addBenchBoys(9)
+    g.step(30)
+    const boys = scene.children.filter((c) => c.name.startsWith('Bench'))
+    expect(boys).toHaveLength(9)
+    expect(g.dump()).toContain('Bench1 (SpineSprite)')
+    expect(g.dump()).toMatch(/Bench1 \(SpineSprite\).*animation=run playing=true/)
+  })
+})

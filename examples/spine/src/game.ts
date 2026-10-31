@@ -72,6 +72,24 @@ export class Main extends Scene {
     if (input.isActionJustPressed('shoot')) this.shoot()
   }
 
+  /** 压力测试（小游戏真机）：再加 n 个跑步 / 走路的 spineboy，主角照常。 */
+  addBenchBoys(n: number) {
+    for (let i = 0; i < n; i++) {
+      const boy = this.add(
+        new SpineSprite({
+          name: `Bench${i}`,
+          skeleton: SPINEBOY,
+          animation: i % 2 ? 'run' : 'walk',
+          position: v(90 + (i % 5) * 145, 520 + Math.floor(i / 5) * 300),
+          scale: v(0.45, 0.45),
+          flipH: i % 3 === 0,
+          speedScale: 0.8 + 0.05 * i,
+        }),
+      )
+      boy.zIndex = -1 // 主角在前面
+    }
+  }
+
   shoot() {
     this.boy.play('shoot', { track: SHOOT_TRACK, loop: false })
     this.flash.visible = true
