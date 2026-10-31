@@ -66,8 +66,10 @@ console.log(g.dump())
 | `sapling2d/motion` | `motion()` 插件：加速度计倾斜变成动作力度（`tilt('left')`） |
 | `@sapling2d/touch` | 独立的包：`touch()` 插件，屏幕按钮 / 摇杆，带默认皮肤 |
 | `@sapling2d/ads` | 独立的包：`ads()` 插件，小游戏流量主的激励视频 / 插屏 / Banner，浏览器和测试里是 mock |
+| `@sapling2d/spine` | 独立的包：`spine()` 插件，`spineSkeleton()` / `SpineSprite` / `SpineBoneNode`，Spine 4.3 骨骼动画（需要 Spine 编辑器许可） |
 | `sapling2d/testing` | 无头测试 `createTestGame()` |
 | `sapling2d/vite` | `sapling()` 资源路径检查、`saplingWechat()` 小游戏构建、`startLogServer()` 真机日志 |
+| `sapling2d/render` | 写渲染类插件才用：`registerNodeContent()` 给节点类型登记自己的 PixiJS 内容 |
 
 ## 微信小游戏
 

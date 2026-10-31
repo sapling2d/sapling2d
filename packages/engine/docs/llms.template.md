@@ -14,8 +14,10 @@
 | `sapling2d/motion` | 插件：`motion()`、`tilt()` 绑定、`MotionInput`——加速度计 / 倾斜（见“倾斜”） |
 | `@sapling2d/touch`（独立的包） | 插件：`touch()`、`TouchScreenButton`、`TouchJoystick`——屏幕按钮和摇杆，带默认皮肤（见“屏幕按钮”“摇杆”） |
 | `@sapling2d/ads`（独立的包） | 插件：`ads()`、`Ads`——小游戏流量主的激励视频 / 插屏 / Banner，其它平台是 mock（见“广告”） |
+| `@sapling2d/spine`（独立的包） | 插件：`spine()`、`spineSkeleton()`、`SpineSprite`、`SpineBoneNode`——Spine 4.3 骨骼动画（见"Spine 骨骼动画"） |
 | `sapling2d/testing` | `createTestGame(options)`：无头运行，测试用 |
 | `sapling2d/vite` | `sapling()` 资源路径检查；`saplingWechat()` 构建小游戏；`startLogServer()` 接收真机日志 |
+| `sapling2d/render` | 写渲染类插件才用：`registerNodeContent()` 给自己的节点类型登记 Pixi 内容 |
 
 启动参数（三个入口通用）：`main`（入口场景类）、`loading`（启动页，见“启动页”）、`autoloads`、`actions`、`design`（默认 750×1334、`expand`）、`physics`、`seed`、`storagePrefix`、`pauseOnBackground`、`pixelArt`（见“贴图与文字”，无头模式下没有效果）；浏览器和小游戏另有 `background`。
 
@@ -208,6 +210,21 @@ aseprite -b hero.aseprite --sheet public/assets/hero.png --data src/hero.json --
 - 帧名是“前缀 + 编号”，`frames(prefix)` 只取前缀后面紧跟编号的帧（中间可以有一个 `_` / `-` / 空格，后面可以有扩展名），按编号排序（`_2` 在 `_10` 之前，补零也可以）：`frames('hero_attack_')` 取 `hero_attack_01.png`…，不会混进 `hero_attack_heavy_01.png`。一帧都没取到时，报错会列出“前缀开头但后面不是编号”的帧，并提示更长的前缀。
 - `durations` 的长度和帧数对不上时报错（`animation "attack" has 5 frames but 4 durations`）：美术加减了帧，记得改时长。
 
+### Spine 骨骼动画
+
+角色动画是 Spine 做的（骨骼、网格变形、换装、事件），用独立的包 `@sapling2d/spine`（基于官方的 `@esotericsoftware/spine-core` 4.3）：
+
+<!-- example:../spine/docs/examples/spine -->
+
+<!-- example:../spine/docs/examples/spine#test -->
+
+- 安装：`plugins: [spine()]`。资源 `spineSkeleton(path, { atlas?, scale? })`：`path` 是 **Spine 4.3 导出的 JSON**（版本不对加载时报错；`.skel` 暂不支持），图集默认同目录同名 `.atlas`（不同名时写 `atlas`），页图按图集里的文件名在图集的目录里（和 `tex()` 一样走小游戏分包、切场景卸载；`pma: true` 和不勾都正确）。`scale` 整体缩放骨架。放进 `static assets`；`data`（spine-core 的 `SkeletonData`）、`animationNames` / `skinNames` / `boneNames` / `slotNames` / `eventNames`、`rect`（设置姿势的包围盒）。
+- `SpineSprite`（Node2D）：`{ skeleton, animation?, loop?, skin?, defaultMix?, speedScale?, flipH?, flipV?, physics? }`。`play(name, { loop = true, track = 0 })` / `queue(name, { loop, track, delay })` / `stop(track = 0, mixDuration = 0)` 返回或操作 spine 的 `TrackEntry`；`animation`（轨道 0）、`isPlaying`、`speedScale`（和 `tree.timeScale` 叠加）、`defaultMix` / `mix(from, to, s)`、`skin`（换装）、`setAttachment(slot, name | null)`（换武器、换表情）、`setupPose()`、`flipH` / `flipV`、`bonePosition(bone)` / `boneRotation(bone)`（节点局部坐标）、`rect`（没设 `hitArea` 时的点击区域）。信号：`animationStarted(name, track)`、`animationFinished(name, track)`（不循环的播完、循环的每圈一次）、`animationEvent(name, { int, float, string, time }, track)`。动画在 `process` 之前推进，暂停时停止。
+- 进阶直接用 spine-core：`sprite.state`（`AnimationState`：多轨道、`setMix`、`TrackEntry.timeScale` / `alpha`）、`sprite.spine`（`Skeleton`：`findBone`、`findSlot`、`color`、IK 目标……），改完姿势相关的东西调 `refreshPose()`。原点是 Spine 的 root 骨骼（角色一般在脚底），坐标 y 向下。
+- `SpineBoneNode({ bone })`：放在 `SpineSprite` 的直接子节点，每帧跟随那根骨骼的位置、旋转、缩放（翻转时缩放带符号）；枪口特效、手持武器、头顶血条挂它下面。只跟随，不能反过来驱动骨骼。
+- 渲染：每个 slot 一个网格，和精灵一起合批；slot 的混合模式（additive / multiply / screen）照 Spine；裁剪（clipping）支持；**双色染色（tint black）不支持**（忽略，警告一次）。静止的角色每帧零开销；在播的角色每帧算一次顶点（一个 50 slot 的角色约等于 50 个精灵）。
+- 无头测试读真实的骨架和图集（`assetsDir`），页图不读：动画时序、事件、骨骼位置和真机一致。`dump` 显示 `skeleton` / `animation` / `playing` / `skin` / `flipH`。
+- 许可证：Spine Runtimes License 要求**每个使用本插件的开发者有自己的 Spine 编辑器许可**，并在产品的文档里附上许可证；玩家不需要。
 ### 图块地图（TileMap）
 
 <!-- example:tilemap -->
@@ -436,7 +453,10 @@ fx.createTween().to(fx, { alpha: 0 }, 0.3).call(() => fx.queueFree())
 | `CanvasLayer`（不是 Node2D） | 界面层（不跟随相机） | `layer` `visible` |
 | `TouchScreenButton`（`@sapling2d/touch`） | 屏幕按钮（继承 Sprite2D） | `action` `texturePressed` `isPressed` `hitArea`；信号 `pressed` `released` |
 | `TouchJoystick`（`@sapling2d/touch`） | 摇杆（继承 Node2D） | `mode`（`dynamic` / `fixed`）`actions` `radius` `deadzone` `region` `texture` `textureKnob` `vectorX` `vectorY` `vector` `isPressed`；信号 `pressed` `released` |
+| `SpineSprite`（`@sapling2d/spine`） | Spine 骨骼动画（继承 Node2D） | `skeleton` `play()` `queue()` `stop()` `animation` `isPlaying` `speedScale` `defaultMix` `mix()` `skin` `setAttachment()` `setupPose()` `refreshPose()` `flipH` `flipV` `physics` `bonePosition()` `boneRotation()` `rect` `state` `spine`；信号 `animationStarted` `animationFinished` `animationEvent` |
+| `SpineBoneNode`（`@sapling2d/spine`） | 跟随一根骨骼（`SpineSprite` 的直接子节点） | `bone` |
 | `TiledMap`（资源，不是节点） | Tiled 关卡 | `tiledMap(path)`；`createLayers()` `createLayer(name)` `objects(layer?)` `objectLayers` `layerNames` `width` `height` `tileSize` `pixelWidth` `pixelHeight` `tileSets` `properties` |
+| `SpineSkeleton`（资源，`@sapling2d/spine`） | Spine 骨架 | `spineSkeleton(path, { atlas?, scale? })`；`data` `pages` `rect` `animationNames` `skinNames` `boneNames` `slotNames` `eventNames` |
 | `Curve2D`（不是节点） | 曲线路径，按距离取点 | `Curve2D.catmullRom(points, { closed?, bakeInterval? })` `Curve2D.polyline(points)`；`length` `sample(distance, out)` `angleAt(distance)` `closed` |
 | `HitTester`（不是节点） | 两组对象之间的圆 / 矩形命中判定 | `forEachHit(as, bs, hit)`（`hit` 返回 true 表示 a 用掉了）、`HitTester.compact(list)`；对象需要 `x` `y` `hitShape`，可选 `dead` |
 | `CollisionShape2D` | 碰撞形状（必须是刚体 / 区域的直接子节点） | `shape`：`circle(r)` `rectangle(w, h)` `polygon(points)`；`disabled` |
@@ -471,6 +491,7 @@ const g = await createTestGame({ main: GameScene, seed: 1, screen?, storage?, au
 | `Node2D` 及子类 | `position`（总是显示）、`rotationDegrees`、`scale`、`visible`、`zIndex`、`alpha`、`modulate` / `selfModulate`（`#ff6666` 形式）、`blendMode` |
 | `Sprite2D` | `texture`（路径；图集的帧是 `sprites.png#enemy_red` / `explosion.png#3`）、`centered`、`offset`、`flipH`、`flipV`、`flash`、`flashColor` |
 | `AnimatedSprite2D` | 同 Sprite2D，加 `animation`（有多套时）、`frame`（总是显示）、`playing` |
+| `SpineSprite` | `skeleton`（路径，总是显示）、`animation`、`playing`、`skin`、`speedScale`、`flipH`、`flipV`；`SpineBoneNode` 显示 `bone` |
 | `Label` | `text`（总是显示，含空格时加引号）、`fontSize`、`align` |
 | `ColorRect` | `size`、`color`（总是显示） |
 | `Particles2D` | `texture`、`emitting`、`particles`（存活数，总是显示） |
@@ -496,9 +517,10 @@ this.tree.get(MotionInput).permission   // 插件提供的服务按类取；没�
 
 - 插件在建树之后、定义动作之前按顺序安装；三个入口都默认装键盘（`keyboard()`，小游戏里没有事件源，只是让 `key()` 绑定有人认领）；`plugins` 追加在默认之后。
 - **插件在三个平台上都能装**：不支持的平台装一个 mock（控制台 `info` 一次），游戏照常跑——浏览器里开发、Node 里测试永远不会因为少了传感器或广告而报错。
-- 现有插件：`keyboard()`（内置在 `sapling2d`）、`motion()`（`sapling2d/motion`，见“倾斜”）、`touch()`（独立的包 `@sapling2d/touch`：屏幕按钮和摇杆，带默认皮肤，见“屏幕按钮”）、`ads()`（`@sapling2d/ads`：小游戏广告，见“广告”）。
+- 现有插件：`keyboard()`（内置在 `sapling2d`）、`motion()`（`sapling2d/motion`，见“倾斜”）、`touch()`（独立的包 `@sapling2d/touch`：屏幕按钮和摇杆，带默认皮肤，见“屏幕按钮”）、`ads()`（`@sapling2d/ads`：小游戏广告，见“广告”）、`spine()`（`@sapling2d/spine`：Spine 骨骼动画，见“Spine 骨骼动画”）。
 - 自己写一个：实现 `Plugin`（`install(ctx)`：`ctx.tree`、`ctx.platform.kind`、`ctx.provide(Token, service)`、`ctx.preload(assets)`（插件自己的贴图 / 音效，和入口场景的资源一起加载，切场景不卸载），返回卸载函数）。插件包里的资源用 `tex('~<包名>/<路径>')` 引用，包的 `package.json` 声明 `"sapling2d": { "assets": "<目录>" }`，构建工具负责校验、serve、拷进包（浏览器和小游戏都是）。输入类插件把一个 `InputSource` 登记到 `tree.input.addSource(...)`：`eventTypes` 订阅事件（自己的事件用 `tree.input.enqueue` 入队，和指针事件同一个队列、帧首按序处理）、`bindingTypes` 认领绑定类型、`strength(action, bindings)` 给力度 0–1、`beginFrame()` 给轮询型设备、`releaseAll(queue)` 处理切后台。事件和绑定的类型用声明合并登记：`declare module 'sapling2d' { interface InputEventRegistry { motion: … } interface InputBindingRegistry { tilt: … } }`（都要有 `type` 字段）。向 `window` / `wx` 注册监听是插件自己的事，核心不碰。
 - 测试里用 `g.inject(event)` 注入插件的事件；屏幕按钮和摇杆就是用这套公开能力写的，可以照着看。
+- 带自己的节点类型和资源格式的插件（`@sapling2d/spine` 就是）：节点自持数据，渲染用 `sapling2d/render` 的 `registerNodeContent(NodeClass, (node, ctx) => content)` 登记——`content.display` 是挂在节点容器下的 Pixi 显示对象，每帧 `sync(node, ctx, changed)`，`ctx.textures.get(handle)` 把贴图句柄换成 Pixi 贴图；同步测试用 `PixiRenderer._createForSyncTests()`。资源实现 `Resource` 协议（`kind`、`path`、`isLoaded`、`_load(platform)`、`_unload()`、`_textures()`）就能放进 `static assets` / `ctx.preload`，引擎负责加载、去重、切场景卸载；包的 `package.json` 声明 `"sapling2d": { "assetFunctions": ["spineSkeleton"] }`，`sapling()` 在构建期检查这些函数的字面量路径。
 
 ## 微信小游戏
 
@@ -557,6 +579,7 @@ for (let i = 0; i < bullets.length; i++) {
 - **iOS 浏览器的传感器权限**要在用户手势里申请：`motion()` 自动在第一次触摸时申请；`permission === 'prompt'` 期间提示玩家点一下屏幕，不要在 `ready()` 里就认为有倾斜输入。
 - **广告的奖励只认 `'rewarded'`**：`'skipped'` 和 `'unavailable'` 都不给；`showRewarded()` 期间游戏是暂停的，`await` 之后的代码在恢复后才跑。没配广告位 id 时是 mock，上线前检查日志里 `[sapling2d] ads:` 的 info。
 - **Tween 在类方法里**：`this.createTween().to(this, {...})` 按 `Node2D` 的属性做类型检查；补间子类特有的属性写 `to(this as MyNode, …)`。
+- **Spine 的版本和许可证**：`@sapling2d/spine` 只读 Spine **4.3** 导出的 JSON（运行时和编辑器的 major.minor 必须一致，加载时报错就重新导出）；图集和骨架不同名时写 `spineSkeleton(path, { atlas })`；每个用它的开发者要有自己的 Spine 编辑器许可。
 - **音量是 0–1**（不是 dB）；`tree.paused` 不暂停声音。
 
 ## 更多

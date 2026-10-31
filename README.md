@@ -66,8 +66,10 @@ console.log(g.dump())
 | `sapling2d/motion` | `motion()` plugin: accelerometer tilt as action strength (`tilt('left')`) |
 | `@sapling2d/touch` | separate package: `touch()` plugin with `TouchScreenButton` / `TouchJoystick` and default skins |
 | `@sapling2d/ads` | separate package: `ads()` plugin: WeChat rewarded video / interstitial / banner, mocked in the browser and in tests |
+| `@sapling2d/spine` | separate package: `spine()` plugin with `spineSkeleton()` / `SpineSprite` / `SpineBoneNode`: Spine 4.3 skeletal animation (requires a Spine Editor license) |
 | `sapling2d/testing` | `createTestGame()` for headless tests |
 | `sapling2d/vite` | `sapling()` asset checks, `saplingWechat()` mini game build, `startLogServer()` |
+| `sapling2d/render` | for render plugins: `registerNodeContent()` gives a node type its own PixiJS content |
 
 ## WeChat Mini Game
 
