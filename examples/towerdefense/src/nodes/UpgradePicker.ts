@@ -1,28 +1,25 @@
 import { CanvasLayer, ColorRect, Ease, Label, Signal, v } from 'sapling2d'
+import { Button } from '@sapling2d/ui'
 import type { Upgrade } from '../skills'
 
 const CARD_W = 560
 const CARD_H = 200
 
-/** 一张升级卡片：标题 + 说明，点一下选中。 */
-class Card extends ColorRect {
+/** 一张升级卡片：`@sapling2d/ui` 的按钮，标题是按钮文字，说明加在视觉主体 `body` 下（随按下反馈一起缩放）。 */
+class Card extends Button {
   constructor(readonly upgrade: Upgrade) {
-    super({ size: v(CARD_W, CARD_H), color: 0x2c2440, inputPickable: true })
-    this.add(new ColorRect({ size: v(CARD_W, 6), color: 0xffc040 }))
-    this.add(new Label({ text: upgrade.title, fontSize: 44, fontWeight: 'bold', color: 0xffe080, align: 'center', position: v(CARD_W / 2, 40) }))
-    this.add(new Label({ text: upgrade.desc, fontSize: 30, color: 0xffffff, align: 'center', position: v(CARD_W / 2, 120) }))
+    super({ size: v(CARD_W, CARD_H), text: upgrade.title, fontSize: 44, pressEffect: { scale: 1.04, duration: 0.08 } })
+    this.label.position = v(0, -38)
+    this.body.add(new Label({ text: upgrade.desc, fontSize: 30, color: 0x4a4a58, align: 'center', verticalAlign: 'center', position: v(0, 38) }))
   }
 }
 
 /**
  * 波次之间的三选一：半透明遮罩挡住下面的点击，三张卡片从下往上弹出，选一张就关闭。
- * 引擎缺口（验证清单 UI 组件）：卡片是 ColorRect + Label 拼的，没有九宫格、圆角、按下状态；
- * 卡片的呼吸效果（Tween loop）在 process 里自己算。
  */
 export class UpgradePicker extends CanvasLayer {
   readonly picked = new Signal<[upgrade: Upgrade]>()
   readonly cards: Card[] = []
-  private _time = 0
 
   constructor(readonly upgrades: readonly Upgrade[]) {
     super({ name: 'UpgradePicker', layer: 20 })
@@ -44,13 +41,6 @@ export class UpgradePicker extends CanvasLayer {
       card.clicked.connect(() => this._pick(u), this)
       this.cards.push(card)
     })
-  }
-
-  override process(dt: number) {
-    this._time += dt
-    for (let i = 0; i < this.cards.length; i++) {
-      this.cards[i]!.color = (0x2c + Math.round(10 * (0.5 + 0.5 * Math.sin(this._time * 3 + i)))) * 0x10000 + 0x2440
-    }
   }
 
   private _pick(u: Upgrade) {

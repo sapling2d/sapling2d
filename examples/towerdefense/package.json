@@ -14,7 +14,8 @@
     "assets": "node scripts/gen-assets.mjs"
   },
   "dependencies": {
-    "sapling2d": "workspace:*"
+    "sapling2d": "workspace:*",
+    "@sapling2d/ui": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
