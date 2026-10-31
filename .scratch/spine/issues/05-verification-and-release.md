@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-human（浏览器 / 模拟器 / 真机已验；剩 PMA 图集的肉眼检查、`pnpm pack`、发布）
+**Status:** ready-for-human（浏览器 / 模拟器 / 真机已验；剩 PMA 图集的肉眼检查、发布）
 
 - [x] 浏览器：spineboy idle / walk / jump / shoot 肉眼正常（clipping 的头部遮罩、shoot 的枪口闪光跟随骨骼并随翻转镜像）；控制台无 Pixi 警告（2026-10-31，Chrome）
 - [ ] 浏览器：`spineboy-pma.atlas` + `spineboy-pma.png` 换上去一样正常（PMA 路径，只有单元测试覆盖）；`pixelArt: true` 不崩
@@ -14,7 +14,7 @@
   - 1 个 spineboy（idle，玩家点跳）：logic 0.66–1.07 ms，render 1.55–1.88 ms（首个区间 max 33.9 ms 是着色器编译 / 上传）
   - 10 个 spineboy（9 个 run / walk + 主角走路）：logic 1.11–1.19 ms，render 3.95–4.19 ms（max 4.5–5.9，首个区间 13.4），interval max 18–19 ms
   - 对照模拟器：render 1.4 ms（10 个），模拟器有 JIT，真机慢约 3 倍，和 `ios-no-jit-allocation-cost` 的经验一致。一个 spineboy（52 slot）在真机上约 0.3 ms 渲染 + 0.05 ms 逻辑。
-- [ ] `pnpm pack` 装到仓库外：`tsc` 过、`createTestGame({ plugins: [spine()] })` 跑通、`vite build` 产物正常
+- [x] `pnpm pack` 装到仓库外（2026-10-31，sapling2d-0.4.0.tgz + sapling2d-spine-0.1.0.tgz，npm 安装到临时工程）：`tsc` 过；`vite build` 过、`spineSkeleton('minimal/nope.json')` 构建失败（assetFunctions 从安装的包里读到）；Node 直接跑 dist：`createTestGame({ plugins: [spine()] })` 加载骨架、播完 swing、`bonePosition('hand') = (10, -50)`
 - [ ] 发布（`pnpm publish`，不要 npm）
 
 ## Comments
