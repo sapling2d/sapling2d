@@ -339,7 +339,7 @@ shake(camera: Camera2D, strength: number, duration: number) {
 - 启动流程：加载启动页自己的 `static assets` → 启动页进入树、开始帧循环 → 准备资源包（微信小游戏下载资源分包，占进度前 70%）→ 加载入口场景的资源 → 等 `loaded()`（如果有）→ 切到入口场景，启动页被销毁，它独有的资源被卸载。
 - 不传 `loading` 时用内置的 `DefaultLoadingScene`（屏幕中间一条进度条，不用资源，背景是 `background`）；`loading: null` 不显示启动页。
 - 启动页的资源要少：它们在任何画面出现之前加载。
-- `tree.loadProgress` 在每次 `changeScene` 期间也从 0 走到 1，可以自己做切场景的加载提示。
+- `tree.assets.progress` 在每次 `changeScene` 期间也从 0 走到 1，可以自己做切场景的加载提示。
 
 <!-- example:loading-screen#test -->
 
@@ -525,7 +525,7 @@ this.tree.get(MotionInput).permission   // 插件提供的服务按类取；没�
 ## 微信小游戏
 
 - 构建：`saplingWechat({ entry: 'src/main.wechat.ts' })`，`vite build -c vite.wechat.config.ts [--watch]`，用微信开发者工具打开 `dist-wechat/`。`--watch` 是开发构建（内联 sourcemap，超 4 MB，只能在模拟器里跑），不带 `--watch` 是发布构建（压缩、无 sourcemap、包超限时失败；真机预览和上传必须用它），`saplingWechat({ release })` 可强制指定。环境变量：`WX_APPID`、`SAPLING_LOG_URL=http://<局域网 IP>:7777/log`（把 console、错误和 `snapshot()` 截图发到 `startLogServer()`）。
-- 资源放在 `public/assets/`，`tex('a.png')` 在两个平台上路径相同。构建时 `public/assets/boot/` 放进主包，其余资源放进一个分包，启动页显示后下载（进度算进 `tree.loadProgress`，失败时重试 2 次）。主包上限 4 MB（含 `game.js`），所有包合计 30 MB；构建时打印各包大小，发布构建超限时失败、超过 80% 时警告。
+- 资源放在 `public/assets/`，`tex('a.png')` 在两个平台上路径相同。构建时 `public/assets/boot/` 放进主包，其余资源放进一个分包，启动页显示后下载（进度算进 `tree.assets.progress`，失败时重试 2 次）。主包上限 4 MB（含 `game.js`），所有包合计 30 MB；构建时打印各包大小，发布构建超限时失败、超过 80% 时警告。
 - **启动页（`loading`）的资源必须放在 `boot/`**，否则启动时报错；`startGame` 完成之前（Autoload 的构造函数里）也只能用 `boot/` 里的资源。`saplingWechat({ mainAssets })` 可以改规则（glob 或函数）。
 - 只用 WebGL1；iOS 小游戏可能没有 JIT：同时活跃的刚体控制在 60–80 个以内。模拟器和真机差异很大，以真机为准。
 - 小游戏没有键盘事件（键盘插件装着但不会触发）；触摸是多点的。`loadFont(path)` 加载包内字体（只在小游戏里）。

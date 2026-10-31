@@ -13,7 +13,7 @@ export class Splash extends Scene implements LoadingScreen {
   }
 
   override process() {
-    this.fill.scale = v(this.tree.loadProgress, 1) // 0..1，微信上包括下载资源分包
+    this.fill.scale = v(this.tree.assets.progress, 1) // 0..1，微信上包括下载资源分包
   }
 
   // 可选：资源都加载完后调用，返回的 Promise 完成后才切到入口场景
@@ -39,6 +39,6 @@ it('loading screen', async () => {
   expect(g.scene).toBeInstanceOf(Menu)
   const splash = await createTestGame({ main: Splash })
   splash.step()
-  expect(splash.scene.fill.scale.x).toBe(1) // 没在加载时 loadProgress 是 1
+  expect(splash.scene.fill.scale.x).toBe(1) // 没在加载时 assets.progress 是 1
   // #endregion
 })

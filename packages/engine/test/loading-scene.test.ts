@@ -52,7 +52,7 @@ function setup() {
       Splash.last = this
     }
     override process() {
-      this.progress.push(this.tree.loadProgress)
+      this.progress.push(this.tree.assets.progress)
     }
   }
   class Main extends Scene {
@@ -83,7 +83,7 @@ describe('启动页', () => {
 
     expect(splash.progress).toEqual([0, 0.5, 0.5])
     expect(game.scene).toBeInstanceOf(Main)
-    expect(game.tree.loadProgress).toBe(1)
+    expect(game.tree.assets.progress).toBe(1)
     expect(splash.isFreed).toBe(true)
     expect(logo.isLoaded).toBe(false) // 入口场景没有声明：被卸载
     expect([a.isLoaded, b.isLoaded]).toEqual([true, true])
@@ -151,7 +151,7 @@ describe('启动页', () => {
     expect(Splash.last!.isInsideTree).toBe(true)
   })
 
-  it('不传 loading 时用内置的进度条（填充宽度跟随 loadProgress）；传 null 时不显示启动页', async () => {
+  it('不传 loading 时用内置的进度条（填充宽度跟随 assets.progress）；传 null 时不显示启动页', async () => {
     const drawn: string[] = []
     const renderer = { render: (tree: SceneTree) => void drawn.push(describeScene(tree)), destroy() {} }
     const { Main, a, b } = setup()
@@ -180,16 +180,16 @@ describe('启动页', () => {
     expect(drawn).toEqual(['(none)']) // 没有启动页：加载期间树里没有场景
   })
 
-  it('createTestGame 默认不显示启动页；changeScene 期间也更新 loadProgress', async () => {
+  it('createTestGame 默认不显示启动页；changeScene 期间也更新 assets.progress', async () => {
     const { Main, a, b } = setup()
     const g = await createTestGame({ main: Main })
-    expect(g.tree.loadProgress).toBe(1)
+    expect(g.tree.assets.progress).toBe(1)
     class Other extends Scene {
       static override assets = { x: tex('ls-x.png'), y: tex('ls-y.png') }
     }
     const p = g.tree.changeScene(Other)
-    expect(g.tree.loadProgress).toBe(1) // 替换在微任务里开始
+    expect(g.tree.assets.progress).toBe(1) // 替换在微任务里开始
     await p
-    expect(g.tree.loadProgress).toBe(1)
+    expect(g.tree.assets.progress).toBe(1)
   })
 })

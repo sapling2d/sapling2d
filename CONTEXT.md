@@ -7,7 +7,8 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - **Node** — 场景树中的基本单元。所有游戏对象都是 Node 的子类，通过**继承**扩展（`class Player extends RigidBody2D`）。不使用 ECS / 组件挂载。
 - **Node2D** — 带 2D 变换（`position`、`rotation`、`scale`、`visible`、`zIndex`）的 Node。变换数据由节点自己持有，不是 Pixi 对象的包装。
 - **Scene** — 场景树的根节点（`extends Node2D`）。通过 `static assets` 声明预加载资源；场景参数通过构造函数声明（`constructor(readonly params: {...})`）。`await tree.changeScene(SceneClass, params)` 先加载资源、再在微任务里替换（不打断当前帧），连续调用按顺序执行；旧场景独有的资源被卸载；`reloadCurrentScene()` 用原参数重开；`tree.sceneChanged` 信号。同一时间只有一个活动 Scene。
-- **SceneTree** — 运行时的树与主循环拥有者。提供 `changeScene`、`paused`、`getNodesInGroup`、`focusChanged`、`get(Token)`（插件提供的服务）、`system(Cls)`（树级子系统）。
+- **SceneTree** — 运行时的树与主循环拥有者。提供 `changeScene`、`paused`、`getNodesInGroup`、`focusChanged`、`get(Token)`（插件提供的服务）、`system(Cls)`（树级子系统）、`assets`（资源加载）。子系统（`audio`、`storage`、`assets`、`viewport`）是构造时传入的实例，由 `Game.create` 按平台组装；裸 `new SceneTree()` 用无头默认值。
+- **AssetLoader / `tree.assets`** — 资源的加载、钉住和卸载：`progress`（0..1，每次加载从 0 走到 1，启动时含资源分包的下载）、`load(assets)`（运行中按需加载）、`preload(assets)`（插件登记：启动时一起加载并钉住）。`changeScene` 和 `Game.create` 的启动序列都走它；SceneTree 自己不碰加载细节。
 - **TreeSystem / `tree.system(Cls)`** — 树级单例：第一次访问时 `new Cls(tree)`，之后同一个；`systemIfCreated(Cls)` 不触发创建。引擎的子系统（`PhysicsWorld`、`CameraManager`、`TileLayers`）和需要树级状态的节点类型都走它，SceneTree 自己不认识任何节点类型。子系统可以实现 `TreeSystem` 钩子：`physicsStep(dt)`（每个物理步，节点的 `physicsProcess` 之后，暂停时不调）、`frameEnd(dt)`（帧末销毁之后、渲染之前），按创建顺序调用。插件提供的服务另走 `provide` / `get(Token)`。
 - **Autoload** — 跨场景存在的全局单例节点（如 `GameState`），在启动参数 `autoloads` 中注册，用 `tree.autoload(GameState)` 按类型获取。
 - **Group** — 节点的标签集合（`addToGroup` / `getNodesInGroup`），用于跨层级查找。通过声明合并 `GroupRegistry` 给组名和返回类型加强类型。**不支持** `getNode("Path")` 或 `%Unique` 路径查找；父子引用使用类型化字段。
@@ -15,7 +16,7 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - **Lifecycle** — `enterTree()`、`ready()`、`process(dt)`、`physicsProcess(dt)`、`exitTree()`。无下划线前缀。
 - **queueFree** — 帧末延迟销毁节点。不提供立即 `free()`。物理回调期间的增删也延迟生效；`callDeferred(fn)` 用于延迟任意操作。
 - **processMode** — `inherit` | `pausable` | `always`，配合 `tree.paused` 决定节点是否被暂停。暂停时 pausable 节点的 process / physicsProcess、绑定的 Tween / Timer、指针事件都停止，物理世界停止；`createTimer` 默认暂停时继续计时（`processAlways: false` 可改）。
-- **Focus** — 平台的前后台事件统一为 `tree.focusChanged(focused)`。默认（`pauseOnBackground: true`）后台时挂起整个主循环，回到前台时清空物理累加器。
+- **Focus** — 平台的前后台事件由 Game 转发给 `tree.setFocused(focused)`：切后台时松开所有输入、挂起声音，回到前台时清空物理累加器，然后触发 `tree.focusChanged`。默认（`pauseOnBackground: true`）后台时 Game 还会挂起整个主循环。
 - **Platform** — 引擎访问外部世界的唯一接口（canvas、时间、rAF、指针事件源、资源读取、音频、存储、屏幕信息），只提供每个平台都有的东西；`kind`（`browser` / `wechat` / `headless`）给插件选实现用。实现：`BrowserPlatform`、`WechatPlatform`、`HeadlessPlatform`。核心代码禁止直接访问 `window` / `document` / `wx`；平台只产指针事件，键盘、传感器这类设备由插件自己监听（ADR 0010）。
 - **Plugin** — 平台差异化能力（键盘、传感器、手柄、小游戏的广告 / 分享）的接入方式：`startGame({ plugins: [motion()] })`。`install(ctx)` 在建树之后、定义动作之前按顺序调用一次，拿到 `tree`、`platform`，用 `ctx.provide(Token, service)` 提供服务，游戏用 `tree.get(Token)` 取（没装时报错并提示 `plugins: [...]`）；`ctx.preload(assets)` 预加载并钉住资源；`ctx.autoload(cls)` 注册跨场景存活的节点；返回的函数在 `game.destroy()` 时调用。三条规则：`Input` 不再增长、平台只产指针事件、插件必须在三个 `kind` 上都能安装（不支持的平台装 mock 并 `console.info` 一次，游戏照常跑）。各入口可以带默认插件：三个入口都默认装 `keyboard()`（小游戏里没有事件源，只是让 `key()` 绑定有人认领）。
 - **InputSource** — `Input` 的唯一扩展点，插件和屏幕控件都通过它接入：`bindingTypes`（认领的绑定类型，定义动作时没人认领就警告）、`eventTypes`（订阅的事件类型，按类型路由）、`handle(event)`、`beginFrame()`（轮询型设备）、`strength(action, bindings)`（给动作的力度，所有来源取最大）、`releaseAll(queue)`（切后台把按着的东西排队成松开）。`tree.input.addSource` / `removeSource` / `enqueue`。事件和绑定的类型是开放的：`InputEventRegistry` / `InputBindingRegistry` 声明合并（每种都要有 `type` 字段）。

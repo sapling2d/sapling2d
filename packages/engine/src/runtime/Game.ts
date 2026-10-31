@@ -1,4 +1,5 @@
-import { loadAssets, type AssetMap } from '../core/assets'
+import { AudioServer } from '../audio/AudioServer'
+import { AssetLoader } from '../core/AssetLoader'
 import type { Scene, SceneClass } from '../core/Scene'
 import { SceneTree, type NodeClass } from '../core/SceneTree'
 import type { ActionName } from '../core/actions'
@@ -7,6 +8,7 @@ import type { Plugin, PluginContext } from '../core/plugin'
 import { Viewport, type DesignResolution } from '../core/Viewport'
 import type { PhysicsSettings } from '../physics/PhysicsWorld'
 import type { Platform } from '../platform/Platform'
+import { Storage } from '../storage/Storage'
 import { DefaultLoadingScene } from './DefaultLoadingScene'
 
 /** 渲染器接口：每帧把场景树同步到画面。无头模式没有渲染器。 */
@@ -75,16 +77,13 @@ export interface LoadingScreen {
   loaded?(): void | Promise<void>
 }
 
-/** 启动时准备资源包（`Platform.prepareAssets`）占加载进度的比例，其余是加载入口场景的资源。 */
-const PREPARE_SHARE = 0.7
-
 export interface GameOptions<S extends Scene> {
   /** 入口场景。 */
   main: SceneClass<S>
   /**
    * 启动页：先显示它，再加载入口场景的资源，加载完切到入口场景（启动页被销毁）。
    * 它的 `static assets` 先于其他资源加载，应尽量少；微信小游戏里必须放在主包（`public/assets/boot/`）。
-   * 进度读 `this.tree.loadProgress`；实现 `loaded()` 可以推迟切换（见 LoadingScreen）。
+   * 进度读 `this.tree.assets.progress`；实现 `loaded()` 可以推迟切换（见 LoadingScreen）。
    * 不传时用内置的进度条；传 `null` 时不显示启动页。
    */
   loading?: SceneClass<Scene & LoadingScreen> | null
@@ -142,15 +141,9 @@ export class Game<S extends Scene = Scene> {
     this._unsubscribeFocus = platform.onFocusChange((focused) => {
       if (pauseOnBackground) {
         this._suspended = !focused
-        if (focused) {
-          // 回到前台：时间从现在重新算，物理不补算后台那段
-          tree._resetAccumulator()
-          this._lastTime = platform.now()
-        }
+        if (focused) this._lastTime = platform.now() // 回到前台：时间从现在重新算
       }
-      if (!focused) tree.input._releaseAll() // 切到后台时手指和按键的抬起收不到：当作全部松开
-      tree.audio._setFocused(focused) // 后台时总是挂起声音
-      tree.focusChanged.emit(focused)
+      tree.setFocused(focused)
     })
   }
 
@@ -160,29 +153,23 @@ export class Game<S extends Scene = Scene> {
    */
   static async create<S extends Scene>(options: GameOptions<S> & { platform: Platform; renderer?: Renderer | null; start?: boolean }): Promise<Game<S>> {
     const platform = options.platform
-    const viewport = new Viewport(options.design ?? { width: 750, height: 1334 }, platform.getScreenInfo())
+    const audio = new AudioServer(platform.audio)
     const tree = new SceneTree({
-      viewport,
+      viewport: new Viewport(options.design ?? { width: 750, height: 1334 }, platform.getScreenInfo()),
+      audio,
+      storage: new Storage(platform.storage, options.storagePrefix ?? 'sapling2d:'),
+      assets: new AssetLoader(platform, audio),
       ...(options.seed === undefined ? {} : { seed: options.seed }),
       ...(options.physics ? { physics: options.physics } : {}),
-      audioBackend: platform.audio,
-      storageBackend: platform.storage,
-      ...(options.storagePrefix ? { storagePrefix: options.storagePrefix } : {}),
     })
     // 先装插件再定义动作：定义动作时才能检查绑定有没有来源认领
     const disposers: (() => void)[] = []
-    /** 插件登记的资源：和入口场景的资源一起加载，并钉住。key 不重要（加载按资源去重），只要不和场景的撞 */
-    const startupAssets: AssetMap = {}
-    let preloaded = 0
     const ctx: PluginContext = {
       tree,
       platform,
-      provide: (token, service) => tree._provide(token, service),
-      preload: (assets) => {
-        for (const asset of Object.values(assets)) startupAssets[`\0plugin${preloaded++}`] = asset
-        tree._pin(assets)
-      },
-      autoload: (cls) => tree._addAutoload(cls),
+      provide: (token, service) => tree.provide(token, service),
+      preload: (assets) => tree.assets.preload(assets),
+      autoload: (cls) => tree.addAutoload(cls),
     }
     for (const plugin of options.plugins ?? []) {
       const dispose = plugin.install(ctx)
@@ -191,23 +178,13 @@ export class Game<S extends Scene = Scene> {
     for (const [name, bindings] of Object.entries(options.actions ?? {})) {
       if (bindings) tree.input.addAction(name as ActionName, bindings)
     }
-    for (const cls of options.autoloads ?? []) tree._addAutoload(cls)
-    tree._setAssetLoader((assets, onProgress) => loadAssets(assets, platform, tree.audio, onProgress))
+    for (const cls of options.autoloads ?? []) tree.addAutoload(cls)
     const game = new Game<S>(platform, options.renderer ?? null, tree, options.pauseOnBackground ?? true, disposers)
     const loading = options.loading === undefined ? DefaultLoadingScene : options.loading
     const screen: (Scene & LoadingScreen) | null = loading ? await tree.changeScene(loading) : null
     if (options.start) game.start()
-    let from = 0
-    if (platform.prepareAssets) {
-      tree._setLoadProgress(0)
-      await platform.prepareAssets((done) => tree._setLoadProgress(done * PREPARE_SHARE))
-      from = PREPARE_SHARE
-    }
-    // 先把插件登记的资源和入口场景的资源加载完（进度走到 1），启动页同意后再切换；changeScene 里不会再加载
-    tree._setLoadProgress(from)
-    Object.assign(startupAssets, options.main.assets)
-    await loadAssets(startupAssets, platform, tree.audio, (done) => tree._setLoadProgress(from + done * (1 - from)))
-    tree._setLoadProgress(1)
+    // 准备资源包，再把插件登记的资源和入口场景的资源加载完（进度走到 1）；启动页同意后再切换，changeScene 里不会再加载
+    await tree.assets._startup(options.main.assets)
     // 没有帧循环（无头测试）时启动页不会推进：不等它，否则等计时器的 loaded() 永远完成不了
     if (options.start) await screen?.loaded?.()
     await tree.changeScene(options.main)

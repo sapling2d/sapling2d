@@ -2,16 +2,15 @@ import { RandomNumberGenerator } from '../math/RandomNumberGenerator'
 import { fmt } from '../math/Vector2'
 import { PhysicsWorld, type PhysicsSettings } from '../physics/PhysicsWorld'
 import { AudioServer } from '../audio/AudioServer'
-import type { AudioBackend } from '../audio/backend'
 import { HeadlessAudioBackend } from '../audio/HeadlessAudio'
-import { MemoryStorageBackend, type StorageBackend } from '../storage/backend'
+import { MemoryStorageBackend } from '../storage/backend'
 import { Storage } from '../storage/Storage'
+import { AssetLoader } from './AssetLoader'
 import { Input } from './Input'
 import { Signal } from './Signal'
 import { Tween } from './Tween'
 import type { GroupName, GroupNodeType } from './groups'
 import { Node, type DumpNode } from './Node'
-import { assetResources, type AssetMap } from './assets'
 import type { ServiceToken } from './plugin'
 import type { Scene, SceneConstructor } from './Scene'
 import { SceneTreeTimer } from './SceneTreeTimer'
@@ -29,12 +28,12 @@ export interface SceneTreeOptions {
   viewport?: Viewport
   /** 物理设置：像素/米换算、重力、迭代次数。 */
   physics?: PhysicsSettings
-  /** 平台的音频实现。不传时不发声（只记录）。 */
-  audioBackend?: AudioBackend
-  /** 平台的键值存储。不传时用内存。 */
-  storageBackend?: StorageBackend
-  /** 存储 key 的前缀，默认 'sapling2d:'。同一域名下有多个游戏时应各自设置。 */
-  storagePrefix?: string
+  /** 音频系统。不传时不发声（无头实现，只记录）。 */
+  audio?: AudioServer
+  /** 持久化存储。不传时在内存里，前缀 'sapling2d:'。 */
+  storage?: Storage
+  /** 资源加载。不传时什么都不加载（`changeScene` 不等待，贴图宽高为 0）。 */
+  assets?: AssetLoader
 }
 
 export interface DumpOptions {
@@ -103,6 +102,8 @@ export class SceneTree {
   readonly audio: AudioServer
   /** 持久化存储：最高分、设置等。 */
   readonly storage: Storage
+  /** 资源：加载进度、运行中按需加载、插件的预加载。 */
+  readonly assets: AssetLoader
   /** 物理设置（启动参数 `physics`）：`tree.physics` 第一次创建物理世界时读取。 */
   readonly physicsSettings: PhysicsSettings
 
@@ -117,8 +118,6 @@ export class SceneTree {
   /** 实现了对应钩子的子系统，按创建顺序。 */
   private readonly _physicsSteppers: TreeSystem[] = []
   private readonly _frameEnders: TreeSystem[] = []
-  /** 钉住的资源（`PluginContext.preload`）：切场景时不卸载。存声明的句柄，判断时再展开（自定义资源的图片要加载后才知道）。 */
-  private readonly _pinned: AssetMap[string][] = []
   private _accumulator = 0
   private _physicsFrames = 0
   /** 没暂停时执行的物理步数：`time` = 它 × 步长（计数而不是累加小数，不积累误差）。 */
@@ -129,8 +128,6 @@ export class SceneTree {
   private _timeScale = 1
   /** 当前场景被替换后触发（参数是新场景）。 */
   readonly sceneChanged = new Signal<[scene: Scene]>()
-  private _loadAssets: (assets: AssetMap | undefined, onProgress: (done: number) => void) => Promise<void> = async () => {}
-  private _loadProgress = 1
   private _changeChain: Promise<unknown> = Promise.resolve()
   private _currentArgs: { cls: SceneConstructor; args: unknown[] } | null = null
   /** 游戏切到后台（false）或回到前台（true）时触发。默认情况下引擎会在后台挂起主循环。 */
@@ -150,8 +147,9 @@ export class SceneTree {
     this.viewport = options.viewport ?? new Viewport({ width: 750, height: 1334 }, { width: 750, height: 1334, pixelRatio: 1 })
     this.input = new Input(this.viewport, () => this._root.children)
     this.physicsSettings = options.physics ?? {}
-    this.audio = new AudioServer(options.audioBackend ?? new HeadlessAudioBackend())
-    this.storage = new Storage(options.storageBackend ?? new MemoryStorageBackend(), options.storagePrefix ?? 'sapling2d:')
+    this.audio = options.audio ?? new AudioServer(new HeadlessAudioBackend())
+    this.storage = options.storage ?? new Storage(new MemoryStorageBackend(), 'sapling2d:')
+    this.assets = options.assets ?? new AssetLoader(null, this.audio)
     this._root._attachAsRoot(this)
   }
 
@@ -252,10 +250,10 @@ export class SceneTree {
   // ---------------------------------------------------------------- Autoload
 
   /**
-   * @internal 注册 Autoload：构造一个全局单例节点，放在当前场景之前，切换场景时保留。必须在第一个场景之前注册。
-   * 游戏通过启动参数 `autoloads: [...]` 注册，不直接调用这个方法。
+   * 注册 Autoload：构造一个全局单例节点，放在当前场景之前，切换场景时保留。必须在第一个场景之前注册。
+   * 游戏通过启动参数 `autoloads: [...]` 注册，插件用 `PluginContext.autoload`；两者都走这里。
    */
-  _addAutoload<T extends Node>(cls: NodeClass<T>): T {
+  addAutoload<T extends Node>(cls: NodeClass<T>): T {
     if (this._autoloads.has(cls)) throw new Error(`Autoload ${cls.name} is already registered.`)
     if (this._scene) throw new Error(`Autoload ${cls.name} must be registered before the first scene starts.`)
     const node = new cls()
@@ -287,15 +285,10 @@ export class SceneTree {
     return service as T
   }
 
-  /** @internal 插件安装时提供服务（`PluginContext.provide`）。 */
-  _provide<T>(token: ServiceToken<T>, service: T): void {
+  /** 提供一个服务（插件安装时通过 `PluginContext.provide` 调用），之后 `get(token)` 能取到。同一个 token 提供两次报错。 */
+  provide<T>(token: ServiceToken<T>, service: T): void {
     if (this._services.has(token)) throw new Error(`${token.name} is already provided by another plugin.`)
     this._services.set(token, service)
-  }
-
-  /** @internal 钉住资源（`PluginContext.preload`）：`_unloadUnused` 跳过它们（和它们的图片）。 */
-  _pin(assets: AssetMap): void {
-    this._pinned.push(...Object.values(assets))
   }
 
   // ---------------------------------------------------------------- 场景
@@ -313,14 +306,12 @@ export class SceneTree {
    */
   changeScene<C extends SceneConstructor>(cls: C, ...args: ConstructorParameters<C>): Promise<InstanceType<C>> {
     const run = async () => {
-      this._loadProgress = 0
-      await this._loadAssets(cls.assets, (done) => (this._loadProgress = done))
-      this._loadProgress = 1
+      await this.assets.load(cls.assets)
       const scene = new cls(...args) as InstanceType<C>
       const oldAssets = this._currentArgs?.cls.assets
       this._currentArgs = { cls, args }
       this._setScene(scene)
-      this._unloadUnused(oldAssets, cls.assets)
+      this.assets._unloadUnused(oldAssets, cls.assets)
       this.sceneChanged.emit(scene)
       return scene
     }
@@ -329,37 +320,11 @@ export class SceneTree {
     return result
   }
 
-  /**
-   * 资源加载进度，0..1：`changeScene` 期间从 0 增加到 1（按资源个数），平时是 1。
-   * 启动时（启动页显示期间）包括准备资源包（微信小游戏下载资源分包）和加载入口场景的资源。
-   * 启动页里用它画进度条：`this.bar.scale = v(this.tree.loadProgress, 1)`。
-   */
-  get loadProgress(): number {
-    return this._loadProgress
-  }
-
-  /** @internal 由 Game 在启动时设置（准备资源包、加载入口场景的资源）。 */
-  _setLoadProgress(value: number): void {
-    this._loadProgress = value
-  }
-
   /** 用上一次的参数重新创建当前场景（重开一局）。 */
   reloadCurrentScene(): Promise<Scene> {
     if (!this._currentArgs) throw new Error('reloadCurrentScene: no scene has been loaded with changeScene yet.')
     const { cls, args } = this._currentArgs
     return this.changeScene(cls, ...(args as []))
-  }
-
-  /** @internal 由 Game 注入：加载 / 卸载资源。 */
-  _setAssetLoader(load: (assets: AssetMap | undefined, onProgress: (done: number) => void) => Promise<void>): void {
-    this._loadAssets = load
-  }
-
-  private _unloadUnused(oldAssets: AssetMap | undefined, newAssets: AssetMap | undefined): void {
-    if (!oldAssets) return
-    // 图集、子区域、Tiled 关卡的图块集都归结到整张图：新场景用同一张图（哪怕是另一种写法）就保留；插件钉住的（和它们的图片）也保留
-    const keep = new Set([...Object.values(newAssets ?? {}), ...this._pinned].flatMap(assetResources))
-    for (const asset of new Set(Object.values(oldAssets).flatMap(assetResources))) if (!keep.has(asset)) asset._unload()
   }
 
   /** @internal 立即替换当前场景并销毁旧场景（不加载资源）。游戏代码请用 changeScene。 */
@@ -505,9 +470,15 @@ export class SceneTree {
     for (let i = 0; i < enders.length; i++) enders[i]!.frameEnd!(frameDt)
   }
 
-  /** @internal 清空物理累加器：从后台回来时调用，避免一次补算很多步。 */
-  _resetAccumulator(): void {
-    this._accumulator = 0
+  /**
+   * 平台的前后台事件（由 Game 转发；测试里 `g.setFocus`）：切到后台时松开所有输入（手指和按键的抬起在后台收不到）、挂起声音；
+   * 回到前台时清空物理累加器（不补算后台那段）、恢复声音；然后触发 `focusChanged`。
+   */
+  setFocused(focused: boolean): void {
+    if (focused) this._accumulator = 0
+    else this.input._releaseAll()
+    this.audio._setFocused(focused)
+    this.focusChanged.emit(focused)
   }
 
   /** @internal 顶层节点：各个 Autoload，然后是当前场景。渲染层从这里开始遍历。 */

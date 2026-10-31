@@ -15,7 +15,7 @@ class Splash extends Scene implements LoadingScreen {
   }
 
   override process() {
-    this.fill.scale = v(this.tree.loadProgress, 1)
+    this.fill.scale = v(this.tree.assets.progress, 1)
   }
 
   async loaded() {

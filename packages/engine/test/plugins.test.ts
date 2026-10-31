@@ -151,7 +151,7 @@ describe('插件资源（preload / 钉住 / ~<包名>/）', () => {
     }
     const plugin: Plugin = { install: (ctx) => ctx.preload({ icon }) }
     const g = await createTestGame({ main: Main, plugins: [plugin] })
-    expect([icon.isLoaded, own.isLoaded, g.tree.loadProgress]).toEqual([true, true, 1])
+    expect([icon.isLoaded, own.isLoaded, g.tree.assets.progress]).toEqual([true, true, 1])
   })
 
   it('钉住：场景也列了插件的图，切走后插件的图不卸载，场景自己的图卸载', async () => {

@@ -26,7 +26,7 @@ export class DefaultLoadingScene extends Scene {
   }
 
   private _update(): void {
-    const p = this.tree.loadProgress
+    const p = this.tree.assets.progress
     if (this._fill && this._fill.scale.x !== p) this._fill.scale = v(p, 1)
   }
 }

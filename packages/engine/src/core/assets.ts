@@ -1,4 +1,3 @@
-import type { AudioServer } from '../audio/AudioServer'
 import { AudioStream } from '../audio/AudioStream'
 import { Rect2 } from '../math/Rect2'
 import { Vector2 } from '../math/Vector2'
@@ -412,33 +411,4 @@ export function loadTexture(asset: Texture, platform: Platform): Promise<void> {
     pending.set(asset, p)
   }
   return p
-}
-
-/**
- * 加载一组资源；已加载的跳过，同一资源并发请求只加载一次。音乐是流式的，不预加载。
- * `onProgress(done)`：每完成一个资源回调一次，`done` 是已完成的比例（0..1，按资源个数）。
- */
-export async function loadAssets(assets: AssetMap | undefined, platform: Platform, audio: AudioServer, onProgress?: (done: number) => void): Promise<void> {
-  if (!assets) return
-  const roots = [...new Set(Object.values(assets).map(assetRoot))]
-  let finished = 0
-  const report = () => onProgress?.(++finished / roots.length)
-  await Promise.all(
-    roots.map((asset) => {
-      const p = loadOne(asset, platform, audio)
-      return p ? p.then(report) : report()
-    }),
-  )
-}
-
-function loadOne(asset: Texture | AudioStream | Resource, platform: Platform, audio: AudioServer): Promise<void> | undefined {
-  if (asset.isLoaded) return undefined
-  if (asset instanceof AudioStream) {
-    return audio._load(asset).catch((err: unknown) => {
-      throw new Error(`Failed to load sound "${asset.path}": ${err instanceof Error ? err.message : String(err)}`)
-    })
-  }
-  // 自定义资源：先解析，再加载它声明的图片（已加载的跳过）
-  if ('_load' in asset) return asset._load(platform).then(() => Promise.all((asset._textures?.() ?? []).map((t) => loadTexture(t._base ?? t, platform)))).then(() => undefined)
-  return loadTexture(asset, platform)
 }

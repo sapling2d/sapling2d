@@ -2,6 +2,7 @@ export { Node, type NodeOptions, type DumpNode, type ProcessMode } from './core/
 export { Node2D, type Node2DOptions, type BlendMode } from './core/Node2D'
 export { Scene, type SceneClass, type SceneConstructor } from './core/Scene'
 export { SceneTree, type SceneTreeOptions, type DumpOptions, type NodeClass, type SystemClass, type TreeSystem } from './core/SceneTree'
+export { AssetLoader } from './core/AssetLoader'
 export { Vector2, v } from './math/Vector2'
 export { Rect2, rect } from './math/Rect2'
 export { Curve2D, type CurvePoint, type Curve2DOptions } from './math/Curve2D'
