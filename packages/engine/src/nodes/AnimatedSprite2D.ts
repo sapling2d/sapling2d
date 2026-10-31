@@ -1,18 +1,7 @@
 import type { Texture } from '../core/assets'
 import { Signal } from '../core/Signal'
+import type { SpriteAnimation } from '../core/spriteAnimation'
 import { Sprite2D, type Sprite2DOptions } from './Sprite2D'
-
-/** 一套帧动画。 */
-export interface SpriteAnimation {
-  /** 帧序列，至少一帧。通常来自 `sheet().frames()` 或 `atlas().frames(prefix)`。 */
-  frames: readonly Texture[]
-  /** 每秒帧数，默认 10。与 `durations` 二选一。 */
-  fps?: number
-  /** 每一帧显示的秒数（长度和 `frames` 相同，都 > 0），让帧长短不一，例如攻击的前摇停得久、出手帧很短。与 `fps` 二选一。 */
-  durations?: readonly number[]
-  /** 播到最后一帧后从头循环，默认 true。不循环时停在最后一帧并触发 `animationFinished`。 */
-  loop?: boolean
-}
 
 export interface AnimatedSprite2DOptions<A extends string = string> extends Omit<Sprite2DOptions, 'texture'> {
   /** 多套动画：名字 → 动画。与 `frames` 二选一。 */

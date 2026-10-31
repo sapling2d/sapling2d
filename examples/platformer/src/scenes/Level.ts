@@ -1,4 +1,4 @@
-import { Camera2D, HitTester, Scene, type TileMapLayer } from 'sapling2d'
+import { Camera2D, HitTester, Scene, TileMapLayer } from 'sapling2d'
 import { ASSETS } from '../assets'
 import { GOOMBA, PLAYER, RESTART_DELAY, SCORE, TILE, TILE_USED, TIME_TICK } from '../config'
 import { Coin, CoinPop } from '../nodes/Coin'
@@ -34,7 +34,7 @@ export class Level extends Scene {
   override ready() {
     const level = ASSETS.level
     this._state = this.tree.autoload(GameState)
-    for (const layer of level.createLayers()) this.add(layer)
+    for (const layer of TileMapLayer.fromTiled(level)) this.add(layer)
     this.ground = this.children.find((n) => n.name === 'Ground') as TileMapLayer
     this.time = Number(level.properties.time ?? 300)
 

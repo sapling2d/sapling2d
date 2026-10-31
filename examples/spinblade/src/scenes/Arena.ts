@@ -1,4 +1,4 @@
-import { Camera2D, Ease, HitTester, Particles2D, Scene, type TileMapLayer, type Tween, v, Vector2 } from 'sapling2d'
+import { Camera2D, Ease, HitTester, Particles2D, Scene, TileMapLayer, type Tween, v, Vector2 } from 'sapling2d'
 import { ASSETS } from '../assets'
 import { BOSS, FEEL, KNIFE, PLAYER, TILE, Z } from '../config'
 import { KnifeCollider } from '../KnifeCollider'
@@ -62,7 +62,7 @@ export class Arena extends Scene implements EnemyWorld {
     // 上一局可能在打击停顿中结束
     this.tree.timeScale = 1
     const level = ASSETS.level
-    for (const layer of level.createLayers()) {
+    for (const layer of TileMapLayer.fromTiled(level)) {
       this.add(layer)
       if (layer.name === 'Walls') this.walls = layer
     }

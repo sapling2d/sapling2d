@@ -1,4 +1,5 @@
 import { Node2D, type Node2DOptions } from '../core/Node2D'
+import type { TiledMap, TiledTileLayer } from '../core/tiled'
 import { TILE_EMPTY, type TileData, type TileSet } from '../core/tileset'
 import { Rect2 } from '../math/Rect2'
 import { Vector2 } from '../math/Vector2'
@@ -65,6 +66,23 @@ export class TileMapLayer extends Node2D {
         if (id) this._usedCount++
       }
     }
+  }
+
+  /**
+   * 从 Tiled 关卡创建图层节点：不传名字时每个图块层一个新节点，按 Tiled 里从下到上的顺序（依次 add 到场景里，叠放顺序就和 Tiled 一样）；
+   * 传名字时只创建那一层（没有时报错）。节点名是图层名；Tiled 的偏移、可见性、不透明度对应 position、visible、alpha。
+   * 每次调用都创建新节点（格子是拷贝）。关卡要先加载（放进场景的 `static assets`）。
+   *
+   * ```ts
+   * for (const layer of TileMapLayer.fromTiled(LEVEL)) this.add(layer)
+   * const ground = this.add(TileMapLayer.fromTiled(LEVEL, 'Ground'))
+   * ```
+   */
+  static fromTiled(map: TiledMap): TileMapLayer[]
+  static fromTiled(map: TiledMap, name: string): TileMapLayer
+  static fromTiled(map: TiledMap, name?: string): TileMapLayer[] | TileMapLayer {
+    if (name !== undefined) return fromTiledLayer(map.tileLayer(name))
+    return map.tileLayers.map(fromTiledLayer)
   }
 
   /** 非空的格子数。 */
@@ -162,6 +180,20 @@ export class TileMapLayer extends Node2D {
       collisionLayer: this.collisionLayer !== 1 ? this.collisionLayer : undefined,
     }
   }
+}
+
+function fromTiledLayer(l: TiledTileLayer): TileMapLayer {
+  return new TileMapLayer({
+    name: l.name,
+    tileSet: l.tileSet,
+    width: l.width,
+    height: l.height,
+    cells: l.cells,
+    position: new Vector2(l.offsetX, l.offsetY),
+    visible: l.visible,
+    alpha: l.opacity,
+    collisionLayer: l.collisionLayer,
+  })
 }
 
 function checkId(id: number): void {

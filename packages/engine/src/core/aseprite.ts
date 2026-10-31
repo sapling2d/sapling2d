@@ -1,7 +1,7 @@
 import { Rect2 } from '../math/Rect2'
 import { Vector2 } from '../math/Vector2'
-import type { SpriteAnimation } from '../nodes/AnimatedSprite2D'
 import { atlasEntries, atlasFrame, frameRange, tex, Texture, type AtlasFrameData } from './assets'
+import type { SpriteAnimation } from './spriteAnimation'
 
 /** Aseprite 导出的一帧：图集格式加上这一帧的显示时长（毫秒）。 */
 export interface AsepriteFrameData extends AtlasFrameData {

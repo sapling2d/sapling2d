@@ -1,5 +1,4 @@
 import type { Platform } from '../platform/Platform'
-import { TileMapLayer } from '../nodes/TileMapLayer'
 import { Vector2 } from '../math/Vector2'
 import { loadTexture, tex, type Texture } from './assets'
 import { TileSet, type TileOptions } from './tileset'
@@ -40,18 +39,25 @@ export interface TiledObjectLayer {
   readonly properties: Readonly<Record<string, unknown>>
 }
 
-interface ParsedTileLayer {
-  name: string
-  width: number
-  height: number
-  tileSet: TileSet
-  cells: Uint16Array
-  visible: boolean
-  opacity: number
-  offsetX: number
-  offsetY: number
-  collisionLayer: number
-  properties: Record<string, unknown>
+/** Tiled 关卡里的一个图块层（数据）。创建节点用 `TileMapLayer.fromTiled(map)`。 */
+export interface TiledTileLayer {
+  readonly name: string
+  /** 大小（格）。 */
+  readonly width: number
+  readonly height: number
+  /** 这一层用的图块集（一层只能用一个）。 */
+  readonly tileSet: TileSet
+  /** 按行排列的图块编号（在 `tileSet` 里从 1 开始，0 为空），长度 `width × height`。不要修改。 */
+  readonly cells: Uint16Array
+  readonly visible: boolean
+  readonly opacity: number
+  /** Tiled 里的图层偏移（像素）。 */
+  readonly offsetX: number
+  readonly offsetY: number
+  /** 碰撞层（图层的整数属性 `collisionLayer`，默认 1）。 */
+  readonly collisionLayer: number
+  /** 图层的自定义属性。 */
+  readonly properties: Readonly<Record<string, unknown>>
 }
 
 interface ParsedMap {
@@ -59,7 +65,7 @@ interface ParsedMap {
   height: number
   tileSize: number
   tileSets: TileSet[]
-  tileLayers: ParsedTileLayer[]
+  tileLayers: TiledTileLayer[]
   objectLayers: TiledObjectLayer[]
   properties: Record<string, unknown>
 }
@@ -73,7 +79,7 @@ interface ParsedMap {
  * class Level extends Scene {
  *   static assets = { level: LEVEL }
  *   override ready() {
- *     for (const layer of LEVEL.createLayers()) this.add(layer)
+ *     for (const layer of TileMapLayer.fromTiled(LEVEL)) this.add(layer)
  *     for (const o of LEVEL.objects('Entities')) if (o.type === 'Coin') this.add(new Coin({ position: v(o.x, o.y) }))
  *   }
  * }
@@ -132,29 +138,26 @@ export class TiledMap {
     return this._parsed().tileSets
   }
 
+  /** 图块层的数据（按 Tiled 里从下到上的顺序）。创建节点用 `TileMapLayer.fromTiled(map)`。 */
+  get tileLayers(): readonly TiledTileLayer[] {
+    return this._parsed().tileLayers
+  }
+
   /** 图块层的名字（按 Tiled 里从下到上的顺序）。 */
   get layerNames(): readonly string[] {
     return this._parsed().tileLayers.map((l) => l.name)
   }
 
+  /** 名为 `name` 的图块层的数据；没有时报错并列出有哪些。创建节点用 `TileMapLayer.fromTiled(map, name)`。 */
+  tileLayer(name: string): TiledTileLayer {
+    const l = this._parsed().tileLayers.find((x) => x.name === name)
+    if (!l) throw new Error(`tiledMap('${this.path}'): no tile layer named "${name}" (tile layers: ${this.layerNames.join(', ') || 'none'}).`)
+    return l
+  }
+
   /** 对象层（按 Tiled 里的顺序）。 */
   get objectLayers(): readonly TiledObjectLayer[] {
     return this._parsed().objectLayers
-  }
-
-  /**
-   * 为每个图块层创建一个新的 TileMapLayer 节点，按 Tiled 里从下到上的顺序（依次 add 到场景里，叠放顺序就和 Tiled 一样）。
-   * 节点名是图层名；Tiled 的偏移、可见性、不透明度对应 position、visible、alpha。每次调用都创建新节点（格子是拷贝）。
-   */
-  createLayers(): TileMapLayer[] {
-    return this._parsed().tileLayers.map((l) => makeLayer(l))
-  }
-
-  /** 创建名为 `name` 的图块层节点。 */
-  createLayer(name: string): TileMapLayer {
-    const l = this._parsed().tileLayers.find((x) => x.name === name)
-    if (!l) throw new Error(`tiledMap('${this.path}'): no tile layer named "${name}" (tile layers: ${this.layerNames.join(', ') || 'none'}).`)
-    return makeLayer(l)
   }
 
   /** 对象：不传参数时是所有对象层的对象，传名字时是那一层的。 */
@@ -172,13 +175,6 @@ export class TiledMap {
       if (!this._map) this._map = await parseMap(this.path, platform)
     })().finally(() => (this._loading = null))
     return this._loading.then(() => Promise.all(this._map!.tileSets.map((t) => (t.isLoaded ? undefined : loadTexture(t.texture, platform))))).then(() => undefined)
-  }
-
-  /** 图块层的自定义属性。 */
-  layerProperties(name: string): Readonly<Record<string, unknown>> {
-    const l = this._parsed().tileLayers.find((x) => x.name === name)
-    if (!l) throw new Error(`tiledMap('${this.path}'): no tile layer named "${name}" (tile layers: ${this.layerNames.join(', ') || 'none'}).`)
-    return l.properties
   }
 
   /** @internal 图块集的图片（还没解析时为空）：切换场景时按图片判断要不要卸载（见 assetResources）。 */
@@ -205,20 +201,6 @@ export function tiledMap(path: string): TiledMap {
     mapCache.set(path, m)
   }
   return m
-}
-
-function makeLayer(l: ParsedTileLayer): TileMapLayer {
-  return new TileMapLayer({
-    name: l.name,
-    tileSet: l.tileSet,
-    width: l.width,
-    height: l.height,
-    cells: l.cells,
-    position: new Vector2(l.offsetX, l.offsetY),
-    visible: l.visible,
-    alpha: l.opacity,
-    collisionLayer: l.collisionLayer,
-  })
 }
 
 // ---------------------------------------------------------------- 解析
@@ -323,7 +305,7 @@ async function parseMap(path: string, platform: Platform): Promise<ParsedMap> {
   }
   tileSets.sort((a, b) => a.firstgid - b.firstgid)
 
-  const tileLayers: ParsedTileLayer[] = []
+  const tileLayers: TiledTileLayer[] = []
   const objectLayers: TiledObjectLayer[] = []
   for (const layer of map.layers ?? []) {
     const lWhere = `${where}: layer "${layer.name}"`
@@ -367,7 +349,7 @@ function makeTileSet(raw: RawTileset, file: string, tileSize: number, where: str
   })
 }
 
-function parseTileLayer(layer: RawLayer, map: RawMap, tileSets: { firstgid: number; set: TileSet }[], where: string): ParsedTileLayer {
+function parseTileLayer(layer: RawLayer, map: RawMap, tileSets: { firstgid: number; set: TileSet }[], where: string): TiledTileLayer {
   if (layer.chunks) throw new Error(`${where}: infinite maps are not supported.`)
   if (!Array.isArray(layer.data) || layer.encoding === 'base64' || layer.compression) {
     throw new Error(`${where}: tile layer data must be CSV; set "Tile Layer Format" to CSV in Map Properties.`)

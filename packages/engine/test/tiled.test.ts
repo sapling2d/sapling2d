@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, cpSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Scene, tiledMap, v } from 'sapling2d'
+import { Scene, TileMapLayer, tiledMap, v } from 'sapling2d'
 import { createTestGame } from 'sapling2d/testing'
 import { joinPath } from '../src/core/tiled'
 import { TILE_ONE_WAY, TILE_SOLID } from '../src/core/tileset'
@@ -42,14 +42,15 @@ describe('tiledMap', () => {
 
   it('图块层：格子编号换成图块集里的编号，名字、偏移、可见性、不透明度、碰撞层', async () => {
     const { level } = await load('levels/1-1.json')
-    const [back, ground] = level.createLayers()
+    const [back, ground] = TileMapLayer.fromTiled(level)
     expect([back!.name, back!.alpha, back!.tileSet]).toEqual(['Back', 0.5, level.tileSets[1]])
     expect(back!.getCell(0, 0)).toBe(1) // gid 9 → sky 的第 1 个图块
     expect([ground!.name, ground!.position, ground!.collisionLayer]).toEqual(['Ground', v(8, -4), 3])
     expect([ground!.getCell(2, 1), ground!.getCell(4, 2), ground!.getCell(0, 3), ground!.getCell(0, 0)]).toEqual([2, 3, 1, 0])
     expect([ground!._cellCollision(2, 1), ground!._cellCollision(4, 2)]).toEqual([TILE_SOLID, TILE_ONE_WAY])
-    expect(level.createLayer('Ground')).not.toBe(ground) // 每次都是新节点
-    expect(() => level.createLayer('Nope')).toThrow(/no tile layer named "Nope" \(tile layers: Back, Ground\)/)
+    expect(TileMapLayer.fromTiled(level, 'Ground')).not.toBe(ground) // 每次都是新节点
+    expect(() => TileMapLayer.fromTiled(level, 'Nope')).toThrow(/no tile layer named "Nope" \(tile layers: Back, Ground\)/)
+    expect(level.tileLayers.map((l) => l.name)).toEqual(['Back', 'Ground'])
   })
 
   it('对象层：名字、类型、位置、大小、形状、自定义属性', async () => {
@@ -66,8 +67,8 @@ describe('tiledMap', () => {
 
   it('图块层的自定义属性', async () => {
     const { level } = await load('levels/1-1.json')
-    expect(level.layerProperties('Ground')).toEqual({ collisionLayer: 3 })
-    expect(level.layerProperties('Back')).toEqual({})
+    expect(level.tileLayer('Ground').properties).toEqual({ collisionLayer: 3 })
+    expect(level.tileLayer('Back').properties).toEqual({})
   })
 
   it('同一路径返回同一个句柄；没加载时访问报错', () => {

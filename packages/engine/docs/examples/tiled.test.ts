@@ -1,5 +1,5 @@
 // #region example
-import { Camera2D, Node2D, Scene, tiledMap, v } from 'sapling2d'
+import { Camera2D, Node2D, Scene, TileMapLayer, tiledMap, v } from 'sapling2d'
 
 // 关卡文件放在资源目录里：public/assets/levels/1-1.json（图块集和图片按 Tiled 里的相对路径放）
 const LEVEL = tiledMap('levels/1-1.json')
@@ -15,7 +15,7 @@ export class Level extends Scene {
 
   override ready() {
     // 每个图块层一个 TileMapLayer，按 Tiled 里从下到上的顺序 add，叠放顺序和 Tiled 一样
-    for (const layer of LEVEL.createLayers()) this.add(layer)
+    for (const layer of TileMapLayer.fromTiled(LEVEL)) this.add(layer)
 
     // 对象层只是数据：游戏按 type（Tiled 里的 Class）自己创建节点
     for (const o of LEVEL.objects('Entities')) {
@@ -40,6 +40,6 @@ it('tiled', async () => {
   expect(g.scene.children.map((n) => n.name).slice(0, 2)).toEqual(['Back', 'Ground'])
   expect(g.scene.player.position).toEqual(v(20, 40))
   expect(g.scene.coins.map((c) => [c.x, c.value])).toEqual([[72, 5]])
-  const ground = LEVEL.createLayer('Ground')
+  const ground = TileMapLayer.fromTiled(LEVEL, 'Ground')
   expect(ground.getCellTileData(2, 1)?.data.breakable).toBe(true)
 })

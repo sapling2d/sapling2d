@@ -244,7 +244,7 @@ aseprite -b hero.aseprite --sheet public/assets/hero.png --data src/hero.json --
 - `tiledMap(path)`：Tiled 的 JSON 格式关卡，放在资源目录里，图块集（嵌入的或外部的 JSON 图块集）和图片按 Tiled 里的相对路径放，都要在资源目录里。
   **扩展名用 `.json`**（Tiled 保存时可以选）：微信小游戏的代码包可能不收 `.tmj` / `.tsj`，构建时会警告。XML 格式（`.tmx` / `.tsx`）不支持。
   放进 `static assets` 加载；切换场景时图片按张判断是否卸载（两个关卡共用的图不会被卸载）。vite 插件检查关卡文件和它引用的图块集、图片，开发时改了关卡文件也会重新检查。
-- `createLayers()`：每个图块层一个新的 `TileMapLayer`（名字、偏移、可见性、不透明度来自 Tiled），按从下到上的顺序；`createLayer(name)`；`layerNames`；`layerProperties(name)`（图层的自定义属性）。
+- `TileMapLayer.fromTiled(map)`：每个图块层一个新的 `TileMapLayer`（名字、偏移、可见性、不透明度来自 Tiled），按从下到上的顺序；`TileMapLayer.fromTiled(map, name)` 只建那一层。关卡本身只有数据：`tileLayers`、`tileLayer(name)`（`{ name, width, height, tileSet, cells, visible, opacity, offsetX, offsetY, collisionLayer, properties }`）、`layerNames`。
 - `objects(layerName?)`：对象层的数据 `{ id, name, type, x, y, width, height, rotation, shape, points, gid, tileSet, flipH, flipV, properties, layer }`（`gid` 是在 `tileSet` 里从 1 开始的编号）。矩形、点的 (x, y) 是左上角 / 点本身，**图块对象是左下角**（Tiled 的约定）。`objectLayers`、`properties`（地图属性）。
 - `width` / `height`（格）、`tileSize`、`pixelWidth` / `pixelHeight`（设相机 limit 用）、`tileSets`。
 - 在 Tiled 里设置碰撞：图块集编辑器里选中图块，加**字符串**属性 `collision`，值 `solid`（实心）或 `oneWay`（单向平台）；其他属性进 `getCellTileData(...).data`。
@@ -455,7 +455,7 @@ fx.createTween().to(fx, { alpha: 0 }, 0.3).call(() => fx.queueFree())
 | `TouchJoystick`（`@sapling2d/touch`） | 摇杆（继承 Node2D） | `mode`（`dynamic` / `fixed`）`actions` `radius` `deadzone` `region` `texture` `textureKnob` `vectorX` `vectorY` `vector` `isPressed`；信号 `pressed` `released` |
 | `SpineSprite`（`@sapling2d/spine`） | Spine 骨骼动画（继承 Node2D） | `skeleton` `play()` `queue()` `stop()` `animation` `isPlaying` `speedScale` `defaultMix` `mix()` `skin` `setAttachment()` `setupPose()` `refreshPose()` `flipH` `flipV` `physics` `bonePosition()` `boneRotation()` `rect` `state` `spine`；信号 `animationStarted` `animationFinished` `animationEvent` |
 | `SpineBoneNode`（`@sapling2d/spine`） | 跟随一根骨骼（`SpineSprite` 的直接子节点） | `bone` |
-| `TiledMap`（资源，不是节点） | Tiled 关卡 | `tiledMap(path)`；`createLayers()` `createLayer(name)` `objects(layer?)` `objectLayers` `layerNames` `width` `height` `tileSize` `pixelWidth` `pixelHeight` `tileSets` `properties` |
+| `TiledMap`（资源，不是节点） | Tiled 关卡 | `tiledMap(path)`；`tileLayers` `tileLayer(name)` `layerNames` `objects(layer?)` `objectLayers` `width` `height` `tileSize` `pixelWidth` `pixelHeight` `tileSets` `properties`；建节点用 `TileMapLayer.fromTiled(map, name?)` |
 | `SpineSkeleton`（资源，`@sapling2d/spine`） | Spine 骨架 | `spineSkeleton(path, { atlas?, scale? })`；`data` `pages` `rect` `animationNames` `skinNames` `boneNames` `slotNames` `eventNames` |
 | `Curve2D`（不是节点） | 曲线路径，按距离取点 | `Curve2D.catmullRom(points, { closed?, bakeInterval? })` `Curve2D.polyline(points)`；`length` `sample(distance, out)` `angleAt(distance)` `closed` |
 | `HitTester`（不是节点） | 两组对象之间的圆 / 矩形命中判定 | `forEachHit(as, bs, hit)`（`hit` 返回 true 表示 a 用掉了）、`HitTester.compact(list)`；对象需要 `x` `y` `hitShape`，可选 `dead` |
