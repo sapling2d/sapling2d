@@ -207,9 +207,16 @@ export class Button extends Control {
     const effect = this.pressEffect !== undefined ? this.pressEffect : this._theme ? this._theme.pressEffect : DEFAULT_PRESS_EFFECT
     if (!effect) return
     this._tween?.kill()
+    this._tween = null
     const duration = effect.duration ?? DEFAULT_PRESS_EFFECT.duration
     const scale = on ? (effect.scale ?? 1) : 1
     const tint = on ? (effect.tint ?? 0xffffff) : 0xffffff
+    if (duration <= 0) {
+      // 立刻生效，不补间（想要"按下就变"的硬反馈）
+      this.body.scale = new Vector2(scale, scale)
+      this.background.selfModulate = tint
+      return
+    }
     this._tween = this.body
       .createTween()
       .to(this.body, { scale: new Vector2(scale, scale) }, duration)

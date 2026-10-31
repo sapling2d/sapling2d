@@ -112,6 +112,17 @@ describe('Button', () => {
     expect(themed.body.scale.x).toBeCloseTo(0.9, 3)
   })
 
+  it('duration: 0 的反馈立刻生效，不经过补间', async () => {
+    const g = await createTestGame({ main: Scene, plugins: [ui()] })
+    const b = g.scene.add(new Button({ position: v(0, 0), pressEffect: { tint: 0xd0d0d0, scale: 0.9, duration: 0 } }))
+    g.pointerDown(150, 50)
+    g.step()
+    expect([b.background.selfModulate, b.body.scale.x]).toEqual([0xd0d0d0, 0.9])
+    g.pointerUp(150, 50)
+    g.step()
+    expect([b.background.selfModulate, b.body.scale.x]).toEqual([0xffffff, 1])
+  })
+
   it('切后台：回到前台的第一帧 released 一次、不 clicked、主体恢复', async () => {
     const { g, b, counts } = await setup()
     g.pointerDown(...INSIDE)

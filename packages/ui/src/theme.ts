@@ -21,7 +21,7 @@ export const UI_SKIN = {
   barFill: { texture: tex('~@sapling2d/ui/bar-fill.png'), margins: 10 } as SkinPiece,
 }
 
-/** 按钮的按下反馈：视觉主体围绕中心缩放到 `scale` 倍、底图压暗成 `tint`（0xRRGGBB），`duration` 秒内补间。 */
+/** 按钮的按下反馈：视觉主体围绕中心缩放到 `scale` 倍、底图压暗成 `tint`（0xRRGGBB），`duration` 秒内补间（0 为立刻生效，不补间）。 */
 export interface PressEffect {
   scale?: number
   tint?: number
