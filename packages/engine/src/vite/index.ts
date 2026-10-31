@@ -2,7 +2,7 @@ import { cpSync, createReadStream, existsSync, readdirSync, readFileSync, statSy
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Plugin, ViteDevServer } from 'vite'
-import { discoverAssetFunctions, discoverAssetMounts, mimeOf, MOUNT_PREFIX, parseMountPath } from './mounts.ts'
+import { discoverAssetFunctions, discoverAssetMounts, mimeOf, MOUNT_PREFIX, parseMountPath } from '../node/mounts.ts'
 
 export interface SaplingPluginOptions {
   /**
@@ -321,7 +321,7 @@ function editDistance(a: string, b: string): number {
 
 // Vite 配置由 Node 原生加载：相对导入必须带 .ts 扩展名
 export { saplingWechat, startLogServer, type SaplingWechatOptions, type LogServerOptions } from './wechat.ts'
-export { discoverAssetFunctions, discoverAssetMounts, parseMountPath, MOUNT_PREFIX, type MountPath } from './mounts.ts'
+export { discoverAssetFunctions, discoverAssetMounts, parseMountPath, MOUNT_PREFIX, type MountPath } from '../node/mounts.ts'
 
 /**
  * 检查 Tiled 关卡引用的文件：外部图块集（相对于关卡文件）和图块集的图片（相对于引用它的文件）要存在、在资源目录里，外部图块集要是 JSON。

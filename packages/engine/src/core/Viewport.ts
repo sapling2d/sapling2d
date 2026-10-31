@@ -30,10 +30,13 @@ export interface ScreenInfo {
 export const MAX_RENDER_RESOLUTION = 2
 
 /**
- * 视口：把平台的屏幕映射到游戏的设计坐标。通过 `this.tree.viewport` 访问。
+ * 视口：三个坐标系之间的换算，通过 `this.tree.viewport` 访问。
  *
- * 游戏里的所有坐标都是设计坐标（例如 750×1334）。设计区域在屏幕上等比缩放并居中：
- * 设计坐标 (0, 0) 不一定是屏幕左上角，屏幕左上角是 `visibleRect.position`。
+ * - 屏幕坐标（窗口逻辑像素）↔ 设计坐标：由屏幕尺寸和设计分辨率决定（`scale`、`offset`），屏幕变化时更新（`resized`）。
+ * - 设计坐标 ↔ 世界坐标：差一个画布偏移（`canvasOffsetX/Y`，对应 Godot 的 canvas transform，这里只有平移），
+ *   由当前相机每帧末设置；没有相机时为 0，世界坐标就是设计坐标。
+ *
+ * 游戏里的坐标都是世界坐标；设计区域在屏幕上等比缩放并居中：设计坐标 (0, 0) 不一定是屏幕左上角，屏幕左上角是 `visibleRect.position`。
  */
 export class Viewport {
   readonly designWidth: number
@@ -49,12 +52,8 @@ export class Viewport {
   private _safeRect!: Rect2
   /** @internal 每次 update 递增，渲染层据此判断是否需要调整画布。 */
   _version = 0
-  /**
-   * @internal 相机造成的画面偏移（设计像素）：世界坐标 + 偏移 = 设计坐标。没有相机时为 0。
-   * 由 `CameraManager` 在每帧 process 之后按当前相机更新。
-   */
-  _canvasX = 0
-  _canvasY = 0
+  private _canvasX = 0
+  private _canvasY = 0
 
   constructor(design: DesignResolution, screen: ScreenInfo) {
     this.designWidth = design.width
@@ -99,6 +98,24 @@ export class Viewport {
   /** 渲染分辨率：min(DPR, 2)。 */
   get renderResolution(): number {
     return Math.min(this._screen.pixelRatio, MAX_RENDER_RESOLUTION)
+  }
+
+  /**
+   * 画布偏移（设计像素）：世界坐标 + 偏移 = 设计坐标。当前相机每帧末按画面中心设置它（`CameraManager`），没有相机时为 0。
+   * 渲染层用它平移世界容器，指针拾取用它把屏幕上的位置换成世界坐标。
+   */
+  get canvasOffsetX(): number {
+    return this._canvasX
+  }
+
+  get canvasOffsetY(): number {
+    return this._canvasY
+  }
+
+  /** @internal 画布偏移唯一的写入口：`CameraManager.frameEnd` 按当前相机调用。 */
+  _setCanvasOffset(x: number, y: number): void {
+    this._canvasX = x
+    this._canvasY = y
   }
 
   /**

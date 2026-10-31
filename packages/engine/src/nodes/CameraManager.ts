@@ -3,7 +3,7 @@ import type { Viewport } from '../core/Viewport'
 import type { Camera2D } from './Camera2D'
 
 /**
- * 树里的相机（树级子系统，`tree.system(CameraManager)`）：登记进出树的相机，决定当前相机，每帧末按当前相机算出画面偏移（写到 `Viewport._canvasX/Y`）。
+ * 树里的相机（树级子系统，`tree.system(CameraManager)`）：登记进出树的相机，决定当前相机，每帧末按当前相机算出画面偏移（`Viewport.canvasOffsetX/Y`）。
  * 同一时间只有一个当前相机：第一个启用的相机自动成为当前相机；当前相机离开树或被关掉时，下一个启用的接替；没有相机时画面不偏移。
  * 相机自己的状态（位置、边界、平滑）在 `Camera2D` 里。
  *
@@ -58,15 +58,13 @@ export class CameraManager implements TreeSystem {
     const camera = this._current
     const viewport = this._viewport
     if (!camera) {
-      viewport._canvasX = 0
-      viewport._canvasY = 0
+      viewport._setCanvasOffset(0, 0)
       return
     }
     // 暂停时（相机不能处理）平滑不推进；没有平滑的相机照样对准目标（目标只会被不受暂停影响的节点移动）
     camera._step(camera.canProcess() ? dt : 0)
     // 世界坐标 + 偏移 = 设计坐标；画面中心对准设计区域的中心
-    viewport._canvasX = viewport.designWidth / 2 - camera._centerX
-    viewport._canvasY = viewport.designHeight / 2 - camera._centerY
+    viewport._setCanvasOffset(viewport.designWidth / 2 - camera._centerX, viewport.designHeight / 2 - camera._centerY)
   }
 
   /** 选下一个启用的相机作为当前相机（没有就不偏移）。 */

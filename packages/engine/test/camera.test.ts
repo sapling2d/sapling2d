@@ -21,7 +21,7 @@ describe('Camera2D', () => {
   it('没有相机时画面不偏移', async () => {
     const g = await setup(() => {})
     const vp = g.tree.viewport
-    expect([vp._canvasX, vp._canvasY]).toEqual([0, 0])
+    expect([vp.canvasOffsetX, vp.canvasOffsetY]).toEqual([0, 0])
     expect(vp.visibleWorldRect).toEqual(vp.visibleRect)
     expect(vp.screenToWorld(v(10, 20))).toEqual(v(10, 20))
   })

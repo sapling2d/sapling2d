@@ -1,4 +1,5 @@
 import { Container, Graphics, WebGLRenderer } from 'pixi.js'
+import { sortLayers, worldSlot } from '../core/drawOrder'
 import type { CanvasLayerLike, Node } from '../core/Node'
 import { Node2D } from '../core/Node2D'
 import type { Renderer } from '../core/Renderer'
@@ -41,7 +42,8 @@ interface View {
  * - 只有 `_transformVersion` / `_version` 变化的节点才分别更新变换 / 外观
  * - 每帧都要遍历整棵树，所以遍历本身不分配对象（iOS 小游戏上分配很贵，见 spikes/bullets/REPORT.md）
  * - 各节点类型自己的内容（贴图、文字、粒子、区块）见 `NodeContent`
- * - 显示对象的层级和顺序与场景树一致；不是 Node2D 的节点不产生显示对象，其子节点挂到最近的 Node2D 祖先下
+ * - 显示对象的层级和顺序与场景树一致（规则见 `core/drawOrder.ts`，指针拾取用同一套）：不是 Node2D 的节点不产生显示对象，
+ *   其子节点挂到最近的 Node2D 祖先下；同一容器里按 zIndex 稳定排序交给 Pixi 的 `sortableChildren`；CanvasLayer 按 `sortLayers` / `worldSlot` 排
  * - 离开树的节点，显示对象在下一次同步时销毁
  * - 画布尺寸跟随屏幕；场景整体按视口缩放、平移到设计坐标；`keep` 模式裁剪到设计区域
  */
@@ -155,8 +157,8 @@ export class PixiRenderer implements Renderer {
 
   /** 相机的平移写到世界容器上。像素风时对齐到物理像素：相机慢慢移动时，静止的东西不会在相邻两个像素之间跳。 */
   private _syncCamera(viewport: Viewport): void {
-    let x = viewport._canvasX
-    let y = viewport._canvasY
+    let x = viewport.canvasOffsetX
+    let y = viewport.canvasOffsetY
     if (this._pixelArt) {
       const k = viewport.scale * viewport.renderResolution // 1 个设计像素 = k 个物理像素
       x = Math.round(x * k) / k
@@ -269,28 +271,16 @@ export class PixiRenderer implements Renderer {
   private _syncLayers(frame: number): void {
     const layers = this._layerOrder
     if (layers.length === 0 && this._layers.size === 0) return
-    // 按 layer 稳定排序（插入排序：层通常只有几个）
-    for (let i = 1; i < layers.length; i++) {
-      const cur = layers[i]!
-      let j = i - 1
-      while (j >= 0 && layers[j]!.layer > cur.layer) {
-        layers[j + 1] = layers[j]!
-        j--
-      }
-      layers[j + 1] = cur
-    }
+    // 叠放规则和指针拾取共用（core/drawOrder）：按 layer 稳定排序，世界容器排在第一个 layer >= 0 的层之前
+    sortLayers(layers)
+    const slot = worldSlot(layers)
     const order = this._sceneOrder
     order.length = 0
-    let worldAdded = false
     for (let i = 0; i < layers.length; i++) {
-      const layer = layers[i]!
-      if (!worldAdded && layer.layer >= 0) {
-        order.push(this._worldContainer)
-        worldAdded = true
-      }
-      order.push(this._layers.get(layer)!.container)
+      if (i === slot) order.push(this._worldContainer)
+      order.push(this._layers.get(layers[i]!)!.container)
     }
-    if (!worldAdded) order.push(this._worldContainer)
+    if (slot === layers.length) order.push(this._worldContainer)
     const scene = this._sceneContainer
     let inOrder = scene.children.length === order.length
     for (let i = 0; inOrder && i < order.length; i++) inOrder = scene.children[i] === order[i]

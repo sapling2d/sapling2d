@@ -2,7 +2,7 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, readF
 import { createServer, type Server } from 'node:http'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import type { Plugin } from 'vite'
-import { discoverAssetMounts, MOUNT_PREFIX, parseMountPath } from './mounts.ts'
+import { discoverAssetMounts, MOUNT_PREFIX, parseMountPath } from '../node/mounts.ts'
 
 export interface SaplingWechatOptions {
   /** 入口文件（相对于 Vite root），里面调用 `startGame` from 'sapling2d/wechat'。 */

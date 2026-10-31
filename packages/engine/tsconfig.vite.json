@@ -1,9 +1,9 @@
 {
-  // Vite 插件运行在 Node 里（构建时），可以用 node: 模块
+  // 只在 Node 里跑的代码：Vite 插件（构建时）、node/ 里两边共用的挂载规则、无头测试工具，可以用 node: 模块
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022"],
     "types": ["node"]
   },
-  "include": ["src/vite"]
+  "include": ["src/vite", "src/node", "src/testing"]
 }

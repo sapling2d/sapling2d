@@ -1,11 +1,12 @@
 {
   // 引擎核心：lib 只有 ES2022，没有 DOM。核心代码里写 window / document / wx 会直接类型报错。
-  // 平台相关代码放在 src/platform/<name>/，由各自的 tsconfig（如 tsconfig.browser.json）引入 DOM 或 wx 的类型。
+  // 平台相关代码放在 src/platform/<name>/，由各自的 tsconfig（如 tsconfig.browser.json）引入 DOM 或 wx 的类型；
+  // 只在 Node 里跑的 src/node、src/testing、src/vite 由 tsconfig.vite.json 带着 node 类型检查。
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022"],
     "types": []
   },
   "include": ["src"],
-  "exclude": ["src/platform/browser", "src/platform/wechat", "src/runtime/browser.ts", "src/runtime/wechat.ts", "src/vite"]
+  "exclude": ["src/platform/browser", "src/platform/wechat", "src/runtime/browser.ts", "src/runtime/wechat.ts", "src/vite", "src/node", "src/testing"]
 }

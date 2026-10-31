@@ -52,7 +52,7 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - **ColorRect** — 纯色矩形（继承 Node2D）：`size`、`color`，原点在左上角（和 Godot 一样）。用于血条、遮罩、转场黑幕；渲染时是白色贴图染色，和贴图一起合批。
 - **Particles2D** — 粒子发射器（继承 Node2D）：粒子不是节点，数据存在发射器的数组里，一个发射器一次绘制调用。持续发射（`emitting`）或爆发（`emit()` / `oneShot`），全部消失时发出 `finished`。默认粒子发射后不随节点移动（`localCoords: true` 时跟着走）。
 - **CanvasLayer** — 界面层（`Node`，不是 Node2D）：下面的节点不跟随相机、用设计坐标，全局变换和可见性在这里断开。`layer` < 0 画在场景下面、>= 0 画在上面，拾取顺序相同。用于 HUD、按钮、暂停菜单、远景。
-- **World coordinates** — 节点的全局坐标。没有相机时等于设计坐标；有相机时 世界坐标 + 相机偏移 = 设计坐标。指针事件的坐标是世界坐标（CanvasLayer 里的节点收到设计坐标）；`viewport.screenToWorld` / `worldToScreen` / `visibleWorldRect`。
+- **World coordinates** — 节点的全局坐标。没有相机时等于设计坐标；有相机时 世界坐标 + 画布偏移 = 设计坐标（`viewport.canvasOffsetX/Y`，对应 Godot 的 canvas transform，只有平移；`CameraManager` 是唯一的写入方，渲染和指针拾取都从这里读）。指针事件的坐标是世界坐标（CanvasLayer 里的节点收到设计坐标）；`viewport.screenToWorld` / `worldToScreen` / `visibleWorldRect`。
 - **Timer / SceneTreeTimer** — `Timer` 节点（`waitTime`、`oneShot`、`autostart`、`timeout` 信号），每帧最多触发一次、循环不漂移；一次性等待用 `await this.tree.createTimer(1).timeout`。
 - **Tween** — `this.createTween().to(target, props, duration, ease).parallel().wait(s).call(fn)`，绑定节点销毁时自动停止（不触发 `finished`）。从下一帧开始播放；每一步的起始值在该步开始时读取；同一个 `to()` 里的多个属性同时进行。`to(this, ...)` 在类方法里按 Node2D 的属性做类型检查。
 - **Engine-internal hooks** — 引擎节点通过 `_onEnterTree` / `_onExitTree` / `_internalProcess` 实现自身行为，用户覆写 `enterTree` / `exitTree` / `process` 时不需要调用 super。
@@ -81,7 +81,8 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - `platform/` — `Platform` 接口和 `HeadlessPlatform`；`browser/`、`wechat/` 是各平台的实现（只有它们能碰 `window` / `wx`）。
 - `plugins/` — 内置插件（键盘、运动传感器），只用公开 API。
 - `runtime/` — 组合根：`Game`、`DefaultLoadingScene`，以及 `browser.ts` / `wechat.ts` 两个 `startGame` 入口（把平台、渲染器、默认插件拼起来）。
-- `testing/`、`vite/` — 无头测试工具、构建插件。
+- `node/` — 只在 Node 里跑、构建和测试共用的规则（插件资源的挂载 `~<包名>/`）；只有 `testing/` 和 `vite/` 能 import 它。
+- `testing/`、`vite/` — 无头测试工具、构建插件（都在 Node 里跑，由 `tsconfig.vite.json` 带 node 类型检查）。
 
 ## Conventions
 

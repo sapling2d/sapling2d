@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import type { HeadlessAudioBackend } from '../audio/HeadlessAudio'
 import type { RawInputEvent } from '../input/Input'
 import type { DumpNode } from '../core/Node'
@@ -6,6 +7,7 @@ import type { ScreenInfo } from '../core/Viewport'
 import { Vector2 } from '../math/Vector2'
 import { SceneTree, type DumpOptions } from '../core/SceneTree'
 import { HeadlessPlatform } from '../platform/HeadlessPlatform'
+import { discoverAssetMounts, parseMountPath } from '../node/mounts.ts'
 import { keyboard } from '../plugins/keyboard'
 import { Game, type GameOptions } from '../runtime/Game'
 
@@ -81,24 +83,11 @@ export interface TestGame<S extends Scene> {
  * console.log(g.dump())
  * ```
  */
-/** 用 Node 的文件系统读文本（动态导入：引擎核心的类型检查不含 Node 类型）。相对路径相对于当前工作目录。 */
-async function readNodeFile(path: string): Promise<string> {
-  const fs = (await import('node:fs/promises' as string)) as { readFile(path: string, encoding: 'utf8'): Promise<string> }
-  return fs.readFile(path, 'utf8')
-}
-
-/** `sapling2d/vite` 里的挂载发现（同样动态导入：它用 node: 模块）。 */
-type MountsModule = {
-  parseMountPath(path: string): { pkg: string; rest: string } | null
-  discoverAssetMounts(root: string, extra?: readonly string[], warn?: (message: string) => void): Map<string, string>
-}
-
-/** 文本资源的文件路径：插件包的 `~<包名>/...` 从工程的 node_modules 里找（和构建时同一套规则），其余在资源目录里。 */
-async function resolveTextAsset(root: string, assetsDir: string, path: string): Promise<string> {
+/** 文本资源的文件路径：插件包的 `~<包名>/...` 从工程的 node_modules 里找（和构建时同一套规则，`node/mounts.ts`），其余在资源目录里。相对路径相对于当前工作目录。 */
+function resolveTextAsset(root: string, assetsDir: string, path: string): string {
   if (!path.startsWith('~')) return `${assetsDir}/${path}`
-  const mounts = (await import('../vite/mounts.ts' as string)) as MountsModule
-  const mount = mounts.parseMountPath(path)!
-  const dir = mounts.discoverAssetMounts(root, [mount.pkg], () => {}).get(mount.pkg)
+  const mount = parseMountPath(path)!
+  const dir = discoverAssetMounts(root, [mount.pkg], () => {}).get(mount.pkg)
   if (!dir) throw new Error(`cannot load "${path}": package "${mount.pkg}" is not installed, or its package.json does not declare "sapling2d": { "assets": "<dir>" }.`)
   return `${dir}/${mount.rest}`
 }
@@ -107,7 +96,7 @@ export async function createTestGame<S extends Scene>(options: TestGameOptions<S
   const design = options.design ?? { width: 750, height: 1334 }
   const assetsDir = (options.assetsDir ?? 'public/assets').replace(/\/+$/, '')
   const root = options.root ?? '.'
-  const platform = new HeadlessPlatform(options.screen ?? { width: design.width, height: design.height, pixelRatio: 1 }, async (path) => readNodeFile(await resolveTextAsset(root, assetsDir, path)))
+  const platform = new HeadlessPlatform(options.screen ?? { width: design.width, height: design.height, pixelRatio: 1 }, async (path) => readFile(resolveTextAsset(root, assetsDir, path), 'utf8'))
   const prefix = options.storagePrefix ?? 'sapling2d:'
   for (const [k, value] of Object.entries(options.storage ?? {})) platform.storage.setItem(prefix + k, JSON.stringify(value))
   const game = await Game.create({ ...options, plugins: [keyboard(), ...(options.plugins ?? [])], loading: options.loading ?? null, seed: options.seed ?? 1, platform })

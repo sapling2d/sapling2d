@@ -4,7 +4,7 @@ import type { ScreenInfo } from '../../core/Viewport'
 import type { LoadedImage, Platform } from '../Platform'
 import { _createClock } from './clock'
 import { screenCanvas } from './polyfills'
-import { _setCurrentAssetPaths, WechatAssetPaths, type WechatAssetManifest } from './assets'
+import { WechatAssetPaths, type WechatAssetManifest } from './assets'
 import { WechatAudioBackend } from './audio'
 import { WechatStorageBackend } from './storage'
 import { subscribeTouches } from './touch'
@@ -24,10 +24,6 @@ export class WechatPlatform implements Platform {
   /** 上屏 canvas（第一次 wx.createCanvas() 的结果）。 */
   readonly canvas = screenCanvas
   private readonly _clock = _createClock(wx.getPerformance(), () => Date.now())
-
-  constructor() {
-    _setCurrentAssetPaths(this.assets)
-  }
 
   /** 启动时下载资源分包（启动页显示之后、加载入口场景的资源之前）。 */
   prepareAssets(onProgress: (done: number) => void): Promise<void> {
@@ -61,6 +57,14 @@ export class WechatPlatform implements Platform {
     const handler = () => callback(this.getScreenInfo())
     wx.onWindowResize(handler)
     return () => wx.offWindowResize?.(handler)
+  }
+
+  /**
+   * 加载包内的字体文件（ttf / otf），返回字体名；之后把 Label 的 `fontFamily` 设为它。失败时返回 null。
+   * 字体在资源分包里时，分包要先下载完（`startGame` 完成之后）；启动页用的字体放进 `public/assets/boot/`。路径相对于资源目录。
+   */
+  loadFont(path: string): string | null {
+    return wx.loadFont(this.assets.resolveNow(path))
   }
 
   /** 包内文本文件（主包或资源分包）。 */

@@ -15,22 +15,25 @@ const src = join(dirname(fileURLToPath(import.meta.url)), '..', 'src')
  *   nodes（内置节点，含 CameraManager / TileLayers 子系统）
  *   render（Pixi；只认识 core 的 Renderer 接口）  platform/browser、platform/wechat（Platform 实现）  plugins
  *   runtime（组合根：Game，以及 browser.ts / wechat.ts 两个入口）  testing  vite
+ *   node（只在 Node 里跑的共用规则，如资源挂载）：只有 testing 和 vite 能用，它自己不认识引擎
  */
+const NODE_ONLY = ['node', 'testing', 'vite']
 const FORBIDDEN: Record<string, string[]> = {
-  math: ['assets', 'core', 'input', 'nodes', 'physics', 'audio', 'storage', 'render', 'runtime', 'platform', 'plugins', 'testing', 'vite'],
-  assets: ['core', 'input', 'nodes', 'physics', 'audio', 'storage', 'render', 'runtime', 'platform/browser', 'platform/wechat', 'plugins', 'testing', 'vite'],
-  physics: ['assets', 'input', 'nodes', 'audio', 'storage', 'render', 'runtime', 'platform', 'plugins', 'testing', 'vite'],
-  audio: ['input', 'nodes', 'physics', 'storage', 'render', 'runtime', 'platform', 'plugins', 'testing', 'vite'],
-  storage: ['assets', 'input', 'nodes', 'physics', 'audio', 'render', 'runtime', 'platform', 'plugins', 'testing', 'vite'],
-  core: ['nodes', 'render', 'runtime', 'platform/browser', 'platform/wechat', 'plugins', 'testing', 'vite'],
-  input: ['assets', 'nodes', 'physics', 'audio', 'storage', 'render', 'runtime', 'platform/browser', 'platform/wechat', 'plugins', 'testing', 'vite'],
-  nodes: ['render', 'runtime', 'platform/browser', 'platform/wechat', 'plugins', 'testing', 'vite'],
-  render: ['runtime', 'platform', 'plugins', 'testing', 'vite'],
-  platform: ['nodes', 'render', 'runtime', 'plugins', 'testing', 'vite'],
-  plugins: ['render', 'runtime', 'testing', 'vite'],
-  runtime: ['render', 'platform/browser', 'platform/wechat', 'plugins', 'testing', 'vite'],
+  math: ['assets', 'core', 'input', 'nodes', 'physics', 'audio', 'storage', 'render', 'runtime', 'platform', 'plugins', ...NODE_ONLY],
+  assets: ['core', 'input', 'nodes', 'physics', 'audio', 'storage', 'render', 'runtime', 'platform/browser', 'platform/wechat', 'plugins', ...NODE_ONLY],
+  physics: ['assets', 'input', 'nodes', 'audio', 'storage', 'render', 'runtime', 'platform', 'plugins', ...NODE_ONLY],
+  audio: ['input', 'nodes', 'physics', 'storage', 'render', 'runtime', 'platform', 'plugins', ...NODE_ONLY],
+  storage: ['assets', 'input', 'nodes', 'physics', 'audio', 'render', 'runtime', 'platform', 'plugins', ...NODE_ONLY],
+  core: ['nodes', 'render', 'runtime', 'platform/browser', 'platform/wechat', 'plugins', ...NODE_ONLY],
+  input: ['assets', 'nodes', 'physics', 'audio', 'storage', 'render', 'runtime', 'platform/browser', 'platform/wechat', 'plugins', ...NODE_ONLY],
+  nodes: ['render', 'runtime', 'platform/browser', 'platform/wechat', 'plugins', ...NODE_ONLY],
+  render: ['runtime', 'platform', 'plugins', ...NODE_ONLY],
+  platform: ['nodes', 'render', 'runtime', 'plugins', ...NODE_ONLY],
+  plugins: ['render', 'runtime', ...NODE_ONLY],
+  runtime: ['render', 'platform/browser', 'platform/wechat', 'plugins', ...NODE_ONLY],
   testing: ['vite'],
   vite: ['math', 'assets', 'core', 'input', 'nodes', 'physics', 'audio', 'storage', 'render', 'runtime', 'platform', 'plugins', 'testing'],
+  node: ['math', 'assets', 'core', 'input', 'nodes', 'physics', 'audio', 'storage', 'render', 'runtime', 'platform', 'plugins', 'testing', 'vite'],
 }
 
 /** 组合根的例外：两个平台入口把渲染器、默认插件和自己平台的实现拼起来。 */

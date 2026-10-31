@@ -7,16 +7,18 @@ import { keyboard } from '../plugins/keyboard'
 import { PixiRenderer } from '../render/PixiRenderer'
 import { Game, type GameOptions } from './Game'
 import { WechatAdapter } from '../platform/wechat/adapter'
-import { _currentAssetPaths } from '../platform/wechat/assets'
 import { screenCanvas } from '../platform/wechat/polyfills'
 import { WechatPlatform } from '../platform/wechat/WechatPlatform'
 
 export { WechatPlatform } from '../platform/wechat/WechatPlatform'
 
+/** `startGame` 创建的平台：`loadFont` 这样的便捷函数用它；小游戏一个进程只有一个游戏。 */
+let platform: WechatPlatform | null = null
+
 /**
  * 加载包内的字体文件（ttf / otf），返回字体名；之后把 Label 的 `fontFamily` 设为它。失败时返回 null。
- * 字体在资源分包里时，要在 startGame 完成之后调用（启动页里用的字体放进 `public/assets/boot/`）。
- * 只在微信小游戏里可用（`wx.loadFont`）；浏览器里请用 CSS @font-face。路径相对于资源目录。
+ * 就是 `WechatPlatform.loadFont`：用 `startGame` 创建的平台，所以要在 `startGame` 之后调用（字体在资源分包里时还要等分包下载完，
+ * 启动页里用的字体放进 `public/assets/boot/`）。只在微信小游戏里可用（`wx.loadFont`）；浏览器里请用 CSS @font-face。路径相对于资源目录。
  *
  * ```ts
  * const family = loadFont('fonts/score.ttf') ?? 'sans-serif'
@@ -24,7 +26,8 @@ export { WechatPlatform } from '../platform/wechat/WechatPlatform'
  * ```
  */
 export function loadFont(path: string): string | null {
-  return wx.loadFont(_currentAssetPaths()?.resolveNow(path) ?? `assets/${path}`)
+  if (!platform) throw new Error(`loadFont("${path}"): call startGame first (the font is loaded through the platform it creates).`)
+  return platform.loadFont(path)
 }
 
 /**
@@ -62,7 +65,7 @@ export interface WechatGameOptions<S extends Scene> extends GameOptions<S> {
  */
 export async function startGame<S extends Scene>(options: WechatGameOptions<S>): Promise<Game<S>> {
   DOMAdapter.set(WechatAdapter)
-  const platform = new WechatPlatform()
+  platform = new WechatPlatform()
   const renderer = await PixiRenderer.create({
     canvas: platform.canvas,
     webglVersion: 1, // 小游戏只走 WebGL1（见 spikes/wechat/REPORT.md）

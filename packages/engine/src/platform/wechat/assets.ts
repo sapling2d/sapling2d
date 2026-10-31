@@ -102,15 +102,3 @@ export class WechatAssetPaths {
     )
   }
 }
-
-let current: WechatAssetPaths | null = null
-
-/** @internal 当前游戏的资源路径（WechatPlatform 创建时设置；`loadFont` 用）。 */
-export function _currentAssetPaths(): WechatAssetPaths | null {
-  return current
-}
-
-/** @internal */
-export function _setCurrentAssetPaths(paths: WechatAssetPaths): void {
-  current = paths
-}
