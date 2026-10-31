@@ -1,4 +1,5 @@
 import { CanvasLayer, ColorRect, Label, Signal, Sprite2D, v } from 'sapling2d'
+import { ProgressBar } from '@sapling2d/ui'
 import { ASSETS } from '../assets'
 import { HERO_KINDS, HERO_NAMES, type HeroKind } from '../skills'
 
@@ -24,6 +25,8 @@ export class Hud extends CanvasLayer {
   readonly heroSelected = new Signal<[kind: HeroKind]>()
   readonly status = new Label({ name: 'Status', text: '', fontSize: 30, color: 0xffffff, align: 'left', stroke: { color: 0x000000, width: 4 } })
   readonly round = new Label({ name: 'Round', text: '', fontSize: 30, color: 0xffe080, align: 'right', stroke: { color: 0x000000, width: 4 } })
+  /** 命的条：`@sapling2d/ui` 的进度条（默认皮肤），范围在第一次 update 时按初始命数定。 */
+  readonly lives = new ProgressBar({ name: 'Lives', size: v(240, 22), maxValue: 1, value: 1, fillColor: 0x5ad26a })
   readonly message = new Label({ name: 'Message', text: '', fontSize: 60, color: 0xffe060, align: 'center', verticalAlign: 'center', stroke: { color: 0x000000, width: 6 } })
   readonly buttons: HeroButton[] = HERO_KINDS.map((k) => new HeroButton(k))
   selected: HeroKind = 'archer'
@@ -35,6 +38,7 @@ export class Hud extends CanvasLayer {
 
   override ready() {
     this.add(this.status)
+    this.add(this.lives)
     this.add(this.round)
     this.add(this.message)
     for (const b of this.buttons) {
@@ -52,6 +56,9 @@ export class Hud extends CanvasLayer {
 
   update(gold: number, lives: number, round: number, costs: Record<HeroKind, number>): void {
     this.status.text = `命 ${lives}   金币 ${gold}`
+    this.lives.maxValue = Math.max(this.lives.maxValue, lives)
+    this.lives.value = lives
+    this.lives.fillColor = lives > this.lives.maxValue * 0.3 ? 0x5ad26a : 0xe04040
     this.round.text = `第 ${round} 波`
     for (const b of this.buttons) {
       b.label.text = `${HERO_NAMES[b.kind]}\n${costs[b.kind]} 金`
@@ -77,6 +84,7 @@ export class Hud extends CanvasLayer {
   private _layout() {
     const r = this.tree.viewport.safeRect
     this.status.position = v(r.left + 24, r.top + 24)
+    this.lives.position = v(r.left + 24, r.top + 66)
     this.round.position = v(r.right - 24, r.top + 24)
     this.message.position = v((r.left + r.right) / 2, r.top + r.height * 0.25)
     const gap = (r.width - BTN_W * this.buttons.length) / (this.buttons.length + 1)

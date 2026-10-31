@@ -354,6 +354,17 @@ shake(camera: Camera2D, strength: number, duration: number) {
 - `clickSound`：`ui({ clickSound: sfx('click.mp3') })` 给所有按钮（插件预加载）；按钮自己的 `clickSound` 优先（放进场景的 `static assets`），`null` 关闭。
 - 暂停菜单里的控件要能在 `tree.paused` 时响应：给面板设 `processMode: 'always'`。
 
+#### 进度条（ProgressBar）
+
+<!-- example:../ui/docs/examples/ui-progress-bar -->
+
+<!-- example:../ui/docs/examples/ui-progress-bar#test -->
+
+- `ProgressBar`（继承 Control）：`value` 夹在 `minValue..maxValue`（默认 0..1，血条直接 `maxValue: 100`），`ratio` 0–1，`valueChanged` 只在值真的变化时发；`value` 能补间。
+- `fillMode`：`leftToRight`（默认）/ `rightToLeft` / `bottomToTop` / `topToBottom`。
+- 底 `background` 和填充 `fill` 各自是九宫格贴图（默认皮肤：深色面板 + 纯白填充按 `fillColor` 染色）或纯色（`textureBackground: null` / `textureFill: null` + `backgroundColor` / `fillColor`）；`fillPadding` 让填充相对底图内缩（默认皮肤 6）。
+- **填充节点始终铺满整条，用它的 `clipRect` 裁出已填充的部分**，所以九宫格的圆角和高光在半满时不变形（不要再用改 `scale.x` 的办法）。值为 0 时填充不显示，满时不裁剪。
+
 ### 场景切换与存档
 
 <!-- example:scenes-storage -->
@@ -483,6 +494,7 @@ fx.createTween().to(fx, { alpha: 0 }, 0.3).call(() => fx.queueFree())
 | `TouchScreenButton`（`@sapling2d/touch`） | 屏幕按钮（继承 Sprite2D） | `action` `texturePressed` `isPressed` `hitArea`；信号 `pressed` `released` |
 | `TouchJoystick`（`@sapling2d/touch`） | 摇杆（继承 Node2D） | `mode`（`dynamic` / `fixed`）`actions` `radius` `deadzone` `region` `texture` `textureKnob` `vectorX` `vectorY` `vector` `isPressed`；信号 `pressed` `released` |
 | `Control`（`@sapling2d/ui`） | 界面控件基类 / 布局盒子（原点在左上角） | `size` `rect` `anchor` `anchorTo` |
+| `ProgressBar`（`@sapling2d/ui`） | 进度条（继承 Control） | `value` `minValue` `maxValue` `ratio` `fillMode` `fillColor` `fillPadding` `background` `fill`；信号 `valueChanged` |
 | `Button`（`@sapling2d/ui`） | 按钮（继承 Control） | `text` `label` `body` `background` `isPressed` `disabled` `disabledAlpha` `pressEffect` `clickSound`；信号 `pressed` `released` `clicked` |
 | `SpineSprite`（`@sapling2d/spine`） | Spine 骨骼动画（继承 Node2D） | `skeleton` `play()` `queue()` `stop()` `animation` `isPlaying` `speedScale` `defaultMix` `mix()` `skin` `setAttachment()` `setupPose()` `refreshPose()` `flipH` `flipV` `physics` `bonePosition()` `boneRotation()` `rect` `state` `spine`；信号 `animationStarted` `animationFinished` `animationEvent` |
 | `SpineBoneNode`（`@sapling2d/spine`） | 跟随一根骨骼（`SpineSprite` 的直接子节点） | `bone` |
@@ -531,7 +543,7 @@ const g = await createTestGame({ main: GameScene, seed: 1, screen?, storage?, au
 | `CollisionShape2D` | `shape`（如 `circle(30)`）、`disabled` |
 | `Timer` | `waitTime`、`oneShot`、`timeLeft`、`stopped` |
 | `AudioStreamPlayer` | `stream`、`playing`、`loop`、`volume` |
-| `Control` / `Button`（`@sapling2d/ui`） | `size`（总是显示）、`anchor`（`right:20,top:30` 形式）；按钮按着时 `pressed`、禁用时 `disabled` |
+| `Control` / `Button` / `ProgressBar`（`@sapling2d/ui`） | `size`（总是显示）、`anchor`（`right:20,top:30` 形式）；按钮按着时 `pressed`、禁用时 `disabled`；进度条 `value`（总是显示）、非默认的 `fillMode` |
 
 游戏自己的节点可以覆写 `protected dumpProps()`，加入关键状态（如 `level`），方便测试和 agent 观察：`return { ...super.dumpProps(), level: this.level }`。
 
