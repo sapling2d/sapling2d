@@ -20,8 +20,9 @@ export interface SceneTreeOptions {
   /** 随机数种子。同一个 seed、同样的输入，游戏的运行结果完全一致。 */
   seed?: number
   /**
-   * 每帧最多补跑的物理步数。超出部分直接丢弃：宁可游戏变慢，也不要越补越卡。
-   * 没有 JIT 的 iOS 小游戏上这一点很关键（见 spikes/wechat/REPORT.md 第 8 节）。
+   * 每帧最多推进的真实时间，按 1 倍速下的物理步数计，默认 2（即 1/30 秒）。帧比这更长（掉帧、后台回来）时多出的时间直接丢掉：
+   * 宁可游戏变慢，也不要越补越卡，没有 JIT 的 iOS 小游戏上这一点很关键（见 spikes/wechat/REPORT.md 第 8 节）。
+   * 倍速按倍数放大：`timeScale` 为 3 时一帧最多 6 步。物理和 process 用同一份被封顶的帧时间，两边的时钟不会分叉。
    */
   maxPhysicsStepsPerFrame?: number
   /** 视口。不传时是 750×1334 的设计分辨率，屏幕与之相同。 */
@@ -60,8 +61,6 @@ export interface TreeSystem {
 
 /** 浮点误差容忍：累加 n 次 1/60 之后仍应恰好触发 n 次物理步。 */
 const EPSILON = 1e-9
-/** 单帧 dt 上限（秒）。切后台回来时避免一次性补算巨大的时间。 */
-const MAX_FRAME_DELTA = 0.25
 /** 帧末延迟调用最多连续执行的轮数，防止回调里无限追加回调。 */
 const MAX_DEFERRED_ROUNDS = 100
 
@@ -86,6 +85,7 @@ export class SceneTree {
 
   /** 每个物理步的时长（秒），也是 `physicsProcess(dt)` 收到的 dt。 */
   readonly physicsDelta = 1 / SceneTree.PHYSICS_TICKS_PER_SECOND
+  /** 每帧最多推进的真实时间（按 1 倍速的物理步数计，见 `SceneTreeOptions`）。 */
   readonly maxPhysicsStepsPerFrame: number
   /** 游戏应使用这个随机数生成器，而不是 Math.random，以保证可复现。 */
   readonly rng: RandomNumberGenerator
@@ -144,6 +144,7 @@ export class SceneTree {
     this.rng = new RandomNumberGenerator(options.seed)
     this.fxRng = new RandomNumberGenerator(this.rng.seed ^ 0x9e3779b9)
     this.maxPhysicsStepsPerFrame = options.maxPhysicsStepsPerFrame ?? 2
+    if (!(this.maxPhysicsStepsPerFrame >= 1)) throw new Error(`maxPhysicsStepsPerFrame must be >= 1, got ${options.maxPhysicsStepsPerFrame}.`)
     this.viewport = options.viewport ?? new Viewport({ width: 750, height: 1334 }, { width: 750, height: 1334, pixelRatio: 1 })
     this.input = new Input(this.viewport, () => this._root.children)
     this.physicsSettings = options.physics ?? {}
@@ -197,7 +198,8 @@ export class SceneTree {
    * Tween、Timer、`createTimer`、帧动画、相机平滑和 `time`。为 0 时游戏时间完全停止（打击停顿），输入和渲染照常；
    * 0.2 这样的值是慢动作。和 `paused` 互相独立。
    *
-   * 大于 1 时受每帧物理步数上限（`maxPhysicsStepsPerFrame`，默认 2）限制：60Hz 屏幕上超过 2 倍，物理步会被丢掉。
+   * 大于 1 时每帧多跑几个物理步（3 倍速在 60Hz 上每帧 3 步，和 1 倍速跑 3 帧的步序完全一样）；每帧的真实时间上限
+   * （`maxPhysicsStepsPerFrame`）按倍数放大，所以不会因为倍速丢步，代价是逻辑耗时也乘上倍速。
    * 停顿时要按真实时间恢复，用 `createTimer(秒, { ignoreTimeScale: true })`。
    *
    * ```ts
@@ -415,14 +417,14 @@ export class SceneTree {
     const timerCount = this._timers.length
     this.input._flush()
     // 输入回调里的 queueFree / callDeferred 也在本帧末尾生效
-    const realDt = Math.min(Math.max(dt, 0), MAX_FRAME_DELTA)
-    // 游戏时间：乘上 timeScale；之后的物理、process、Tween、Timer、相机都用它
+    // 真实时间先封顶（每帧最多 maxPhysicsStepsPerFrame 步的时间，默认 1/30 秒）再乘 timeScale：掉帧、后台回来时多出的时间直接丢掉，
+    // 游戏变慢而不是越补越卡（spikes/wechat/REPORT.md 第 8 节）；倍速下上限自然按倍数放大，3 倍速一帧最多 6 步。
+    // 封顶后的帧时间物理、process、Tween、Timer、相机共用，两边的时钟不会分叉；不足一步的零头留到下一帧
+    const realDt = Math.min(Math.max(dt, 0), this.maxPhysicsStepsPerFrame * this.physicsDelta)
     const frameDt = realDt * this._timeScale
     this._accumulator += frameDt
-    let steps = 0
-    while (this._accumulator >= this.physicsDelta - EPSILON && steps < this.maxPhysicsStepsPerFrame) {
+    while (this._accumulator >= this.physicsDelta - EPSILON) {
       this._accumulator -= this.physicsDelta
-      steps++
       this._physicsFrames++
       if (!this._paused) this._gameSteps++
       // 整个物理步（physicsProcess 和刚体的接触信号）里，isActionJustPressed 都按物理步算
@@ -444,8 +446,6 @@ export class SceneTree {
         this.input._endPhysicsStep()
       }
     }
-    // 达到上限还有剩余：丢弃，而不是留到下一帧继续补
-    if (this._accumulator >= this.physicsDelta - EPSILON) this._accumulator = 0
     if (this._accumulator < 0) this._accumulator = 0
 
     this._processFrames++

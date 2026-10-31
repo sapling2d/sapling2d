@@ -97,6 +97,11 @@ export interface GameOptions<S extends Scene> {
   plugins?: Plugin[]
   /** 物理设置：`{ pixelsPerMeter: 50, gravity: v(0, 980), velocityIterations: 8, positionIterations: 3 }`。 */
   physics?: PhysicsSettings
+  /**
+   * 每帧最多推进的真实时间，按 1 倍速下的物理步数计，默认 2（1/30 秒）。帧比这更长（掉帧、后台回来）时多出的时间直接丢掉，
+   * 游戏变慢而不是越补越卡（没有 JIT 的 iOS 小游戏上很关键）。倍速按倍数放大：`tree.timeScale` 为 3 时一帧最多 6 步。
+   */
+  maxPhysicsStepsPerFrame?: number
   /** 切到后台时挂起主循环（不推进时间、不渲染），默认 true。为 false 时只触发 `tree.focusChanged`。 */
   pauseOnBackground?: boolean
   /** 存储 key 的前缀，默认 'sapling2d:'。同一域名下有多个游戏时应各自设置。 */
@@ -155,6 +160,7 @@ export class Game<S extends Scene = Scene> {
       assets: new AssetLoader(platform),
       ...(options.seed === undefined ? {} : { seed: options.seed }),
       ...(options.physics ? { physics: options.physics } : {}),
+      ...(options.maxPhysicsStepsPerFrame !== undefined ? { maxPhysicsStepsPerFrame: options.maxPhysicsStepsPerFrame } : {}),
     })
     // 先装插件再定义动作：定义动作时才能检查绑定有没有来源认领
     const disposers: (() => void)[] = []

@@ -174,13 +174,30 @@ describe('main loop', () => {
     expect(c.physicsCalls).toHaveLength(60)
   })
 
-  it('一帧最多补 2 次物理，超出的时间丢弃而不是越积越多', async () => {
+  it('一帧最多推进 2 步的真实时间：超长的帧只跑 2 步、process 也只收到 2 步的 dt，多出的时间丢弃而不是越积越多', async () => {
     const g = await createTestGame({ main: Scene })
     const c = g.scene.add(new Counter())
     g.tree.advance(0.2) // 相当于 12 个物理步
     expect(c.physicsCalls).toHaveLength(2)
+    expect(c.processCalls).toEqual([2 / 60]) // 物理和 process 用同一份封顶的帧时间
     g.tree.advance(1 / 60)
     expect(c.physicsCalls).toHaveLength(3)
+  })
+
+  it('25fps（每帧 0.04 秒）：每帧稳定 2 步，不足一步的零头不会攒成第三步', async () => {
+    const g = await createTestGame({ main: Scene })
+    const c = g.scene.add(new Counter())
+    for (let i = 0; i < 10; i++) g.tree.advance(0.04)
+    expect(c.physicsCalls).toHaveLength(20)
+    expect(c.processCalls.every((dt) => Math.abs(dt - 2 / 60) < 1e-12)).toBe(true)
+  })
+
+  it('maxPhysicsStepsPerFrame 可以在启动参数里改；必须 >= 1', async () => {
+    const g = await createTestGame({ main: Scene, maxPhysicsStepsPerFrame: 1 })
+    const c = g.scene.add(new Counter())
+    g.tree.advance(0.2)
+    expect(c.physicsCalls).toHaveLength(1)
+    await expect(createTestGame({ main: Scene, maxPhysicsStepsPerFrame: 0 })).rejects.toThrow(/maxPhysicsStepsPerFrame/)
   })
 
   it('先 physicsProcess 后 process；父节点先于子节点', async () => {

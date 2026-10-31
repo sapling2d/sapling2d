@@ -75,6 +75,24 @@ describe('tree.timeScale', () => {
     expect(scene.timeouts).toBe(1)
   })
 
+  it('3：每帧三个物理步（每帧的真实时间上限按倍速放大，不丢步），20 帧就是 1 秒游戏时间', async () => {
+    const { g, scene } = await setup()
+    g.tree.timeScale = 3
+    g.step(20)
+    expect(scene.probe.physicsSteps).toBe(60)
+    expect(scene.probe.processTime).toBeCloseTo(1)
+    expect(g.tree.time).toBeCloseTo(1)
+    expect(scene.timeouts).toBe(1)
+  })
+
+  it('3 倍速下掉帧：一帧最多 6 步（2 步的真实时间 × 3），多出的丢掉', async () => {
+    const { g, scene } = await setup()
+    g.tree.timeScale = 3
+    g.tree.advance(0.2) // 真实时间封顶到 1/30 秒，乘 3 是 6 步
+    expect(scene.probe.physicsSteps).toBe(6)
+    expect(scene.probe.processTime).toBeCloseTo(0.1)
+  })
+
   it('0：游戏时间完全停止（物理、刚体、Tween、Timer、createTimer、帧动画、time）', async () => {
     const { g, scene } = await setup()
     const ball = scene.add(new RigidBody2D({ position: v(375, 100) }))
