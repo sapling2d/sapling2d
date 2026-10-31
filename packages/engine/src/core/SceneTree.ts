@@ -149,7 +149,7 @@ export class SceneTree {
     this.physicsSettings = options.physics ?? {}
     this.audio = options.audio ?? new AudioServer(new HeadlessAudioBackend())
     this.storage = options.storage ?? new Storage(new MemoryStorageBackend(), 'sapling2d:')
-    this.assets = options.assets ?? new AssetLoader(null, this.audio)
+    this.assets = options.assets ?? new AssetLoader(null)
     this._root._attachAsRoot(this)
   }
 

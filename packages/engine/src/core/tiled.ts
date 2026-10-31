@@ -1,6 +1,6 @@
 import type { Platform } from '../platform/Platform'
 import { Vector2 } from '../math/Vector2'
-import { loadTexture, tex, type Texture } from './assets'
+import { tex, type Resource, type Texture } from './assets'
 import { TileSet, type TileOptions } from './tileset'
 
 /** Tiled 对象层里的一个对象（敌人、金币、出生点……）。坐标和 Tiled 里一样，单位是像素。 */
@@ -91,7 +91,7 @@ interface ParsedMap {
  * 图块的碰撞：在 Tiled 的图块集编辑器里给图块加字符串属性 `collision`，值是 `solid` 或 `oneWay`；其他自定义属性进 `TileData.data`。
  * 图块层的自定义整数属性 `collisionLayer` 设置图层的碰撞层（默认 1）。
  */
-export class TiledMap {
+export class TiledMap implements Resource {
   readonly kind = 'tiledmap'
   private _map: ParsedMap | null = null
   private _loading: Promise<void> | null = null
@@ -169,15 +169,15 @@ export class TiledMap {
     return l.objects
   }
 
-  /** @internal 由资源加载调用：读关卡和图块集文件（只读一次），再加载图块集的图片。 */
+  /** @internal 由资源加载调用：读关卡和图块集文件（只读一次）；图块集的图片由引擎按 `_textures()` 加载。 */
   _load(platform: Platform): Promise<void> {
     this._loading ??= (async () => {
       if (!this._map) this._map = await parseMap(this.path, platform)
     })().finally(() => (this._loading = null))
-    return this._loading.then(() => Promise.all(this._map!.tileSets.map((t) => (t.isLoaded ? undefined : loadTexture(t.texture, platform))))).then(() => undefined)
+    return this._loading
   }
 
-  /** @internal 图块集的图片（还没解析时为空）：切换场景时按图片判断要不要卸载（见 assetResources）。 */
+  /** @internal 图块集的图片（还没解析时为空）：引擎在 `_load` 之后加载它们，切换场景时按图片判断要不要卸载。 */
   _textures(): Texture[] {
     return this._map?.tileSets.map((t) => t.texture) ?? []
   }

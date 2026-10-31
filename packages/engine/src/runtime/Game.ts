@@ -153,12 +153,11 @@ export class Game<S extends Scene = Scene> {
    */
   static async create<S extends Scene>(options: GameOptions<S> & { platform: Platform; renderer?: Renderer | null; start?: boolean }): Promise<Game<S>> {
     const platform = options.platform
-    const audio = new AudioServer(platform.audio)
     const tree = new SceneTree({
       viewport: new Viewport(options.design ?? { width: 750, height: 1334 }, platform.getScreenInfo()),
-      audio,
+      audio: new AudioServer(platform.audio),
       storage: new Storage(platform.storage, options.storagePrefix ?? 'sapling2d:'),
-      assets: new AssetLoader(platform, audio),
+      assets: new AssetLoader(platform),
       ...(options.seed === undefined ? {} : { seed: options.seed }),
       ...(options.physics ? { physics: options.physics } : {}),
     })

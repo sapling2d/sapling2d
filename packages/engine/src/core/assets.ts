@@ -1,10 +1,6 @@
-import { AudioStream } from '../audio/AudioStream'
 import { Rect2 } from '../math/Rect2'
 import { Vector2 } from '../math/Vector2'
 import type { Platform } from '../platform/Platform'
-import type { AsepriteSheet } from './aseprite'
-import type { TiledMap } from './tiled'
-import type { TileSet } from './tileset'
 
 /**
  * 贴图资源句柄。用 `tex(path)` 创建，路径相对于游戏的资源目录（默认 `assets/`）。
@@ -21,7 +17,7 @@ import type { TileSet } from './tileset'
  *
  * 也可以是一张大图里的子区域（图集的一帧）：由 `sheet()` / `atlas()` 切出，用法和整张图完全相同。
  */
-export class Texture {
+export class Texture implements Resource {
   readonly kind = 'texture'
   private _width = 0
   private _height = 0
@@ -89,11 +85,21 @@ export class Texture {
     this._loaded = true
   }
 
-  /** @internal 释放图片；再次用到时需要重新加载。 */
+  /** @internal 加载图片（`Resource`）：子区域加载它所在的整张图；同一张图并发请求只加载一次。 */
+  _load(platform: Platform): Promise<void> {
+    return loadTexture(this._base ?? this, platform)
+  }
+
+  /** @internal 释放图片；再次用到时需要重新加载。子区域没有自己的图片（整张图是单独的资源），什么都不做。 */
   _unload(): void {
-    if (this._base) return this._base._unload()
+    if (this._base) return
     this._ownResource = null
     this._loaded = false
+  }
+
+  /** @internal 子区域依赖整张图；整张图自己没有依赖。 */
+  _textures(): Texture[] {
+    return this._base ? [this._base] : []
   }
 }
 
@@ -133,7 +139,7 @@ export function tex(path: string): Texture {
  *
  * 每帧的尺寸 = 整张图的尺寸 / 列数（行数），在图片加载后才确定；无头模式下为 0。
  */
-export class SpriteSheet {
+export class SpriteSheet implements Resource {
   readonly kind = 'spritesheet'
   private readonly _frames: Texture[]
 
@@ -179,9 +185,22 @@ export class SpriteSheet {
     return frameRange(`sheet('${this.texture.path}')`, start, end, (i) => this.frame(i))
   }
 
+  /** 整张图的路径（`Resource`）。 */
+  get path(): string {
+    return this.texture.path
+  }
+
+  /** @internal 自己没有文件要读（`Resource`）：图片由引擎按 `_textures()` 加载。 */
+  _load(): Promise<void> {
+    return Promise.resolve()
+  }
+
+  /** @internal 图片是单独的资源，这里没有自己的数据要释放。 */
+  _unload(): void {}
+
   /** @internal */
-  _unload(): void {
-    this.texture._unload()
+  _textures(): Texture[] {
+    return [this.texture]
   }
 }
 
@@ -217,7 +236,7 @@ export interface AtlasData {
  *
  * 帧的尺寸来自 JSON，无头模式下也正确。不支持旋转打包（导出时关闭 “Allow rotation”）。
  */
-export class Atlas {
+export class Atlas implements Resource {
   readonly kind = 'atlas'
   private readonly _frames = new Map<string, Texture>()
 
@@ -274,9 +293,22 @@ export class Atlas {
     return names.map((n) => this._frames.get(n)!)
   }
 
+  /** 整张图的路径（`Resource`）。 */
+  get path(): string {
+    return this.texture.path
+  }
+
+  /** @internal 自己没有文件要读（`Resource`）：图片由引擎按 `_textures()` 加载。 */
+  _load(): Promise<void> {
+    return Promise.resolve()
+  }
+
+  /** @internal 图片是单独的资源，这里没有自己的数据要释放。 */
+  _unload(): void {}
+
   /** @internal */
-  _unload(): void {
-    this.texture._unload()
+  _textures(): Texture[] {
+    return [this.texture]
   }
 }
 
@@ -349,14 +381,15 @@ function naturalCompare(a: string, b: string): number {
 // ---------------------------------------------------------------- 加载
 
 /**
- * 自定义资源：插件自己的资源格式（Spine 骨骼、Live2D 模型……）实现这个协议就能放进 `static assets` / `PluginContext.preload`，
- * 由引擎按同一套规则加载、去重、切场景时卸载。`TiledMap` 就是这样一个资源。
+ * 资源协议：能放进 `static assets` / `PluginContext.preload` / `tree.assets.load()` 的东西。引擎按同一套规则加载、去重、切场景时卸载。
+ * 内置的贴图、图集、图块集、音效都实现它；插件自己的资源格式（Spine 骨骼、Live2D 模型……）实现它就能一样用，`TiledMap` 就是这样一个资源。
  *
  * - `_load(platform)`：读文件、解析；要幂等（已经解析过就只补没加载的部分），同一个资源并发调用只做一次。
- *   它用到的图片用 `tex()` 声明成句柄并从 `_textures()` 返回，引擎在 `_load` 之后加载它们（无头模式下宽高为 0），切场景时按图片判断是否卸载。
+ *   它用到的图片用 `tex()` 声明成句柄并从 `_textures()` 返回，引擎在 `_load` 之后加载它们（无头模式下宽高为 0）。
  * - `isLoaded`：解析完且 `_textures()` 里的图片都加载完；为 true 时引擎跳过加载。
- * - `_unload()`：旧场景独有的资源卸载时调用；图片由引擎单独卸载，这里通常只需要把解析好的数据留着（切回来时只重新加载图片）。
- * - `_textures()`：还没解析时返回空数组。
+ * - `_unload()`：切场景时旧场景独有的资源会被调用，释放自己的数据；图片是单独的资源，由引擎按 `_textures()` 另外判断、另外卸载，
+ *   所以这里通常只需要把解析好的数据留着（切回来时只重新加载图片）。
+ * - `_textures()`：用到的图片句柄；还没解析时返回空数组。整张图自己返回空数组，子区域返回它所在的整张图。
  */
 export interface Resource {
   /** 资源种类（插件自己起名，如 `'spine'`），dump 和报错用。 */
@@ -366,35 +399,16 @@ export interface Resource {
   readonly isLoaded: boolean
   _load(platform: Platform): Promise<void>
   _unload(): void
-  _textures?(): Texture[]
+  _textures(): Texture[]
 }
 
-/** 场景的 `static assets` 声明：贴图（tex）、图集（sheet / atlas / aseprite）、图块集（tileset）、Tiled 关卡（tiledMap）、音效（sfx）、音乐（music），以及插件的自定义资源（`Resource`）。 */
-export type AssetMap = Record<string, Texture | SpriteSheet | Atlas | AsepriteSheet | TileSet | TiledMap | AudioStream | Resource>
-
-/** @internal 资源实际要加载 / 卸载的对象：图集和子区域归结到整张图。 */
-export function assetRoot(asset: AssetMap[string]): Texture | AudioStream | Resource {
-  // 自定义资源（含 Tiled 关卡）自己负责加载和卸载
-  if ('_load' in asset) return asset
-  // TileSet / AsepriteSheet 用 kind 判断：它们的文件在运行时依赖本文件（tex），这里再 import 会形成循环依赖
-  if (asset instanceof SpriteSheet || asset instanceof Atlas || asset.kind === 'tileset' || asset.kind === 'aseprite') return asset.texture
-  if (asset instanceof Texture) return asset._base ?? asset
-  return asset
-}
-
-/**
- * @internal 切换场景时判断“新场景还用不用”的单位：一般就是 assetRoot；自定义资源（Tiled 关卡、Spine 骨骼）展开成它自己和它的图片，
- * 这样两个关卡（或关卡和 tex()）共用同一张图时不会被误卸载。
- */
-export function assetResources(asset: AssetMap[string]): (Texture | AudioStream | Resource)[] {
-  if ('_load' in asset) return [asset, ...(asset._textures?.() ?? [])]
-  return [assetRoot(asset)]
-}
+/** 场景的 `static assets` 声明：贴图（tex）、图集（sheet / atlas / aseprite）、图块集（tileset）、Tiled 关卡（tiledMap）、音效（sfx）、音乐（music），以及插件的资源，都是 `Resource`。 */
+export type AssetMap = Record<string, Resource>
 
 const pending = new Map<Texture, Promise<void>>()
 
-/** @internal 加载一张整张图（同一张图并发请求只加载一次）。 */
-export function loadTexture(asset: Texture, platform: Platform): Promise<void> {
+/** 加载一张整张图（同一张图并发请求只加载一次）；`Texture._load` 走这里。 */
+function loadTexture(asset: Texture, platform: Platform): Promise<void> {
   if (asset.isLoaded) return Promise.resolve()
   let p = pending.get(asset)
   if (!p) {

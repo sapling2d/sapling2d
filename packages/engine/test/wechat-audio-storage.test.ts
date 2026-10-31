@@ -117,7 +117,7 @@ describe('WechatAudioBackend', () => {
     const backend = new WechatAudioBackend(fake.api)
     const server = new AudioServer(backend)
     const pop = sfx('wx-pop.mp3')
-    await server._load(pop)
+    await pop._load({ audio: backend }) // 资源协议：音效只需要平台的音频后端
     expect(pop.isLoaded).toBe(true)
 
     server.play(pop)

@@ -1,4 +1,4 @@
-import { tex, type Texture } from './assets'
+import { tex, type Resource, type Texture } from './assets'
 
 /** 图块的碰撞类型：`solid` 整格实心；`oneWay` 单向平台（只从上方挡住）。不设置就是没有碰撞。 */
 export type TileCollision = 'solid' | 'oneWay'
@@ -45,7 +45,7 @@ const EMPTY_DATA: Readonly<Record<string, unknown>> = Object.freeze({})
  *
  * 一个图块集只对应一张图（ADR 0008）。图块不能翻转、旋转，也没有动画。
  */
-export class TileSet {
+export class TileSet implements Resource {
   readonly kind = 'tileset'
   readonly tileSize: number
   readonly margin: number
@@ -89,6 +89,24 @@ export class TileSet {
 
   get isLoaded(): boolean {
     return this.texture.isLoaded
+  }
+
+  /** 图集图片的路径（`Resource`）。 */
+  get path(): string {
+    return this.texture.path
+  }
+
+  /** @internal 自己没有文件要读（`Resource`）：图片由引擎按 `_textures()` 加载。 */
+  _load(): Promise<void> {
+    return Promise.resolve()
+  }
+
+  /** @internal 图片是单独的资源，这里没有自己的数据要释放。 */
+  _unload(): void {}
+
+  /** @internal */
+  _textures(): Texture[] {
+    return [this.texture]
   }
 
   /** 图集的列数：构造时给出的，或按图片宽度算出的（图片未加载时为 0）。 */

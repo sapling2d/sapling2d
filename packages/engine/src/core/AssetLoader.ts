@@ -1,7 +1,5 @@
-import type { AudioServer } from '../audio/AudioServer'
-import { AudioStream } from '../audio/AudioStream'
 import type { Platform } from '../platform/Platform'
-import { assetResources, assetRoot, loadTexture, type AssetMap, type Resource, type Texture } from './assets'
+import type { AssetMap, Resource } from './assets'
 
 /** 启动时准备资源包（`Platform.prepareAssets`）占加载进度的比例，其余是加载入口场景的资源。 */
 const PREPARE_SHARE = 0.7
@@ -10,22 +8,20 @@ const PREPARE_SHARE = 0.7
  * 资源的加载、钉住和卸载，通过 `tree.assets` 访问。场景切换（`changeScene`）、启动序列和插件的 `preload` 都走它；
  * 游戏也可以在运行中按需加载：`await this.tree.assets.load({ boss: tex('boss.png') })`。
  *
- * - 已加载的跳过，同一资源并发请求只加载一次；图集和子区域归结到整张图；音乐是流式的，不预加载。
- * - 加载失败时 `load` 报错（指出是哪个文件）。
+ * 所有资源都按 `Resource` 协议处理，加载器不认识具体类型：先 `_load`，再加载 `_textures()` 列出的图片；
+ * 已加载的跳过，同一资源并发请求只加载一次（整张图在 `Texture` 里去重）；加载失败时报错（指出是哪个文件）。
  */
 export class AssetLoader {
   private readonly _platform: Platform | null
-  private readonly _audio: AudioServer
   private _progress = 1
   /** 钉住的资源（`preload`）：切场景时不卸载。存声明的句柄，判断时再展开（自定义资源的图片要加载后才知道）。 */
-  private readonly _pinned: AssetMap[string][] = []
+  private readonly _pinned: Resource[] = []
   /** 插件登记的资源：和入口场景的资源一起在启动时加载。 */
-  private readonly _preloaded: AssetMap[string][] = []
+  private readonly _preloaded: Resource[] = []
 
   /** `platform` 为 null 时什么都不加载（裸 SceneTree 的默认）：`load` 立即完成，贴图宽高为 0。 */
-  constructor(platform: Platform | null, audio: AudioServer) {
+  constructor(platform: Platform | null) {
     this._platform = platform
-    this._audio = audio
   }
 
   /**
@@ -70,38 +66,42 @@ export class AssetLoader {
     this._progress = 1
   }
 
-  /** @internal 切换场景后卸载旧场景独有的资源：新场景用到的（哪怕是另一种写法）、插件钉住的（和它们的图片）都保留。 */
+  /**
+   * @internal 切换场景后卸载旧场景独有的资源。判断的单位是资源和它用到的整张图（`_textures()`）：
+   * 新场景用到的（哪怕是另一种写法：`tex()` 和 `sheet()` 同一张图）、插件钉住的（和它们的图片）都保留。
+   */
   _unloadUnused(oldAssets: AssetMap | undefined, newAssets: AssetMap | undefined): void {
     if (!oldAssets) return
-    // 图集、子区域、Tiled 关卡的图块集都归结到整张图
-    const keep = new Set([...Object.values(newAssets ?? {}), ...this._pinned].flatMap(assetResources))
-    for (const asset of new Set(Object.values(oldAssets).flatMap(assetResources))) if (!keep.has(asset)) asset._unload()
+    const keep = new Set(expand([...Object.values(newAssets ?? {}), ...this._pinned]))
+    for (const r of new Set(expand(Object.values(oldAssets)))) if (!keep.has(r)) r._unload()
   }
 
   /** `onProgress(done)`：每完成一个资源回调一次，`done` 是已完成的比例（0..1，按资源个数）。 */
-  private async _loadAll(assets: AssetMap[string][], onProgress: (done: number) => void): Promise<void> {
+  private async _loadAll(assets: Resource[], onProgress: (done: number) => void): Promise<void> {
     const platform = this._platform
     if (!platform || assets.length === 0) return
-    const roots = [...new Set(assets.map(assetRoot))]
+    const resources = [...new Set(assets)]
     let finished = 0
-    const report = () => onProgress(++finished / roots.length)
+    const report = () => onProgress(++finished / resources.length)
     await Promise.all(
-      roots.map((asset) => {
-        const p = this._loadOne(asset, platform)
+      resources.map((r) => {
+        const p = loadResource(r, platform)
         return p ? p.then(report) : report()
       }),
     )
   }
+}
 
-  private _loadOne(asset: Texture | AudioStream | Resource, platform: Platform): Promise<void> | undefined {
-    if (asset.isLoaded) return undefined
-    if (asset instanceof AudioStream) {
-      return this._audio._load(asset).catch((err: unknown) => {
-        throw new Error(`Failed to load sound "${asset.path}": ${err instanceof Error ? err.message : String(err)}`)
-      })
-    }
-    // 自定义资源：先解析，再加载它声明的图片（已加载的跳过）
-    if ('_load' in asset) return asset._load(platform).then(() => Promise.all((asset._textures?.() ?? []).map((t) => loadTexture(t._base ?? t, platform)))).then(() => undefined)
-    return loadTexture(asset, platform)
-  }
+/** 资源和它用到的整张图（子区域再归结到整张图）。 */
+function expand(list: Resource[]): Resource[] {
+  return list.flatMap((r) => [r, ...r._textures().flatMap((t) => [t, ...t._textures()])])
+}
+
+/** 已加载的跳过（返回 undefined，调用方同步计进度）；否则先 `_load`，再加载它声明的图片。 */
+function loadResource(r: Resource, platform: Platform): Promise<void> | undefined {
+  if (r.isLoaded) return undefined
+  return r
+    ._load(platform)
+    .then(() => Promise.all(r._textures().map((t) => t._load(platform))))
+    .then(() => undefined)
 }

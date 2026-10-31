@@ -223,12 +223,6 @@ export class AudioServer {
     this._voices.delete(voice)
   }
 
-  /** @internal 加载一个音效资源（由场景资源预加载调用）。 */
-  async _load(stream: AudioStream): Promise<void> {
-    if (stream.isLoaded) return
-    stream._setLoaded(await this._backend.loadSound(stream.path))
-  }
-
   /** @internal */
   _setFocused(focused: boolean): void {
     if (focused) this._backend.resume()

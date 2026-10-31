@@ -1,6 +1,6 @@
 import { Rect2 } from '../math/Rect2'
 import { Vector2 } from '../math/Vector2'
-import { atlasEntries, atlasFrame, frameRange, tex, Texture, type AtlasFrameData } from './assets'
+import { atlasEntries, atlasFrame, frameRange, tex, Texture, type AtlasFrameData, type Resource } from './assets'
 import type { SpriteAnimation } from './spriteAnimation'
 
 /** Aseprite 导出的一帧：图集格式加上这一帧的显示时长（毫秒）。 */
@@ -54,7 +54,7 @@ const DIRECTIONS = ['forward', 'reverse', 'pingpong', 'pingpong_reverse']
  * new AnimatedSprite2D({ animations: Main.assets.hero.animations({ attack: { loop: false } }), autoplay: true })
  * ```
  */
-export class AsepriteSheet<A extends string = string> {
+export class AsepriteSheet<A extends string = string> implements Resource {
   readonly kind = 'aseprite'
   private readonly _frames: Texture[]
   private readonly _index: Map<Texture, number>
@@ -215,9 +215,22 @@ export class AsepriteSheet<A extends string = string> {
     return byFrame[index]!
   }
 
+  /** 整张图的路径（`Resource`）。 */
+  get path(): string {
+    return this.texture.path
+  }
+
+  /** @internal 自己没有文件要读（`Resource`）：图片由引擎按 `_textures()` 加载。 */
+  _load(): Promise<void> {
+    return Promise.resolve()
+  }
+
+  /** @internal 图片是单独的资源，这里没有自己的数据要释放。 */
+  _unload(): void {}
+
   /** @internal */
-  _unload(): void {
-    this.texture._unload()
+  _textures(): Texture[] {
+    return [this.texture]
   }
 
   private _tag(name: A): AsepriteTagData {
