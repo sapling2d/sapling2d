@@ -1,6 +1,6 @@
 import type { Container } from 'pixi.js'
 import { describe, expect, it } from 'vitest'
-import { Camera2D, Node2D, Rect2, Scene, TileMapLayer, tileset, v } from 'sapling2d'
+import { Camera2D, CameraManager, Node2D, Rect2, Scene, TileMapLayer, tileset, v } from 'sapling2d'
 import { createTestGame } from 'sapling2d/testing'
 import { PixiRenderer } from '../src/render/PixiRenderer'
 
@@ -96,7 +96,7 @@ describe('Camera2D', () => {
     expect(() => b.makeCurrent()).toThrow(/disabled/)
     a.queueFree()
     g.step()
-    expect(g.tree._cameraManager.current).toBeNull()
+    expect(g.tree.system(CameraManager).current).toBeNull()
     expect(center()).toBe(375)
     b.enabled = true
     g.step()

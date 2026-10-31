@@ -1,6 +1,6 @@
 import type { Container, Mesh } from 'pixi.js'
 import { describe, expect, it } from 'vitest'
-import { Node2D, Scene, TileMapLayer, tileset, v } from 'sapling2d'
+import { Node2D, Scene, TileLayers, TileMapLayer, tileset, v } from 'sapling2d'
 import { createTestGame } from 'sapling2d/testing'
 import { PixiRenderer } from '../src/render/PixiRenderer'
 import { TILE_EMPTY, TILE_ONE_WAY, TILE_SOLID } from '../src/core/tileset'
@@ -109,11 +109,11 @@ describe('TileMapLayer 数据', () => {
   it('进入树时登记、离开时注销；dump 显示大小和格子数', async () => {
     const g = await createTestGame({ main: Scene })
     const l = g.scene.add(layer([1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
-    expect(g.tree._tileLayers).toEqual([l])
+    expect(g.tree.system(TileLayers).layers).toEqual([l])
     expect(g.dump()).toContain('Ground (TileMapLayer) position=(0, 0) tileSet=layer-data.png size=4x3 cells=2')
     l.queueFree()
     g.step()
-    expect(g.tree._tileLayers).toEqual([])
+    expect(g.tree.system(TileLayers).layers).toEqual([])
   })
 })
 

@@ -1,4 +1,3 @@
-import type { TileMapLayer } from '../nodes/TileMapLayer'
 import { RandomNumberGenerator } from '../math/RandomNumberGenerator'
 import { fmt } from '../math/Vector2'
 import { PhysicsWorld, type PhysicsSettings } from '../physics/PhysicsWorld'
@@ -8,7 +7,6 @@ import { HeadlessAudioBackend } from '../audio/HeadlessAudio'
 import { SceneTreeTimer } from '../nodes/Timer'
 import { MemoryStorageBackend, type StorageBackend } from '../storage/backend'
 import { Storage } from '../storage/Storage'
-import { CameraManager } from './CameraManager'
 import { Input } from './Input'
 import { Signal } from './Signal'
 import { Tween } from './Tween'
@@ -47,6 +45,20 @@ export interface DumpOptions {
 /** 可以无参构造的节点类，用于 Autoload。 */
 export type NodeClass<T extends Node = Node> = new () => T
 
+/** 树级单例的类（见 `SceneTree.system`）：构造函数收到所在的树；不需要树的类写成无参构造也可以。 */
+export type SystemClass<T> = new (tree: SceneTree) => T
+
+/**
+ * 树级子系统可选实现的帧钩子（物理世界、相机管理器都是）。SceneTree 按子系统创建的顺序调用。
+ * 两个钩子都是可选的，只实现用到的。
+ */
+export interface TreeSystem {
+  /** 每个物理步：所有节点的 `physicsProcess` 之后。暂停时不调用。`dt` 是物理步长。 */
+  physicsStep?(dt: number): void
+  /** 每帧末尾：帧末回调和销毁都执行完、渲染之前。`dt` 是乘过 `timeScale` 的帧时间。 */
+  frameEnd?(dt: number): void
+}
+
 /** 浮点误差容忍：累加 n 次 1/60 之后仍应恰好触发 n 次物理步。 */
 const EPSILON = 1e-9
 /** 单帧 dt 上限（秒）。切后台回来时避免一次性补算巨大的时间。 */
@@ -59,12 +71,15 @@ const MAX_DEFERRED_ROUNDS = 100
  *
  * 每帧（`advance(dt)`）的顺序（下面的时间都是乘过 `timeScale` 的游戏时间）：
  * 1. 处理输入队列（节点的指针信号在这里触发）
- * 2. 按固定步长跑若干次物理步：每步先调用所有节点的 `physicsProcess`，再推进物理世界并写回刚体位置
+ * 2. 按固定步长跑若干次物理步：每步先调用所有节点的 `physicsProcess`，再调用子系统的 `physicsStep`（物理世界在这里推进并写回刚体位置）
  * 3. 跑一次 `process`，然后推进补间动画（Tween）和一次性计时器（createTimer）
  * 4. 执行 `callDeferred` 排队的回调
  * 5. 销毁 `queueFree` 排队的节点
+ * 6. 调用子系统的 `frameEnd`（相机在这里按当前相机算出画面偏移）
  *
  * 遍历顺序是先序（父先于子），Autoload 在当前场景之前；本帧中新加入的节点从下一帧开始处理。
+ *
+ * 树级的子系统（物理世界、相机、图块图层登记）和插件的服务都按类查找：`system(Cls)` 第一次访问时创建，`get(Token)` 由插件提供。
  */
 export class SceneTree {
   /** 物理步频（Hz）。 */
@@ -88,6 +103,8 @@ export class SceneTree {
   readonly audio: AudioServer
   /** 持久化存储：最高分、设置等。 */
   readonly storage: Storage
+  /** 物理设置（启动参数 `physics`）：`tree.physics` 第一次创建物理世界时读取。 */
+  readonly physicsSettings: PhysicsSettings
 
   /** 内部根节点：子节点依次是各个 Autoload，最后是当前场景。 */
   private readonly _root = new Node({ name: 'root' })
@@ -95,6 +112,11 @@ export class SceneTree {
   private _autoloads = new Map<NodeClass, Node>()
   /** 插件提供的服务（`PluginContext.provide`），按 token 查找。 */
   private readonly _services = new Map<ServiceToken<unknown>, unknown>()
+  /** 树级单例（`system`），按类查找。 */
+  private readonly _systems = new Map<SystemClass<unknown>, unknown>()
+  /** 实现了对应钩子的子系统，按创建顺序。 */
+  private readonly _physicsSteppers: TreeSystem[] = []
+  private readonly _frameEnders: TreeSystem[] = []
   /** 钉住的资源（`PluginContext.preload`）：切场景时不卸载。存声明的句柄，判断时再展开（自定义资源的图片要加载后才知道）。 */
   private readonly _pinned: AssetMap[string][] = []
   private _accumulator = 0
@@ -115,16 +137,10 @@ export class SceneTree {
   readonly focusChanged = new Signal<[focused: boolean]>()
   private _tweens: Tween[] = []
   private _timers: SceneTreeTimer[] = []
-  private _physicsSettings: PhysicsSettings
-  private _physics: PhysicsWorld | null = null
   /** @internal 树里覆写了 `physicsProcess` 的节点数；为 0 时物理步不遍历节点。 */
   _physicsProcessNodes = 0
   /** @internal 正在调用各节点的 physicsProcess（`CharacterBody2D.moveAndSlide` 只能在这时调用）。 */
   _inPhysicsProcess = false
-  /** @internal 树里的相机和当前相机（Camera2D 进出树时登记），每帧更新画面偏移。 */
-  readonly _cameraManager: CameraManager
-  /** @internal 树里的 TileMapLayer（进入树时登记、离开时注销），CharacterBody2D 按它们做格子碰撞。 */
-  readonly _tileLayers: TileMapLayer[] = []
   private _freeQueue: Node[] = []
 
   constructor(options: SceneTreeOptions = {}) {
@@ -133,8 +149,7 @@ export class SceneTree {
     this.maxPhysicsStepsPerFrame = options.maxPhysicsStepsPerFrame ?? 2
     this.viewport = options.viewport ?? new Viewport({ width: 750, height: 1334 }, { width: 750, height: 1334, pixelRatio: 1 })
     this.input = new Input(this.viewport, () => this._root.children)
-    this._cameraManager = new CameraManager(this.viewport)
-    this._physicsSettings = options.physics ?? {}
+    this.physicsSettings = options.physics ?? {}
     this.audio = new AudioServer(options.audioBackend ?? new HeadlessAudioBackend())
     this.storage = new Storage(options.storageBackend ?? new MemoryStorageBackend(), options.storagePrefix ?? 'sapling2d:')
     this._root._attachAsRoot(this)
@@ -202,14 +217,36 @@ export class SceneTree {
     this._timeScale = value
   }
 
-  /** 物理世界：重力、像素/米换算。第一次访问（通常是第一个刚体进入树）时创建。 */
+  /** 物理世界：重力、像素/米换算。第一次访问（通常是第一个刚体进入树）时创建；等于 `system(PhysicsWorld)`。 */
   get physics(): PhysicsWorld {
-    return (this._physics ??= new PhysicsWorld(this._physicsSettings))
+    return this.system(PhysicsWorld)
   }
 
-  /** @internal 已经创建的物理世界；还没有刚体用过时为 null（不触发创建）。 */
-  get _physicsIfCreated(): PhysicsWorld | null {
-    return this._physics
+  // ---------------------------------------------------------------- 树级子系统
+
+  /**
+   * 树级单例：第一次访问时 `new Cls(tree)` 创建，之后每次返回同一个。引擎的子系统（`PhysicsWorld`、`CameraManager`、`TileLayers`）
+   * 和需要树级状态的节点类型都用它；实现了 `TreeSystem` 钩子的子系统从创建起每帧被调用。插件提供的服务用 `get(Token)`。
+   *
+   * ```ts
+   * this.tree.system(CameraManager).current
+   * ```
+   */
+  system<T>(cls: SystemClass<T>): T {
+    let instance = this._systems.get(cls) as T | undefined
+    if (instance === undefined) {
+      instance = new cls(this)
+      this._systems.set(cls, instance)
+      const hooks = instance as TreeSystem
+      if (typeof hooks.physicsStep === 'function') this._physicsSteppers.push(hooks)
+      if (typeof hooks.frameEnd === 'function') this._frameEnders.push(hooks)
+    }
+    return instance
+  }
+
+  /** 已经创建过的树级单例；还没有人用过时为 null（不触发创建）。 */
+  systemIfCreated<T>(cls: SystemClass<T>): T | null {
+    return (this._systems.get(cls) as T | undefined) ?? null
   }
 
   // ---------------------------------------------------------------- Autoload
@@ -434,7 +471,10 @@ export class SceneTree {
             this._inPhysicsProcess = false
           }
         }
-        if (!this._paused) this._physics?._step(this.physicsDelta)
+        if (!this._paused) {
+          const steppers = this._physicsSteppers
+          for (let i = 0; i < steppers.length; i++) steppers[i]!.physicsStep!(this.physicsDelta)
+        }
       } finally {
         this.input._endPhysicsStep()
       }
@@ -460,8 +500,9 @@ export class SceneTree {
     }
 
     this._flushFrameEnd()
-    // 按当前相机更新画面偏移：所有节点移动完、帧末销毁之后，渲染之前
-    this._cameraManager.update(frameDt)
+    // 子系统的帧末钩子（相机按当前相机更新画面偏移）：所有节点移动完、帧末销毁之后，渲染之前
+    const enders = this._frameEnders
+    for (let i = 0; i < enders.length; i++) enders[i]!.frameEnd!(frameDt)
   }
 
   /** @internal 清空物理累加器：从后台回来时调用，避免一次补算很多步。 */

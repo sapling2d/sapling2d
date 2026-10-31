@@ -1,6 +1,7 @@
 import type { Node } from '../core/Node'
 import { Node2D, type Node2DOptions } from '../core/Node2D'
 import { Vector2 } from '../math/Vector2'
+import { CameraManager } from './CameraManager'
 
 export interface Camera2DOptions extends Node2DOptions {
   /** 能否成为当前相机，默认 true。场景里第一个启用的相机自动成为当前相机。 */
@@ -69,17 +70,17 @@ export class Camera2D extends Node2D {
   set enabled(value: boolean) {
     if (this._enabled === value) return
     this._enabled = value
-    if (this.isInsideTree) this.tree._cameraManager.enabledChanged(this)
+    if (this.isInsideTree) this.tree.system(CameraManager).enabledChanged(this)
   }
 
   /** 是否是当前相机。 */
   get isCurrent(): boolean {
-    return this.isInsideTree && this.tree._cameraManager.current === this
+    return this.isInsideTree && this.tree.system(CameraManager).current === this
   }
 
   /** 成为当前相机（必须在树里且启用）。画面直接跳到它的位置，不平滑。 */
   makeCurrent(): void {
-    this.tree._cameraManager.makeCurrent(this)
+    this.tree.system(CameraManager).makeCurrent(this)
   }
 
   /** 平滑跟随时，下一次更新直接跳到目标位置（瞬移、换关时用）。 */
@@ -94,12 +95,14 @@ export class Camera2D extends Node2D {
     return new Vector2(this._targetX, this._targetY)
   }
 
+  /** @internal 进出树时在 `CameraManager` 登记 / 注销。 */
   override _onEnterTree(): void {
-    this.tree._cameraManager.add(this)
+    this.tree.system(CameraManager).add(this)
   }
 
+  /** @internal */
   override _onExitTree(): void {
-    this.tree._cameraManager.remove(this)
+    this.tree.system(CameraManager).remove(this)
   }
 
   /** @internal 每帧 process 之后由 `CameraManager` 对当前相机调用：更新画面中心（世界坐标）。 */

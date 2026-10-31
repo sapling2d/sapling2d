@@ -2,7 +2,9 @@ import type { Node } from '../core/Node'
 import { Node2D, type Node2DOptions } from '../core/Node2D'
 import { TILE_ONE_WAY, TILE_SOLID } from '../core/tileset'
 import { Vector2 } from '../math/Vector2'
+import { PhysicsWorld } from '../physics/PhysicsWorld'
 import type { RectangleShape2D } from '../physics/shapes'
+import { TileLayers } from './TileLayers'
 import type { TileMapLayer } from './TileMapLayer'
 
 export interface CharacterBody2DOptions extends Node2DOptions {
@@ -79,7 +81,9 @@ export class CharacterBody2D extends Node2D {
   private _hitRow = 0
   private _hitCol = 0
   private _warnedStatic = false
-  /** 本次 moveAndSlide 里每个图层（按 `tree._tileLayers` 的顺序）的全局平移；NaN 表示这一层不参与碰撞。复用，不分配。 */
+  /** 树里的图层登记（进入树时取一次，`moveAndSlide` 的热路径不再查找）；不在树里时为 null。 */
+  private _tileLayers: TileLayers | null = null
+  /** 本次 moveAndSlide 里每个图层（按 `TileLayers.layers` 的顺序）的全局平移；NaN 表示这一层不参与碰撞。复用，不分配。 */
   private readonly _layerX: number[] = []
   private readonly _layerY: number[] = []
 
@@ -133,6 +137,16 @@ export class CharacterBody2D extends Node2D {
     return this._collisions[i]!
   }
 
+  /** @internal */
+  override _onEnterTree(): void {
+    this._tileLayers = this.tree.system(TileLayers)
+  }
+
+  /** @internal */
+  override _onExitTree(): void {
+    this._tileLayers = null
+  }
+
   /**
    * 按 `velocity` 移动一个物理步（`tree.physicsDelta` 秒），被实心格挡住时停在格子边上、这一轴的速度清零。
    * 只能在 `physicsProcess` 里调用。
@@ -142,6 +156,7 @@ export class CharacterBody2D extends Node2D {
     if (!tree._inPhysicsProcess) {
       throw new Error(`CharacterBody2D "${this.name}": moveAndSlide() must be called from physicsProcess(), not process() or a signal handler.`)
     }
+    const tileLayers = this._tileLayers! // 在树里（上面的 this.tree 已经保证）时一定有
     const dt = tree.physicsDelta
     this._onFloor = false
     this._onWall = false
@@ -154,7 +169,7 @@ export class CharacterBody2D extends Node2D {
     const px = translationX(parent, this.name)
     const py = translationY(parent)
     // 参与碰撞的图层的全局平移：每次 moveAndSlide 算一次，x、y 两轴共用
-    const layers = tree._tileLayers
+    const layers = tileLayers.layers
     const canvas = this._canvasLayer
     for (let i = 0; i < layers.length; i++) {
       const layer = layers[i]!
@@ -196,7 +211,7 @@ export class CharacterBody2D extends Node2D {
   private _sweep(horizontal: boolean, delta: number, cx: number, cy: number, hw: number, hh: number): number {
     this._hitLayer = null
     this._hitDist = delta
-    const layers = this.tree._tileLayers
+    const layers = this._tileLayers!.layers
     for (let i = 0; i < layers.length; i++) {
       const ox = this._layerX[i]!
       if (Number.isNaN(ox)) continue
@@ -310,7 +325,7 @@ export class CharacterBody2D extends Node2D {
 
   /** StaticBody2D 挡不住角色：重叠时提示一次（只在物理世界已经存在时检查，并限制频率）。 */
   private _checkStaticOverlap(cx: number, cy: number, hw: number, hh: number): void {
-    const world = this.tree._physicsIfCreated
+    const world = this.tree.systemIfCreated(PhysicsWorld)
     if (!world) return
     const body = world._firstStaticOverlapping(cx - hw, cy - hh, cx + hw, cy + hh) as unknown as Node | null
     if (!body) return

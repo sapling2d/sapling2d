@@ -2,6 +2,7 @@ import { Node2D, type Node2DOptions } from '../core/Node2D'
 import { TILE_EMPTY, type TileData, type TileSet } from '../core/tileset'
 import { Rect2 } from '../math/Rect2'
 import { Vector2 } from '../math/Vector2'
+import { TileLayers } from './TileLayers'
 
 /** 区块边长（格）：渲染时每个区块一个 Mesh（ADR 0008）。 */
 export const TILE_CHUNK = 16
@@ -142,14 +143,14 @@ export class TileMapLayer extends Node2D {
     return this.tileSet._collision[this._cells[cy * this.width + cx]!] ?? TILE_EMPTY
   }
 
+  /** @internal 进入树时登记到 `TileLayers`，CharacterBody2D 从那里找到它。 */
   override _onEnterTree(): void {
-    this.tree._tileLayers.push(this)
+    this.tree.system(TileLayers).add(this)
   }
 
+  /** @internal */
   override _onExitTree(): void {
-    const layers = this.tree._tileLayers
-    const i = layers.indexOf(this)
-    if (i >= 0) layers.splice(i, 1)
+    this.tree.system(TileLayers).remove(this)
   }
 
   protected override dumpProps(): Record<string, unknown> {

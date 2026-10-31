@@ -1,9 +1,10 @@
 import { AABB, BoxShape, CircleShape, PolygonShape, World, type Body, type Contact, type Fixture } from 'planck'
+import type { SceneTree, TreeSystem } from '../core/SceneTree'
 import { Vector2 } from '../math/Vector2'
 import type { Shape2D } from './shapes'
 
 /**
- * 物理世界：引擎里唯一直接使用 planck 的地方（见 ADR 0005）。每个 SceneTree 一个，通过 `tree.physics` 访问。
+ * 物理世界：引擎里唯一直接使用 planck 的地方（见 ADR 0005）。每个 SceneTree 一个树级子系统，第一次用到时创建，通过 `tree.physics` 访问。
  *
  * 对外一律用像素和 px/s²，内部按 `pixelsPerMeter` 换算成米（Box2D 在 0.1–10 米的物体上最稳定）。
  * 每个物理步：
@@ -83,7 +84,7 @@ interface Entry {
 
 type ContactEvent = { begin: boolean; a: CollisionObjectNode; b: CollisionObjectNode }
 
-export class PhysicsWorld {
+export class PhysicsWorld implements TreeSystem {
   readonly pixelsPerMeter: number
   readonly velocityIterations: number
   readonly positionIterations: number
@@ -96,7 +97,9 @@ export class PhysicsWorld {
   /** 每对对象之间的接触 fixture 数：从 0 变 1 时 entered，从 1 变 0 时 exited。 */
   private _pairs = new Map<CollisionObjectNode, Map<CollisionObjectNode, number>>()
 
-  constructor(settings: PhysicsSettings = {}) {
+  /** @internal 由 `tree.system(PhysicsWorld)` 创建，设置来自 `tree.physicsSettings`。 */
+  constructor(tree: SceneTree) {
+    const settings = tree.physicsSettings
     this.pixelsPerMeter = settings.pixelsPerMeter ?? 50
     this.velocityIterations = settings.velocityIterations ?? 8
     this.positionIterations = settings.positionIterations ?? 3
@@ -177,10 +180,10 @@ export class PhysicsWorld {
     return [...(this._pairs.get(node)?.keys() ?? [])].filter((n) => !n._isArea)
   }
 
-  // ---------------------------------------------------------------- 由 SceneTree 调用
+  // ---------------------------------------------------------------- TreeSystem
 
-  /** @internal 推进一个物理步（dt 单位秒）。 */
-  _step(dt: number): void {
+  /** @internal 由 SceneTree 每个物理步调用（所有节点的 physicsProcess 之后）：推进一步，dt 单位秒。 */
+  physicsStep(dt: number): void {
     for (const e of this._entries.values()) this._sync(e)
     this._world.step(dt, this.velocityIterations, this.positionIterations)
     const ppm = this.pixelsPerMeter

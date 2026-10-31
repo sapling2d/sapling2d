@@ -1,19 +1,25 @@
-import type { Camera2D } from '../nodes/Camera2D'
-import type { Viewport } from './Viewport'
+import type { SceneTree, TreeSystem } from '../core/SceneTree'
+import type { Viewport } from '../core/Viewport'
+import type { Camera2D } from './Camera2D'
 
 /**
- * 树里的相机：登记进出树的相机，决定当前相机，每帧按当前相机算出画面偏移（写到 `Viewport._canvasX/Y`）。
+ * 树里的相机（树级子系统，`tree.system(CameraManager)`）：登记进出树的相机，决定当前相机，每帧末按当前相机算出画面偏移（写到 `Viewport._canvasX/Y`）。
  * 同一时间只有一个当前相机：第一个启用的相机自动成为当前相机；当前相机离开树或被关掉时，下一个启用的接替；没有相机时画面不偏移。
  * 相机自己的状态（位置、边界、平滑）在 `Camera2D` 里。
+ *
+ * ```ts
+ * const camera = this.tree.system(CameraManager).current // 当前相机，没有时为 null
+ * ```
  */
-export class CameraManager {
+export class CameraManager implements TreeSystem {
   private readonly _viewport: Viewport
   /** 树里的相机，按进入树的顺序。 */
   private readonly _cameras: Camera2D[] = []
   private _current: Camera2D | null = null
 
-  constructor(viewport: Viewport) {
-    this._viewport = viewport
+  /** @internal 由 `tree.system(CameraManager)` 创建。 */
+  constructor(tree: SceneTree) {
+    this._viewport = tree.viewport
   }
 
   /** 当前相机；没有时为 null。 */
@@ -47,8 +53,8 @@ export class CameraManager {
     camera.resetSmoothing()
   }
 
-  /** 每帧所有节点移动完、帧末销毁之后（渲染之前）调用：推进当前相机，按它的画面中心算出画面偏移。 */
-  update(dt: number): void {
+  /** @internal 由 SceneTree 每帧末调用（所有节点移动完、帧末销毁之后、渲染之前）：推进当前相机，按它的画面中心算出画面偏移。 */
+  frameEnd(dt: number): void {
     const camera = this._current
     const viewport = this._viewport
     if (!camera) {
