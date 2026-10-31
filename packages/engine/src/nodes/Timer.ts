@@ -8,6 +8,11 @@ export interface TimerOptions extends NodeOptions {
   oneShot?: boolean
   /** 进入树时自动开始，默认 false。 */
   autostart?: boolean
+  /**
+   * 按物理步推进（每步 1/60 秒的游戏时间，在 `physicsProcess` 之前）而不是按帧，默认 false。
+   * 驱动玩法的计时器（刷怪、技能冷却）用它：倍速下触发的物理步和 1 倍速完全一样。进树后不能改。
+   */
+  processInPhysics?: boolean
 }
 
 /**
@@ -20,13 +25,15 @@ export interface TimerOptions extends NodeOptions {
  * await this.tree.createTimer(0.5).timeout // 一次性的等待，不需要节点
  * ```
  *
- * 每帧最多触发一次；循环模式下超出的时间会计入下一轮，所以长期来看不会漂移。
+ * 每帧（`processInPhysics` 时每个物理步）最多触发一次；循环模式下超出的时间会计入下一轮，所以长期来看不会漂移。
  */
 export class Timer extends Node {
   readonly timeout = new Signal()
   waitTime: number
   oneShot: boolean
   autostart: boolean
+  /** 按物理步推进（见 `TimerOptions`）。 */
+  readonly processInPhysics: boolean
   private _timeLeft = 0
   private _running = false
   private _autostarted = false
@@ -36,6 +43,7 @@ export class Timer extends Node {
     this.waitTime = options.waitTime ?? 1
     this.oneShot = options.oneShot ?? false
     this.autostart = options.autostart ?? false
+    this.processInPhysics = options.processInPhysics ?? false
   }
 
   /** 剩余时间（秒）；停止时为 0。 */
@@ -68,8 +76,22 @@ export class Timer extends Node {
     }
   }
 
-  /** @internal 计时放在引擎内部钩子里：子类覆写 process() 不会影响计时。 */
+  /** @internal 按物理步的计时器要在每个物理步被调到（即使没有覆写 physicsProcess）。 */
+  override get _needsPhysicsStep(): boolean {
+    return this.processInPhysics
+  }
+
+  /** @internal 计时放在引擎内部钩子里：子类覆写 process() / physicsProcess() 不会影响计时。 */
   override _internalProcess(dt: number): void {
+    if (!this.processInPhysics) this._tick(dt)
+  }
+
+  /** @internal */
+  override _internalPhysicsProcess(dt: number): void {
+    if (this.processInPhysics) this._tick(dt)
+  }
+
+  private _tick(dt: number): void {
     if (!this._running) return
     this._timeLeft -= dt
     if (this._timeLeft > 1e-9) return
@@ -88,6 +110,7 @@ export class Timer extends Node {
       oneShot: this.oneShot || undefined,
       timeLeft: this._running ? Math.round(this.timeLeft * 1000) / 1000 : undefined,
       stopped: this._running ? undefined : true,
+      physics: this.processInPhysics || undefined,
     }
   }
 }

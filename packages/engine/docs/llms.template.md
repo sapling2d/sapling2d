@@ -363,6 +363,7 @@ shake(camera: Camera2D, strength: number, duration: number) {
 
 - `tree.timeScale`（默认 1，≥ 0）：所有游戏时间都乘上它，包括 `process` 的 dt、物理步数（步长仍是 1/60 秒，只是步数变多或变少：3 倍速在 60Hz 上每帧 3 步，步序和 1 倍速跑 3 帧完全一样，每帧的真实时间上限按倍数放大，不会丢步；代价是逻辑耗时也乘上倍速）、Tween、Timer、`createTimer`、帧动画、相机平滑和 `tree.time`。为 0 时游戏时间完全停止，输入和渲染照常（停顿中按下的键在恢复后的第一个物理步里仍然是 just pressed）。
 - 停顿时普通计时器也停了：恢复时间用 `createTimer(秒, { ignoreTimeScale: true })`（按真实时间）。
+- **倍速下要结果一致的玩法逻辑放在 `physicsProcess` 里**，驱动玩法的计时和补间用 `processInPhysics: true`：`createTimer(秒, { processInPhysics: true })`、`new Timer({ processInPhysics: true })`、`createTween({ processInPhysics: true })` 按物理步推进（每步 1/60 秒游戏时间，在 `physicsProcess` 和物理世界之后），3 倍速下触发的物理步、各步看到的补间值都和 1 倍速完全一样；按帧的版本一帧只更新一次，倍速下一帧吞掉几步。纯视觉的（受击闪白、UI 弹一下）照旧按帧。`ignoreTimeScale` 不能和它同时用。
 - 和 `paused` 互相独立；界面（CanvasLayer）也一起变慢，停顿很短时看不出来。大于 1 时受每帧物理步数上限（默认 2）限制。
 
 ### 粒子（Particles2D）
@@ -379,7 +380,7 @@ shake(camera: Camera2D, strength: number, duration: number) {
 
 ## 补间的控制
 
-- `createTween()` 返回的 Tween 可以 `kill()`（立即停止，不触发 `finished`），`isRunning` 表示是否还在播放；链式方法有 `to`、`parallel`、`wait(秒)`、`call(fn)`。
+- `createTween()` 返回的 Tween 可以 `kill()`（立即停止，不触发 `finished`），`isRunning` 表示是否还在播放；链式方法有 `to`、`parallel`、`wait(秒)`、`call(fn)`。`createTween({ processInPhysics: true })` 按物理步推进（驱动玩法的补间用，见“timeScale”）。
 - 两个 Tween 同时改同一个属性时都会运行，每帧后创建的那个最后写入（覆盖前一个）。反复触发的动效（比如每次连击都弹一下）应先停掉上一个：
 
 ```ts
@@ -460,7 +461,7 @@ fx.createTween().to(fx, { alpha: 0 }, 0.3).call(() => fx.queueFree())
 | `Curve2D`（不是节点） | 曲线路径，按距离取点 | `Curve2D.catmullRom(points, { closed?, bakeInterval? })` `Curve2D.polyline(points)`；`length` `sample(distance, out)` `angleAt(distance)` `closed` |
 | `HitTester`（不是节点） | 两组对象之间的圆 / 矩形命中判定 | `forEachHit(as, bs, hit)`（`hit` 返回 true 表示 a 用掉了）、`HitTester.compact(list)`；对象需要 `x` `y` `hitShape`，可选 `dead` |
 | `CollisionShape2D` | 碰撞形状（必须是刚体 / 区域的直接子节点） | `shape`：`circle(r)` `rectangle(w, h)` `polygon(points)`；`disabled` |
-| `Timer` | 计时器 | `waitTime` `oneShot` `autostart` `start()` `stop()` `timeLeft`；信号 `timeout` |
+| `Timer` | 计时器 | `waitTime` `oneShot` `autostart` `processInPhysics` `start()` `stop()` `timeLeft`；信号 `timeout` |
 | `AudioStreamPlayer` | 播放声音 | `stream` `volume` `loop` `bus` `autoplay` `play()` `stop()`；信号 `finished` |
 
 碰撞层：`collisionLayer` / `collisionMask`（32 层，`setCollisionLayerValue(n, bool)`），规则同 Godot：任一方的 mask 包含对方的 layer 就碰撞。

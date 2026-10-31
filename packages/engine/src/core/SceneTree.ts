@@ -8,7 +8,7 @@ import { Storage } from '../storage/Storage'
 import { AssetLoader } from '../assets/AssetLoader'
 import { Input } from '../input/Input'
 import { Signal } from './Signal'
-import { Tween } from './Tween'
+import { Tween, type TweenOptions } from './Tween'
 import type { GroupName, GroupNodeType } from './groups'
 import { Node, type DumpNode } from './Node'
 import type { ServiceToken } from './plugin'
@@ -69,8 +69,9 @@ const MAX_DEFERRED_ROUNDS = 100
  *
  * 每帧（`advance(dt)`）的顺序（下面的时间都是乘过 `timeScale` 的游戏时间）：
  * 1. 处理输入队列（节点的指针信号在这里触发）
- * 2. 按固定步长跑若干次物理步：每步先调用所有节点的 `physicsProcess`，再调用子系统的 `physicsStep`（物理世界在这里推进并写回刚体位置）
- * 3. 跑一次 `process`，然后推进补间动画（Tween）和一次性计时器（createTimer）
+ * 2. 按固定步长跑若干次物理步：每步先调用所有节点的 `physicsProcess`，再调用子系统的 `physicsStep`（物理世界在这里推进并写回刚体位置），
+ *    最后推进按物理步的补间和计时器（`processInPhysics: true` 的 Tween / createTimer）
+ * 3. 跑一次 `process`，然后推进按帧的补间动画（Tween）和一次性计时器（createTimer）
  * 4. 执行 `callDeferred` 排队的回调
  * 5. 销毁 `queueFree` 排队的节点
  * 6. 调用子系统的 `frameEnd`（相机在这里按当前相机算出画面偏移）
@@ -132,8 +133,11 @@ export class SceneTree {
   private _currentArgs: { cls: SceneConstructor; args: unknown[] } | null = null
   /** 游戏切到后台（false）或回到前台（true）时触发。默认情况下引擎会在后台挂起主循环。 */
   readonly focusChanged = new Signal<[focused: boolean]>()
+  /** 按帧推进的补间和计时器，以及按物理步推进的（`processInPhysics`）。 */
   private _tweens: Tween[] = []
   private _timers: SceneTreeTimer[] = []
+  private _physicsTweens: Tween[] = []
+  private _physicsTimers: SceneTreeTimer[] = []
   /** @internal 树里覆写了 `physicsProcess` 的节点数；为 0 时物理步不遍历节点。 */
   _physicsProcessNodes = 0
   /** @internal 正在调用各节点的 physicsProcess（`CharacterBody2D.moveAndSlide` 只能在这时调用）。 */
@@ -339,14 +343,14 @@ export class SceneTree {
 
   // ---------------------------------------------------------------- 补间与计时
 
-  /** 创建一个不绑定节点的补间动画（不会随节点销毁而停止）。通常应使用 node.createTween()。 */
-  createTween(): Tween {
-    return this._addTween(new Tween(null))
+  /** 创建一个不绑定节点的补间动画（不会随节点销毁而停止）。通常应使用 node.createTween()。`processInPhysics` 见 `TweenOptions`。 */
+  createTween(options: TweenOptions = {}): Tween {
+    return this._addTween(new Tween(null, options.processInPhysics ?? false))
   }
 
-  /** @internal */
+  /** @internal 按 `processInPhysics` 放进按帧或按物理步的队列；本帧（步）新建的从下一帧（步）开始推进。 */
   _addTween(tween: Tween): Tween {
-    this._tweens.push(tween)
+    ;(tween.processInPhysics ? this._physicsTweens : this._tweens).push(tween)
     return tween
   }
 
@@ -354,10 +358,13 @@ export class SceneTree {
    * 一次性计时器：`await this.tree.createTimer(1).timeout`。
    * 由帧循环驱动（无头测试里随 step 推进）。默认暂停时也继续计时（与 Godot 相同），`processAlways: false` 时随暂停停止。
    * 默认按游戏时间计时（受 `timeScale` 影响），`ignoreTimeScale: true` 时按真实时间。
+   * `processInPhysics: true` 时按物理步推进（每步 1/60 秒游戏时间，在 `physicsProcess` 和物理世界之后）：
+   * 驱动玩法的计时（刷怪、技能冷却）用它，倍速下触发的物理步和 1 倍速完全一样；不能和 `ignoreTimeScale` 同时用。
    */
-  createTimer(seconds: number, options: { processAlways?: boolean; ignoreTimeScale?: boolean } = {}): SceneTreeTimer {
-    const t = new SceneTreeTimer(seconds, options.processAlways ?? true, options.ignoreTimeScale ?? false)
-    this._timers.push(t)
+  createTimer(seconds: number, options: { processAlways?: boolean; ignoreTimeScale?: boolean; processInPhysics?: boolean } = {}): SceneTreeTimer {
+    if (options.ignoreTimeScale && options.processInPhysics) throw new Error('createTimer: ignoreTimeScale and processInPhysics cannot be combined (physics steps are game time).')
+    const t = new SceneTreeTimer(seconds, options.processAlways ?? true, options.ignoreTimeScale ?? false, options.processInPhysics ?? false)
+    ;(t.processInPhysics ? this._physicsTimers : this._timers).push(t)
     return t
   }
 
@@ -427,13 +434,20 @@ export class SceneTree {
       this._accumulator -= this.physicsDelta
       this._physicsFrames++
       if (!this._paused) this._gameSteps++
+      // 本步中新建的按物理步的补间和计时器从下一步开始推进
+      const physicsTweenCount = this._physicsTweens.length
+      const physicsTimerCount = this._physicsTimers.length
       // 整个物理步（physicsProcess 和刚体的接触信号）里，isActionJustPressed 都按物理步算
       this.input._beginPhysicsStep()
       try {
         if (this._physicsProcessNodes > 0) {
           this._inPhysicsProcess = true
           try {
-            for (const node of this._snapshot()) if (node.canProcess()) node.physicsProcess(this.physicsDelta)
+            for (const node of this._snapshot()) {
+              if (!node.canProcess()) continue
+              node._internalPhysicsProcess(this.physicsDelta)
+              if (node.canProcess()) node.physicsProcess(this.physicsDelta)
+            }
           } finally {
             this._inPhysicsProcess = false
           }
@@ -442,6 +456,8 @@ export class SceneTree {
           const steppers = this._physicsSteppers
           for (let i = 0; i < steppers.length; i++) steppers[i]!.physicsStep!(this.physicsDelta)
         }
+        this._physicsTweens = advanceAll(this._physicsTweens, physicsTweenCount, this.physicsDelta, this._paused)
+        this._physicsTimers = advanceAll(this._physicsTimers, physicsTimerCount, this.physicsDelta, this._paused)
       } finally {
         this.input._endPhysicsStep()
       }
@@ -454,15 +470,8 @@ export class SceneTree {
       node._internalProcess(frameDt)
       if (node.canProcess()) node.process(frameDt)
     }
-    const tweens = this._tweens
-    this._tweens = []
-    for (let i = 0; i < tweens.length; i++) if (i >= tweenCount || tweens[i]!._advance(frameDt, this._paused)) this._tweens.push(tweens[i]!)
-    const timers = this._timers
-    this._timers = []
-    for (let i = 0; i < timers.length; i++) {
-      const timer = timers[i]!
-      if (i >= timerCount || timer._advance(timer.ignoreTimeScale ? realDt : frameDt, this._paused)) this._timers.push(timer)
-    }
+    this._tweens = advanceAll(this._tweens, tweenCount, frameDt, this._paused)
+    this._timers = advanceAll(this._timers, timerCount, frameDt, this._paused, realDt)
 
     this._flushFrameEnd()
     // 子系统的帧末钩子（相机按当前相机更新画面偏移）：所有节点移动完、帧末销毁之后，渲染之前
@@ -521,6 +530,19 @@ export class SceneTree {
     for (const r of roots) walk(r, 0)
     return lines.join('\n')
   }
+}
+
+/**
+ * 推进一组补间或计时器，返回还活着的：前 `count` 个是本帧（步）开始前就有的，推进并丢掉结束的；之后新建的原样保留，下一次再推进。
+ * `realDt` 给 `ignoreTimeScale` 的计时器（按真实时间）。
+ */
+function advanceAll<T extends { _advance(dt: number, paused: boolean): boolean; ignoreTimeScale?: boolean }>(list: T[], count: number, dt: number, paused: boolean, realDt = dt): T[] {
+  const kept: T[] = []
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i]!
+    if (i >= count || item._advance(item.ignoreTimeScale ? realDt : dt, paused)) kept.push(item)
+  }
+  return kept
 }
 
 function formatValue(value: unknown): string {

@@ -10,6 +10,15 @@ export type TweenableKey<T> = { [K in keyof T]-?: T[K] extends number | Vector2 
 /** `to()` 的目标值：只允许可补间的属性，类型与属性一致。 */
 export type TweenProps<T> = { [K in TweenableKey<T>]?: T[K] }
 
+export interface TweenOptions {
+  /**
+   * 按物理步推进（每步 1/60 秒的游戏时间，在节点的 `physicsProcess` 和物理世界之后），而不是按帧。默认 false。
+   * 驱动玩法的补间（位移攻击、按时间表的刷怪）用它：倍速时一帧跑几个物理步，按帧的补间一帧只更新一次，
+   * 各个物理步看到的值会和 1 倍速不同；按物理步的补间在任何倍速下步序完全一样。纯视觉的补间不需要。
+   */
+  processInPhysics?: boolean
+}
+
 /** 一个补间动作：start 在所在的步骤开始时调用（此时读取起始值），update 收到 0–1 的进度。 */
 interface Tweener {
   duration: number
@@ -18,7 +27,8 @@ interface Tweener {
 }
 
 /**
- * 补间动画。用 `this.createTween()` 创建（绑定到节点：节点销毁时自动停止），下一帧开始播放。
+ * 补间动画。用 `this.createTween()` 创建（绑定到节点：节点销毁时自动停止），下一帧开始播放；
+ * `createTween({ processInPhysics: true })` 按物理步推进（见 `TweenOptions`）。
  *
  * ```ts
  * const tween = this.createTween()
@@ -42,10 +52,13 @@ export class Tween {
   private _stepStarted = false
   private _running = true
   private readonly _bound: Node | null
+  /** 按物理步推进（见 `TweenOptions`）。 */
+  readonly processInPhysics: boolean
 
   /** @internal 请用 node.createTween() 或 tree.createTween()。 */
-  constructor(bound: Node | null) {
+  constructor(bound: Node | null, processInPhysics = false) {
     this._bound = bound
+    this.processInPhysics = processInPhysics
   }
 
   /** 是否还在播放（未结束、未被 kill）。 */
@@ -132,7 +145,7 @@ export class Tween {
     this._nextParallel = false
   }
 
-  /** @internal 由 SceneTree 每帧调用；返回 false 表示已结束，可以移除。`paused` 是树的暂停状态（未绑定节点的 Tween 跟随它）。 */
+  /** @internal 由 SceneTree 每帧（或每个物理步）调用；返回 false 表示已结束，可以移除。`paused` 是树的暂停状态（未绑定节点的 Tween 跟随它）。 */
   _advance(dt: number, paused: boolean): boolean {
     if (!this._running) return false
     if (this._bound && (this._bound.isFreed || this._bound.isQueuedForDeletion)) {

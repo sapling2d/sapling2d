@@ -2,7 +2,7 @@ import { Vector2 } from '../math/Vector2'
 import type { GroupName } from './groups'
 import type { SceneTree } from './SceneTree'
 import { Signal, type ConnectionOwner } from './Signal'
-import { Tween } from './Tween'
+import { Tween, type TweenOptions } from './Tween'
 
 /**
  * 暂停时的处理方式（对应 Godot 的 process_mode）：
@@ -287,17 +287,29 @@ export class Node implements ConnectionOwner {
   /** @internal 引擎内部的每帧钩子，在用户的 process() 之前调用（Timer 用它计时）。 */
   _internalProcess(_dt: number): void {}
 
+  /** @internal 引擎内部的物理步钩子，在用户的 physicsProcess() 之前调用（按物理步的 Timer 用它计时）。只有 `_needsPhysicsStep` 为 true 的节点才会被调到。 */
+  _internalPhysicsProcess(_dt: number): void {}
+
+  /**
+   * @internal 不覆写 `physicsProcess` 但仍要在每个物理步被调到（`_internalPhysicsProcess`）的节点返回 true；
+   * 进树后不能变。树据此决定物理步要不要遍历节点：没有节点需要时物理步不遍历。
+   */
+  get _needsPhysicsStep(): boolean {
+    return false
+  }
+
   // ---------------------------------------------------------------- 补间
 
   /**
    * 创建一个绑定到本节点的补间动画，下一帧开始播放；本节点被销毁时自动停止。
+   * `{ processInPhysics: true }` 时按物理步推进（驱动玩法的补间用它，倍速下步序和 1 倍速一样；见 `TweenOptions`）。
    *
    * ```ts
    * this.createTween().to(this, { scale: v(1.2, 1.2) }, 0.15, Ease.BackOut).to(this, { scale: v(1, 1) }, 0.1)
    * ```
    */
-  createTween(): Tween {
-    return this.tree._addTween(new Tween(this))
+  createTween(options: TweenOptions = {}): Tween {
+    return this.tree._addTween(new Tween(this, options.processInPhysics ?? false))
   }
 
   /** @internal */
@@ -351,7 +363,7 @@ export class Node implements ConnectionOwner {
 
   private _propagateEnterTree(tree: SceneTree): void {
     this._tree = tree
-    if (this.physicsProcess !== Node.prototype.physicsProcess) tree._physicsProcessNodes++
+    if (this._usesPhysicsStep()) tree._physicsProcessNodes++
     this._onEnterTree()
     this.enterTree()
     for (const child of [...this._children]) {
@@ -374,8 +386,13 @@ export class Node implements ConnectionOwner {
     for (const child of [...this._children]) child._propagateExitTree()
     this.exitTree()
     this._onExitTree()
-    if (this._tree && this.physicsProcess !== Node.prototype.physicsProcess) this._tree._physicsProcessNodes--
+    if (this._tree && this._usesPhysicsStep()) this._tree._physicsProcessNodes--
     this._tree = null
+  }
+
+  /** 覆写了 `physicsProcess`，或声明了 `_needsPhysicsStep`：物理步要遍历到它。 */
+  private _usesPhysicsStep(): boolean {
+    return this.physicsProcess !== Node.prototype.physicsProcess || this._needsPhysicsStep
   }
 
   /** @internal 先序遍历（父先于子）。 */
