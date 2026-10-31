@@ -1,0 +1,2 @@
+res-b.png
+res-shared.png

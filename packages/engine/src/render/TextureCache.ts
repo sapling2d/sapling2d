@@ -166,7 +166,12 @@ export class TextureCache {
     if (cached && cached.resource === resource) return cached.source
     cached?.source.destroy()
     // 显式构造 ImageSource：小游戏的 Image 过不了 Pixi 的自动类型识别（见 spikes/wechat/REPORT.md）
-    const source = new ImageSource({ resource: resource as never, ...(this._pixelArt ? { scaleMode: 'nearest' as const } : {}) })
+    // 文件里已经预乘透明度的图（Spine 的 pma 图集）上传时不再预乘，否则半透明边缘发暗
+    const source = new ImageSource({
+      resource: resource as never,
+      ...(this._pixelArt ? { scaleMode: 'nearest' as const } : {}),
+      ...(base._premultiplied ? { alphaMode: 'premultiplied-alpha' as const } : {}),
+    })
     this._sources.set(base, { resource, source })
     return source
   }

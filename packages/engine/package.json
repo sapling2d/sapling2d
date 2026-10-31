@@ -42,6 +42,7 @@
     ".": "./src/index.ts",
     "./browser": "./src/platform/browser/index.ts",
     "./motion": "./src/plugins/motion/index.ts",
+    "./render": "./src/render/index.ts",
     "./testing": "./src/testing/index.ts",
     "./vite": "./src/vite/index.ts",
     "./wechat": "./src/platform/wechat/index.ts",
@@ -70,6 +71,10 @@
       "./motion": {
         "types": "./dist/motion.d.ts",
         "import": "./dist/motion.js"
+      },
+      "./render": {
+        "types": "./dist/render.d.ts",
+        "import": "./dist/render.js"
       },
       "./testing": {
         "types": "./dist/testing.d.ts",

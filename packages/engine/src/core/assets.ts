@@ -30,6 +30,11 @@ export class Texture {
   private _ownResource: unknown = null
   /** @internal 子区域所在的整张图；整张图自己为 null。 */
   readonly _base: Texture | null
+  /**
+   * @internal 图片文件里的颜色已经预乘了透明度（Spine 图集的 `pma: true` 页）：渲染层上传到 GPU 时不再预乘。
+   * 由声明这张图的资源（如 `spineSkeleton`）在加载前设置；整张图的属性，子区域不单独设。
+   */
+  _premultiplied = false
   private readonly _frameOf: (() => TextureFrame) | null
 
   /** @internal 请使用 tex(path)、sheet() 或 atlas()。 */
@@ -344,13 +349,34 @@ function naturalCompare(a: string, b: string): number {
 
 // ---------------------------------------------------------------- 加载
 
-/** 场景的 `static assets` 声明：贴图（tex）、图集（sheet / atlas / aseprite）、图块集（tileset）、Tiled 关卡（tiledMap）、音效（sfx）、音乐（music）。 */
-export type AssetMap = Record<string, Texture | SpriteSheet | Atlas | AsepriteSheet | TileSet | TiledMap | AudioStream>
+/**
+ * 自定义资源：插件自己的资源格式（Spine 骨骼、Live2D 模型……）实现这个协议就能放进 `static assets` / `PluginContext.preload`，
+ * 由引擎按同一套规则加载、去重、切场景时卸载。`TiledMap` 就是这样一个资源。
+ *
+ * - `_load(platform)`：读文件、解析；要幂等（已经解析过就只补没加载的部分），同一个资源并发调用只做一次。
+ *   它用到的图片用 `tex()` 声明成句柄并从 `_textures()` 返回，引擎在 `_load` 之后加载它们（无头模式下宽高为 0），切场景时按图片判断是否卸载。
+ * - `isLoaded`：解析完且 `_textures()` 里的图片都加载完；为 true 时引擎跳过加载。
+ * - `_unload()`：旧场景独有的资源卸载时调用；图片由引擎单独卸载，这里通常只需要把解析好的数据留着（切回来时只重新加载图片）。
+ * - `_textures()`：还没解析时返回空数组。
+ */
+export interface Resource {
+  /** 资源种类（插件自己起名，如 `'spine'`），dump 和报错用。 */
+  readonly kind: string
+  /** 主文件的路径（相对资源目录）。 */
+  readonly path: string
+  readonly isLoaded: boolean
+  _load(platform: Platform): Promise<void>
+  _unload(): void
+  _textures?(): Texture[]
+}
+
+/** 场景的 `static assets` 声明：贴图（tex）、图集（sheet / atlas / aseprite）、图块集（tileset）、Tiled 关卡（tiledMap）、音效（sfx）、音乐（music），以及插件的自定义资源（`Resource`）。 */
+export type AssetMap = Record<string, Texture | SpriteSheet | Atlas | AsepriteSheet | TileSet | TiledMap | AudioStream | Resource>
 
 /** @internal 资源实际要加载 / 卸载的对象：图集和子区域归结到整张图。 */
-export function assetRoot(asset: AssetMap[string]): Texture | AudioStream | TiledMap {
-  // Tiled 关卡自己负责加载（关卡文件 + 图块集图片）和卸载
-  if (asset.kind === 'tiledmap') return asset
+export function assetRoot(asset: AssetMap[string]): Texture | AudioStream | Resource {
+  // 自定义资源（含 Tiled 关卡）自己负责加载和卸载
+  if ('_load' in asset) return asset
   // TileSet / AsepriteSheet 用 kind 判断：它们的文件在运行时依赖本文件（tex），这里再 import 会形成循环依赖
   if (asset instanceof SpriteSheet || asset instanceof Atlas || asset.kind === 'tileset' || asset.kind === 'aseprite') return asset.texture
   if (asset instanceof Texture) return asset._base ?? asset
@@ -358,11 +384,11 @@ export function assetRoot(asset: AssetMap[string]): Texture | AudioStream | Tile
 }
 
 /**
- * @internal 切换场景时判断“新场景还用不用”的单位：一般就是 assetRoot；Tiled 关卡展开成它自己和它图块集的图片，
+ * @internal 切换场景时判断“新场景还用不用”的单位：一般就是 assetRoot；自定义资源（Tiled 关卡、Spine 骨骼）展开成它自己和它的图片，
  * 这样两个关卡（或关卡和 tex()）共用同一张图时不会被误卸载。
  */
-export function assetResources(asset: AssetMap[string]): (Texture | AudioStream | TiledMap)[] {
-  if (asset.kind === 'tiledmap') return [asset, ...asset._textures()]
+export function assetResources(asset: AssetMap[string]): (Texture | AudioStream | Resource)[] {
+  if ('_load' in asset) return [asset, ...(asset._textures?.() ?? [])]
   return [assetRoot(asset)]
 }
 
@@ -405,13 +431,14 @@ export async function loadAssets(assets: AssetMap | undefined, platform: Platfor
   )
 }
 
-function loadOne(asset: Texture | AudioStream | TiledMap, platform: Platform, audio: AudioServer): Promise<void> | undefined {
+function loadOne(asset: Texture | AudioStream | Resource, platform: Platform, audio: AudioServer): Promise<void> | undefined {
   if (asset.isLoaded) return undefined
   if (asset instanceof AudioStream) {
     return audio._load(asset).catch((err: unknown) => {
       throw new Error(`Failed to load sound "${asset.path}": ${err instanceof Error ? err.message : String(err)}`)
     })
   }
-  if (asset.kind === 'tiledmap') return asset._load(platform)
+  // 自定义资源：先解析，再加载它声明的图片（已加载的跳过）
+  if ('_load' in asset) return asset._load(platform).then(() => Promise.all((asset._textures?.() ?? []).map((t) => loadTexture(t._base ?? t, platform)))).then(() => undefined)
   return loadTexture(asset, platform)
 }

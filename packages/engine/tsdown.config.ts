@@ -13,6 +13,8 @@ export default defineConfig({
     'wechat-polyfills': 'src/platform/wechat/polyfills.ts',
     // 插件：各自一个入口，不装不进包
     motion: 'src/plugins/motion/index.ts',
+    // 渲染扩展点：插件给自己的节点登记 Pixi 内容
+    render: 'src/render/index.ts',
     testing: 'src/testing/index.ts',
     vite: 'src/vite/index.ts',
   },

@@ -95,8 +95,8 @@ export class SceneTree {
   private _autoloads = new Map<NodeClass, Node>()
   /** 插件提供的服务（`PluginContext.provide`），按 token 查找。 */
   private readonly _services = new Map<ServiceToken<unknown>, unknown>()
-  /** 钉住的资源（`PluginContext.preload`）：切场景时不卸载。 */
-  private readonly _pinned = new Set<ReturnType<typeof assetResources>[number]>()
+  /** 钉住的资源（`PluginContext.preload`）：切场景时不卸载。存声明的句柄，判断时再展开（自定义资源的图片要加载后才知道）。 */
+  private readonly _pinned: AssetMap[string][] = []
   private _accumulator = 0
   private _physicsFrames = 0
   /** 没暂停时执行的物理步数：`time` = 它 × 步长（计数而不是累加小数，不积累误差）。 */
@@ -256,9 +256,9 @@ export class SceneTree {
     this._services.set(token, service)
   }
 
-  /** @internal 钉住资源（`PluginContext.preload`）：`_unloadUnused` 跳过它们。图集、子区域归结到整张图。 */
+  /** @internal 钉住资源（`PluginContext.preload`）：`_unloadUnused` 跳过它们（和它们的图片）。 */
   _pin(assets: AssetMap): void {
-    for (const resource of Object.values(assets).flatMap(assetResources)) this._pinned.add(resource)
+    this._pinned.push(...Object.values(assets))
   }
 
   // ---------------------------------------------------------------- 场景
@@ -320,9 +320,9 @@ export class SceneTree {
 
   private _unloadUnused(oldAssets: AssetMap | undefined, newAssets: AssetMap | undefined): void {
     if (!oldAssets) return
-    // 图集、子区域、Tiled 关卡的图块集都归结到整张图：新场景用同一张图（哪怕是另一种写法）就保留；插件钉住的也保留
-    const keep = new Set(Object.values(newAssets ?? {}).flatMap(assetResources))
-    for (const asset of new Set(Object.values(oldAssets).flatMap(assetResources))) if (!keep.has(asset) && !this._pinned.has(asset)) asset._unload()
+    // 图集、子区域、Tiled 关卡的图块集都归结到整张图：新场景用同一张图（哪怕是另一种写法）就保留；插件钉住的（和它们的图片）也保留
+    const keep = new Set([...Object.values(newAssets ?? {}), ...this._pinned].flatMap(assetResources))
+    for (const asset of new Set(Object.values(oldAssets).flatMap(assetResources))) if (!keep.has(asset)) asset._unload()
   }
 
   /** @internal 立即替换当前场景并销毁旧场景（不加载资源）。游戏代码请用 changeScene。 */

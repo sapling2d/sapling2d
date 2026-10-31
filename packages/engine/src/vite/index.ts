@@ -2,7 +2,7 @@ import { cpSync, createReadStream, existsSync, readdirSync, readFileSync, statSy
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Plugin, ViteDevServer } from 'vite'
-import { discoverAssetMounts, mimeOf, MOUNT_PREFIX, parseMountPath } from './mounts.ts'
+import { discoverAssetFunctions, discoverAssetMounts, mimeOf, MOUNT_PREFIX, parseMountPath } from './mounts.ts'
 
 export interface SaplingPluginOptions {
   /**
@@ -17,18 +17,30 @@ export interface SaplingPluginOptions {
    * 挂载的包的资源路径是 `~<包名>/<包内路径>`，如 `tex('~@foo/joystick/knob.png')`（ADR 0011）。
    */
   assetPackages?: string[]
+  /**
+   * 额外检查的资源函数名。默认是引擎的 `tex` / `      if (!quickCheck.test(code)) return null
+      for (const ref of findAssetReferences(code, assetFns)) {` / `music` / `sheet` / `atlas` / `aseprite` / `tileset` / `tiledMap`，
+   * 加上依赖包 `package.json` 里 `"sapling2d": { "assetFunctions": [...] }` 声明的（如 `@sapling2d/spine` 的 `spineSkeleton`）。
+   */
+  assetFunctions?: string[]
 }
+
+/** 引擎自己的资源函数：第一个字符串参数是相对资源目录的路径。 */
+export const ENGINE_ASSET_FUNCTIONS: readonly string[] = ['tex', 'sfx', 'music', 'sheet', 'atlas', 'aseprite', 'tileset', 'tiledMap']
 
 /**
  * 匹配 tex('...') / sfx("...") / music(`...`) 的字面量路径（模板字符串里有 ${} 的跳过），
  * 以及 sheet('...', {...}) / atlas('...', data) / aseprite('...', data) / tileset('...', {...}) 的第一个参数（图片路径），tiledMap('...')（关卡文件）。
  * 函数名后面可以带类型参数（可以跨行，格式化工具会把长的联合类型拆开）：aseprite<'idle' | 'attack'>('hero.png', data)。
  */
-const ASSET_CALL = /\b(tex|sfx|music|sheet|atlas|aseprite|tileset|tiledMap)(?:<[^()]*?>)?\(\s*(['"`])((?:(?!\2)[^\\\n$]|\\.)+)\2\s*[,)]/g
+function assetCallPattern(fns: readonly string[]): RegExp {
+  return new RegExp(`\\b(${fns.join('|')})(?:<[^()]*?>)?\\(\\s*(['"\`])((?:(?!\\2)[^\\\\\\n$]|\\\\.)+)\\2\\s*[,)]`, 'g')
+}
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?)$/
 
 export interface AssetReference {
-  fn: 'tex' | 'sfx' | 'music' | 'sheet' | 'atlas' | 'aseprite' | 'tileset' | 'tiledMap'
+  /** 资源函数名（`tex`、`tiledMap`、插件的 `spineSkeleton`……）。 */
+  fn: string
   path: string
   /** 1 起始的行号和 0 起始的列号（与 Rollup 的 loc 一致）。 */
   line: number
@@ -38,14 +50,14 @@ export interface AssetReference {
 /** sapling2d 包自身的源码目录：不检查（文档注释里有示例路径）。 */
 const ENGINE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
-/** 找出源码中所有字面量资源路径（注释里的不算）。 */
-export function findAssetReferences(code: string): AssetReference[] {
+/** 找出源码中所有字面量资源路径（注释里的不算）。`fns` 是要找的函数名，默认是引擎自己的。 */
+export function findAssetReferences(code: string, fns: readonly string[] = ENGINE_ASSET_FUNCTIONS): AssetReference[] {
   const refs: AssetReference[] = []
-  for (const m of stripComments(code).matchAll(ASSET_CALL)) {
+  for (const m of stripComments(code).matchAll(assetCallPattern(fns))) {
     const before = code.slice(0, m.index)
     const line = before.split('\n').length
     const column = m.index - (before.lastIndexOf('\n') + 1)
-    refs.push({ fn: m[1] as AssetReference['fn'], path: m[3]!, line, column })
+    refs.push({ fn: m[1]!, path: m[3]!, line, column })
   }
   return refs
 }
@@ -75,6 +87,14 @@ export function sapling(options: SaplingPluginOptions = {}): Plugin {
   let copyMounts = false
   /** 包名 → 挂载的资源目录。 */
   let mounts = new Map<string, string>()
+  /** 要检查的资源函数名（引擎的 + 插件包声明的 + 选项追加的）和"这个文件里有没有"的快速预检。 */
+  let assetFns: readonly string[] = ENGINE_ASSET_FUNCTIONS
+  let quickCheck = /\b(?:tex|sfx|music|sheet|atlas|aseprite|tileset|tiledMap)[<(]/
+  const discover = (warn: (m: string) => void) => {
+    mounts = discoverAssetMounts(root, options.assetPackages ?? [], warn)
+    assetFns = [...ENGINE_ASSET_FUNCTIONS, ...discoverAssetFunctions(root, options.assetFunctions ?? [], warn).filter((f) => !ENGINE_ASSET_FUNCTIONS.includes(f))]
+    quickCheck = new RegExp(`\\b(?:${assetFns.join('|')})[<(]`)
+  }
   let server: ViteDevServer | null = null
   /** 资源文件的绝对路径 → 引用它的模块 */
   const dependents = new Map<string, Set<string>>()
@@ -90,7 +110,7 @@ export function sapling(options: SaplingPluginOptions = {}): Plugin {
       assetsUrl = publicDir && assetsRoot.startsWith(publicDir + sep) ? '/' + relative(publicDir, assetsRoot).split(sep).join('/') : '/assets'
       outDir = resolve(config.root, config.build.outDir)
       copyMounts = !!publicDir && config.build.copyPublicDir !== false
-      mounts = discoverAssetMounts(root, options.assetPackages ?? [], (m) => config.logger.warn(m))
+      discover((m) => config.logger.warn(m))
     },
 
     buildStart() {
@@ -123,9 +143,9 @@ export function sapling(options: SaplingPluginOptions = {}): Plugin {
       s.watcher.on('change', (file) => {
         // Tiled 关卡和图块集的内容变了（比如改了引用的图片）也要重新检查
         if (/\.(json|tmj|tsj)$/i.test(file)) onChange(file)
-        // 依赖变了：重新找挂载的包
+        // 依赖变了：重新找挂载的包和资源函数
         if (resolve(file) === gamePackageJson) {
-          mounts = discoverAssetMounts(root, options.assetPackages ?? [], (m) => s.config.logger.warn(m))
+          discover((m) => s.config.logger.warn(m))
           for (const dir of mounts.values()) s.watcher.add(dir)
           s.ws.send({ type: 'full-reload' })
         }
@@ -148,8 +168,8 @@ export function sapling(options: SaplingPluginOptions = {}): Plugin {
     transform(code, id) {
       const file = id.split('?')[0]!
       if (!SOURCE_FILE.test(file) || file.includes(`${sep}node_modules${sep}`) || file.startsWith(ENGINE_ROOT + sep)) return null
-      if (!/\b(?:tex|sfx|music|sheet|atlas|aseprite|tileset|tiledMap)[<(]/.test(code)) return null
-      for (const ref of findAssetReferences(code)) {
+      if (!quickCheck.test(code)) return null
+      for (const ref of findAssetReferences(code, assetFns)) {
         // 内嵌的图片：不是文件，不检查
         if (ref.path.startsWith('data:')) continue
         const loc = { line: ref.line, column: ref.column }
@@ -301,7 +321,7 @@ function editDistance(a: string, b: string): number {
 
 // Vite 配置由 Node 原生加载：相对导入必须带 .ts 扩展名
 export { saplingWechat, startLogServer, type SaplingWechatOptions, type LogServerOptions } from './wechat.ts'
-export { discoverAssetMounts, parseMountPath, MOUNT_PREFIX, type MountPath } from './mounts.ts'
+export { discoverAssetFunctions, discoverAssetMounts, parseMountPath, MOUNT_PREFIX, type MountPath } from './mounts.ts'
 
 /**
  * 检查 Tiled 关卡引用的文件：外部图块集（相对于关卡文件）和图块集的图片（相对于引用它的文件）要存在、在资源目录里，外部图块集要是 JSON。

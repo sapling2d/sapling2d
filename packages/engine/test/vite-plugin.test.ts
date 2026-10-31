@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { build, createServer } from 'vite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
-import { checkTiledFiles, discoverAssetMounts, findAssetReferences, parseMountPath, sapling } from 'sapling2d/vite'
+import { checkTiledFiles, discoverAssetFunctions, discoverAssetMounts, findAssetReferences, parseMountPath, sapling } from 'sapling2d/vite'
 
 describe('findAssetReferences', () => {
   it('找出 tex / sfx / music 的字面量路径及行列号', () => {
@@ -214,5 +214,53 @@ describe('插件资源挂载（~<包名>/）', () => {
     } finally {
       await server.close()
     }
+  })
+})
+
+describe('插件包的资源函数（sapling2d.assetFunctions）', () => {
+  let dir = ''
+  afterEach(() => dir && rmSync(dir, { recursive: true, force: true }))
+
+  /** 游戏工程：依赖 @foo/spine（声明了 assetFunctions: ['spineSkeleton']）。 */
+  function project(main: string, options: { assetFunctions?: string[]; declare?: unknown } = {}) {
+    dir = mkdtempSync(join(tmpdir(), 'sapling-assetfns-'))
+    mkdirSync(join(dir, 'public', 'assets'), { recursive: true })
+    mkdirSync(join(dir, 'src'))
+    mkdirSync(join(dir, 'node_modules', '@foo', 'spine'), { recursive: true })
+    writeFileSync(join(dir, 'public', 'assets', 'hero.json'), '{}')
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'game', private: true, type: 'module', dependencies: { '@foo/spine': '1.0.0' } }))
+    const declare = options.declare === undefined ? ['spineSkeleton'] : options.declare
+    writeFileSync(join(dir, 'node_modules', '@foo', 'spine', 'package.json'), JSON.stringify({ name: '@foo/spine', version: '1.0.0', sapling2d: { assetFunctions: declare } }))
+    writeFileSync(join(dir, 'index.html'), '<script type="module" src="/src/main.ts"></script>')
+    writeFileSync(join(dir, 'src', 'main.ts'), 'const spineSkeleton = (p: string) => p; const myLoader = (p: string) => p\n' + main)
+    const plugins = [sapling(options.assetFunctions ? { assetFunctions: options.assetFunctions } : {})]
+    return () => build({ root: dir, logLevel: 'silent', plugins, build: { write: false } })
+  }
+
+  it('discoverAssetFunctions：依赖包声明的函数名；不是标识符数组时警告并忽略；选项追加', () => {
+    project('')
+    expect(discoverAssetFunctions(dir)).toEqual(['spineSkeleton'])
+    expect(discoverAssetFunctions(dir, ['myLoader'])).toEqual(['myLoader', 'spineSkeleton'])
+    const warnings: string[] = []
+    project('', { declare: 'spineSkeleton' })
+    expect(discoverAssetFunctions(dir, [], (m) => warnings.push(m))).toEqual([])
+    expect(warnings).toEqual([expect.stringContaining('"@foo/spine" declares sapling2d.assetFunctions')])
+  })
+
+  it('findAssetReferences 按传入的函数名找；引擎的默认列表不变', () => {
+    expect(findAssetReferences("spineSkeleton('hero/hero.json')")).toEqual([])
+    expect(findAssetReferences("spineSkeleton('hero/hero.json', { scale: 0.5 })", ['tex', 'spineSkeleton'])).toEqual([{ fn: 'spineSkeleton', path: 'hero/hero.json', line: 1, column: 0 }])
+  })
+
+  it('构建：依赖包声明的函数的路径存在时通过、缺失时失败并提示', async () => {
+    await expect(project("console.log(spineSkeleton('hero.json'))")()).resolves.toBeDefined()
+    const err = (await project("console.log(spineSkeleton('hero.jsn'))")().catch((e: unknown) => e)) as Error
+    expect(err.message).toContain("Asset not found: spineSkeleton('hero.jsn')")
+    expect(err.message).toContain("Did you mean 'hero.json'?")
+  })
+
+  it('sapling({ assetFunctions }) 追加的函数也检查；没声明、没追加的函数不检查', async () => {
+    await expect(project("console.log(myLoader('nope.json'))")()).resolves.toBeDefined()
+    await expect(project("console.log(myLoader('nope.json'))", { assetFunctions: ['myLoader'] })()).rejects.toThrow(/Asset not found: myLoader\('nope.json'\)/)
   })
 })

@@ -15,10 +15,18 @@ import { TileMapLayer } from '../nodes/TileMapLayer'
 import type { TextureCache } from './TextureCache'
 import type { TileMapRenderer, TileView } from './TileMapRenderer'
 
-/** 同步节点内容时用到的渲染器状态。渲染器持有一个，每次同步前更新。 */
-export interface SyncContext {
+/**
+ * 插件的节点内容（`sapling2d/render` 的 `registerNodeContent`）在 `sync` 里拿到的渲染器状态：
+ * `pixelArt`，以及把引擎的贴图句柄换成 Pixi 贴图的 `textures.get(handle)`（没加载时是 `Texture.EMPTY`；按需创建、缓存，资源卸载后自动失效）。
+ */
+export interface RenderContext {
   /** 像素风：贴图层打开 Pixi 的 `roundPixels`（顶点对齐到物理像素），图块 uv 不内缩。 */
   readonly pixelArt: boolean
+  readonly textures: { get(texture: Texture): PixiTexture }
+}
+
+/** 同步节点内容时用到的渲染器状态。渲染器持有一个，每次同步前更新。 */
+export interface SyncContext extends RenderContext {
   readonly textures: TextureCache
   readonly tileMaps: TileMapRenderer
   /** 文字的栅格化分辨率：渲染分辨率 × 视口缩放，保证文字在任何屏幕上都按实际像素清晰绘制。 */
@@ -33,8 +41,9 @@ export interface SyncContext {
 /**
  * 节点自己的显示内容（贴图、文字、粒子、区块）。放在节点容器的第 0 个（最底层），之后是子节点的容器；
  * 节点的变换、可见性、透明度和 modulate 在容器上，内容只管自己的部分。
+ * 插件给自己的节点类型实现它（`registerNodeContent`），`display` 挂在节点容器下，`alpha` / `modulate` / `blendMode` / `zIndex` 由容器统一处理。
  */
-export interface NodeContent {
+export interface NodeContent<T extends Node2D = Node2D> {
   /** 内容层的显示对象。 */
   readonly display: Container
   /** 画在内容层上面、子节点下面的覆盖层（Sprite2D 闪白的剪影）；第一次用到时才创建，没有时为 null 或不定义。 */
@@ -43,11 +52,30 @@ export interface NodeContent {
    * 每帧对每个有内容的节点调用（遍历整棵树的热路径：不分配内存）。
    * `changed`：节点的 `_version` 变了。没变时只检查自己额外关心的状态（贴图加载完成、文字分辨率、每帧都动的粒子等）。
    */
-  sync(node: Node2D, ctx: SyncContext, changed: boolean): void
+  sync(node: T, ctx: RenderContext, changed: boolean): void
   destroy(): void
 }
 
-/** 节点类型 → 内容。新的可显示节点类型在这里加一行；没有内容的 Node2D 返回 null（只有容器）。 */
+/** 插件登记的内容工厂（`registerNodeContent`）：内置类型之后按登记顺序 `instanceof`。 */
+interface RegisteredContent {
+  cls: abstract new (...args: never[]) => Node2D
+  create: (node: Node2D, ctx: RenderContext) => NodeContent
+}
+
+const registered: RegisteredContent[] = []
+
+/**
+ * 给一个节点类型登记它的显示内容（插件用，`sapling2d/render`）：第一次渲染到这种节点时调用 `create`，之后每帧调用返回对象的 `sync`。
+ * 内置节点类型优先；同一个类重复登记时后者覆盖。登记对所有游戏（渲染器）生效。
+ */
+export function registerNodeContent<T extends Node2D>(cls: abstract new (...args: never[]) => T, create: (node: T, ctx: RenderContext) => NodeContent<T>): void {
+  const entry: RegisteredContent = { cls, create: create as RegisteredContent['create'] }
+  const i = registered.findIndex((r) => r.cls === cls)
+  if (i >= 0) registered[i] = entry
+  else registered.push(entry)
+}
+
+/** 节点类型 → 内容。新的可显示节点类型在这里加一行；没有内容的 Node2D 返回 null（只有容器）。插件的类型查登记表。 */
 export function createContent(node: Node2D, ctx: SyncContext): NodeContent | null {
   if (node instanceof Sprite2D) return new SpriteContent(ctx)
   if (node instanceof ColorRect) return new ColorRectContent(ctx)
@@ -55,11 +83,15 @@ export function createContent(node: Node2D, ctx: SyncContext): NodeContent | nul
   if (node instanceof Label) return new LabelContent()
   if (node instanceof Particles2D) return new ParticlesContent(ctx)
   if (node instanceof TileMapLayer) return new TileMapContent(node, ctx)
+  for (let i = 0; i < registered.length; i++) {
+    const r = registered[i]!
+    if (node instanceof r.cls) return r.create(node, ctx)
+  }
   return null
 }
 
-/** 内容层的 label，调试时和子节点的容器区分。 */
-const CONTENT_LABEL = '__content'
+/** 内容层的 label，调试时和子节点的容器区分（插件的内容也用它）。 */
+export const CONTENT_LABEL = '__content'
 const OVERLAY_LABEL = '__flash'
 
 /**

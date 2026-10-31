@@ -55,6 +55,28 @@ export function discoverAssetMounts(root: string, extra: readonly string[] = [],
 }
 
 /**
+ * 插件包声明的资源函数：依赖包 `package.json` 的 `"sapling2d": { "assetFunctions": ["spineSkeleton"] }`，
+ * `sapling()` 对这些函数的字面量路径做和 `tex()` 一样的存在性检查。`extra` 是 `sapling({ assetFunctions })` 追加的。
+ */
+export function discoverAssetFunctions(root: string, extra: readonly string[] = [], warn: (message: string) => void = (m) => console.warn(m)): string[] {
+  const fns = new Set<string>(extra)
+  const game = readJson(join(root, 'package.json')) ?? {}
+  const names = new Set<string>([...Object.keys(asRecord(game.dependencies)), ...Object.keys(asRecord(game.devDependencies))])
+  for (const name of names) {
+    const pkgJson = findPackageJson(root, name)
+    if (!pkgJson) continue
+    const declared = asRecord(readJson(pkgJson)?.sapling2d).assetFunctions
+    if (declared === undefined) continue
+    if (!Array.isArray(declared) || !declared.every((f) => typeof f === 'string' && /^[A-Za-z_$][\w$]*$/.test(f))) {
+      warn(`[sapling2d] "${name}" declares sapling2d.assetFunctions, but it is not an array of identifiers; ignored.`)
+      continue
+    }
+    for (const f of declared) fns.add(f)
+  }
+  return [...fns]
+}
+
+/**
  * 包的 package.json。不用 `require.resolve('<name>/package.json')`：很多包的 exports 不暴露 package.json
  * （ERR_PACKAGE_PATH_NOT_EXPORTED）。沿 node_modules 向上找，pnpm 的符号链接解析成真实路径。
  */
