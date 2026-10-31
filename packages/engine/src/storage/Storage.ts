@@ -1,4 +1,4 @@
-import type { StorageRegistry } from '../index'
+import type { StorageRegistry } from '../core/registries'
 import type { StorageBackend } from './backend'
 
 /** 没有在 StorageRegistry 中注册任何 key 时，可以用任意字符串；注册之后只能用注册过的 key。 */

@@ -1,4 +1,4 @@
-import type { RawPointerEvent } from '../../core/Input'
+import type { RawPointerEvent } from '../../input/Input'
 import { MemoryStorageBackend, type StorageBackend } from '../../storage/backend'
 import { BrowserAudioBackend } from './BrowserAudio'
 import type { ScreenInfo } from '../../core/Viewport'

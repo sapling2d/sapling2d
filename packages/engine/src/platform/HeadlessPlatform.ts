@@ -1,5 +1,5 @@
 import { HeadlessAudioBackend } from '../audio/HeadlessAudio'
-import type { RawPointerEvent } from '../core/Input'
+import type { RawPointerEvent } from '../input/Input'
 import { MemoryStorageBackend } from '../storage/backend'
 import type { ScreenInfo } from '../core/Viewport'
 import type { LoadedImage, Platform } from './Platform'

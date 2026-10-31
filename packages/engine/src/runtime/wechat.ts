@@ -1,17 +1,17 @@
 // 必须最先执行：补齐 Pixi 加载时需要的全局对象（见 polyfills.ts）
-import './polyfills'
+import '../platform/wechat/polyfills'
 import 'pixi.js/unsafe-eval'
 import { DOMAdapter } from 'pixi.js'
-import type { Scene } from '../../core/Scene'
-import { keyboard } from '../../plugins/keyboard'
-import { PixiRenderer } from '../../render/PixiRenderer'
-import { Game, type GameOptions } from '../../runtime/Game'
-import { WechatAdapter } from './adapter'
-import { _currentAssetPaths } from './assets'
-import { screenCanvas } from './polyfills'
-import { WechatPlatform } from './WechatPlatform'
+import type { Scene } from '../core/Scene'
+import { keyboard } from '../plugins/keyboard'
+import { PixiRenderer } from '../render/PixiRenderer'
+import { Game, type GameOptions } from './Game'
+import { WechatAdapter } from '../platform/wechat/adapter'
+import { _currentAssetPaths } from '../platform/wechat/assets'
+import { screenCanvas } from '../platform/wechat/polyfills'
+import { WechatPlatform } from '../platform/wechat/WechatPlatform'
 
-export { WechatPlatform } from './WechatPlatform'
+export { WechatPlatform } from '../platform/wechat/WechatPlatform'
 
 /**
  * 加载包内的字体文件（ttf / otf），返回字体名；之后把 Label 的 `fontFamily` 设为它。失败时返回 null。

@@ -4,5 +4,5 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": []
   },
-  "include": ["src/platform/browser"]
+  "include": ["src/platform/browser", "src/runtime/browser.ts"]
 }

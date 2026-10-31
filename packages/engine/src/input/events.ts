@@ -1,4 +1,4 @@
-import type { InputEventRegistry } from '../../index'
+import type { InputEventRegistry } from '../core/registries'
 
 /** 指针事件。坐标是窗口逻辑像素（与 ScreenInfo 一致），由引擎换算成设计坐标。平台只产这一种事件。 */
 export type RawPointerEvent = { type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel'; pointerId: number; x: number; y: number }

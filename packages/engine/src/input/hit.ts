@@ -1,5 +1,5 @@
-import type { Vector2 } from '../../math/Vector2'
-import type { Node2D } from '../Node2D'
+import type { Vector2 } from '../math/Vector2'
+import type { Node2D } from '../core/Node2D'
 
 /** 节点现在能不能接收指针（没有等待销毁、在树里可见、能处理）。 */
 export function canHit(n: Node2D): boolean {

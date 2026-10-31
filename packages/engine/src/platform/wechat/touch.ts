@@ -1,4 +1,4 @@
-import type { RawPointerEvent } from '../../core/Input'
+import type { RawPointerEvent } from '../../input/Input'
 
 /** wx 触摸事件里引擎用到的部分（见 spikes/wechat/REPORT.md 第 5 节）。 */
 export interface WxTouchEvent {

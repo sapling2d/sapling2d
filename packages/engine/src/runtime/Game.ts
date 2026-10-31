@@ -1,21 +1,16 @@
 import { AudioServer } from '../audio/AudioServer'
-import { AssetLoader } from '../core/AssetLoader'
+import { AssetLoader } from '../assets/AssetLoader'
 import type { Scene, SceneClass } from '../core/Scene'
+import type { Renderer } from '../core/Renderer'
 import { SceneTree, type NodeClass } from '../core/SceneTree'
-import type { ActionName } from '../core/actions'
-import type { InputBinding } from '../core/Input'
+import type { ActionName } from '../input/actions'
+import type { InputBinding } from '../input/Input'
 import type { Plugin, PluginContext } from '../core/plugin'
 import { Viewport, type DesignResolution } from '../core/Viewport'
 import type { PhysicsSettings } from '../physics/PhysicsWorld'
 import type { Platform } from '../platform/Platform'
 import { Storage } from '../storage/Storage'
 import { DefaultLoadingScene } from './DefaultLoadingScene'
-
-/** 渲染器接口：每帧把场景树同步到画面。无头模式没有渲染器。 */
-export interface Renderer {
-  render(tree: SceneTree): void
-  destroy(): void
-}
 
 /** `game.frameStats` 的内容（毫秒）。 */
 export interface FrameStats {

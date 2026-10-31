@@ -1,5 +1,5 @@
 import type { HeadlessAudioBackend } from '../audio/HeadlessAudio'
-import type { RawInputEvent } from '../core/Input'
+import type { RawInputEvent } from '../input/Input'
 import type { DumpNode } from '../core/Node'
 import type { Scene } from '../core/Scene'
 import type { ScreenInfo } from '../core/Viewport'

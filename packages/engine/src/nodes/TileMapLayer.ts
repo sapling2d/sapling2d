@@ -1,6 +1,6 @@
 import { Node2D, type Node2DOptions } from '../core/Node2D'
-import type { TiledMap, TiledTileLayer } from '../core/tiled'
-import { TILE_EMPTY, type TileData, type TileSet } from '../core/tileset'
+import type { TiledMap, TiledTileLayer } from '../assets/TiledMap'
+import { TILE_EMPTY, type TileData, type TileSet } from '../assets/TileSet'
 import { Rect2 } from '../math/Rect2'
 import { Vector2 } from '../math/Vector2'
 import { TileLayers } from './TileLayers'

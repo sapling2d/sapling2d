@@ -1,10 +1,10 @@
-import type { Scene } from '../../core/Scene'
-import { keyboard } from '../../plugins/keyboard'
-import { PixiRenderer } from '../../render/PixiRenderer'
-import { Game, type GameOptions } from '../../runtime/Game'
-import { BrowserPlatform } from './BrowserPlatform'
+import type { Scene } from '../core/Scene'
+import { keyboard } from '../plugins/keyboard'
+import { PixiRenderer } from '../render/PixiRenderer'
+import { Game, type GameOptions } from './Game'
+import { BrowserPlatform } from '../platform/browser/BrowserPlatform'
 
-export { BrowserPlatform, type BrowserPlatformOptions } from './BrowserPlatform'
+export { BrowserPlatform, type BrowserPlatformOptions } from '../platform/browser/BrowserPlatform'
 
 export interface BrowserGameOptions<S extends Scene> extends GameOptions<S> {
   /** 渲染用的画布。不传时创建一个铺满窗口的画布加到 `document.body`。画布尺寸始终跟随窗口。 */

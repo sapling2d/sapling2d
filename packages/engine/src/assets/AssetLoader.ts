@@ -1,5 +1,5 @@
 import type { Platform } from '../platform/Platform'
-import type { AssetMap, Resource } from './assets'
+import type { AssetMap, Resource } from './Resource'
 
 /** 启动时准备资源包（`Platform.prepareAssets`）占加载进度的比例，其余是加载入口场景的资源。 */
 const PREPARE_SHARE = 0.7

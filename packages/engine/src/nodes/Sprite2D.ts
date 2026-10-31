@@ -1,4 +1,4 @@
-import type { Texture } from '../core/assets'
+import type { Texture } from '../assets/Texture'
 import { clampColor, hex, Node2D, type Node2DOptions } from '../core/Node2D'
 import { Rect2 } from '../math/Rect2'
 import { Vector2 } from '../math/Vector2'

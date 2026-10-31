@@ -1,6 +1,6 @@
-import type { Texture } from '../core/assets'
+import type { Texture } from '../assets/Texture'
 import { Signal } from '../core/Signal'
-import type { SpriteAnimation } from '../core/spriteAnimation'
+import type { SpriteAnimation } from '../assets/SpriteAnimation'
 import { Sprite2D, type Sprite2DOptions } from './Sprite2D'
 
 export interface AnimatedSprite2DOptions<A extends string = string> extends Omit<Sprite2DOptions, 'texture'> {

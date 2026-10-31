@@ -4,8 +4,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Scene, TileMapLayer, tiledMap, v } from 'sapling2d'
 import { createTestGame } from 'sapling2d/testing'
-import { joinPath } from '../src/core/tiled'
-import { TILE_ONE_WAY, TILE_SOLID } from '../src/core/tileset'
+import { joinPath } from '../src/assets/TiledMap'
+import { TILE_ONE_WAY, TILE_SOLID } from '../src/assets/TileSet'
 
 const FIXTURES = 'test/fixtures/tiled'
 

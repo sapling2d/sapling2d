@@ -1,4 +1,4 @@
-import type { Texture } from './assets'
+import type { Texture } from './Texture'
 
 /** 一套帧动画：`AnimatedSprite2D` 播放它，`aseprite()` 的 tag 也产出它。 */
 export interface SpriteAnimation {

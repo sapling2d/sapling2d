@@ -1,5 +1,5 @@
 import type { AudioBackend } from '../audio/backend'
-import type { RawPointerEvent } from '../core/Input'
+import type { RawPointerEvent } from '../input/Input'
 import type { StorageBackend } from '../storage/backend'
 import type { ScreenInfo } from '../core/Viewport'
 

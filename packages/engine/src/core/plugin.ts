@@ -1,5 +1,5 @@
 import type { Platform } from '../platform/Platform'
-import type { AssetMap } from './assets'
+import type { AssetMap } from '../assets/Resource'
 import type { Node } from './Node'
 import type { NodeClass, SceneTree } from './SceneTree'
 

@@ -1,6 +1,6 @@
 import type { Node } from '../core/Node'
 import { Node2D, type Node2DOptions } from '../core/Node2D'
-import { TILE_ONE_WAY, TILE_SOLID } from '../core/tileset'
+import { TILE_ONE_WAY, TILE_SOLID } from '../assets/TileSet'
 import { Vector2 } from '../math/Vector2'
 import { PhysicsWorld } from '../physics/PhysicsWorld'
 import type { RectangleShape2D } from '../physics/shapes'

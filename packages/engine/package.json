@@ -40,12 +40,12 @@
   ],
   "exports": {
     ".": "./src/index.ts",
-    "./browser": "./src/platform/browser/index.ts",
+    "./browser": "./src/runtime/browser.ts",
     "./motion": "./src/plugins/motion/index.ts",
     "./render": "./src/render/index.ts",
     "./testing": "./src/testing/index.ts",
     "./vite": "./src/vite/index.ts",
-    "./wechat": "./src/platform/wechat/index.ts",
+    "./wechat": "./src/runtime/wechat.ts",
     "./wechat-polyfills": "./src/platform/wechat/polyfills.ts"
   },
   "publishConfig": {

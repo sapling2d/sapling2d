@@ -1,4 +1,4 @@
-import type { InputBindingRegistry } from '../../index'
+import type { InputBindingRegistry } from '../core/registries'
 
 /** 指针按下绑定（见 `pointerPress()`）。 */
 export type PointerBinding = { readonly type: 'pointer' }

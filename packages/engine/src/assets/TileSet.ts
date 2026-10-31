@@ -1,4 +1,5 @@
-import { tex, type Resource, type Texture } from './assets'
+import type { Resource } from './Resource'
+import { tex, type Texture } from './Texture'
 
 /** 图块的碰撞类型：`solid` 整格实心；`oneWay` 单向平台（只从上方挡住）。不设置就是没有碰撞。 */
 export type TileCollision = 'solid' | 'oneWay'

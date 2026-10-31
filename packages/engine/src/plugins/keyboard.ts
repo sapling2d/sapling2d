@@ -1,13 +1,11 @@
-import type { InputBinding } from '../core/input/bindings'
-import type { RawInputEvent } from '../core/input/events'
-import type { InputSource } from '../core/input/source'
+import type { InputBinding } from '../input/bindings'
+import type { RawInputEvent } from '../input/events'
+import type { InputSource } from '../input/source'
 import type { Plugin } from '../core/plugin'
 
-/** 键盘事件。只有浏览器会产生；测试里用 `g.keyDown` / `g.pressKey` 注入。 */
-export type RawKeyEvent = { type: 'keydown' | 'keyup'; code: string }
+import type { KeyBinding, RawKeyEvent } from '../input/keyboard'
 
-/** 键盘按键绑定（见 `key()`）。 */
-export type KeyBinding = { readonly type: 'key'; readonly code: string }
+export type { KeyBinding, RawKeyEvent } from '../input/keyboard'
 
 /** 键盘按键绑定。`code` 是 KeyboardEvent.code，如 'Space'、'KeyA'、'ArrowLeft'。 */
 export function key(code: string): InputBinding {

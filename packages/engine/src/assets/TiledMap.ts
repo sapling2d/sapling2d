@@ -1,7 +1,8 @@
 import type { Platform } from '../platform/Platform'
 import { Vector2 } from '../math/Vector2'
-import { tex, type Resource, type Texture } from './assets'
-import { TileSet, type TileOptions } from './tileset'
+import type { Resource } from './Resource'
+import { tex, type Texture } from './Texture'
+import { TileSet, type TileOptions } from './TileSet'
 
 /** Tiled 对象层里的一个对象（敌人、金币、出生点……）。坐标和 Tiled 里一样，单位是像素。 */
 export interface TiledObject {

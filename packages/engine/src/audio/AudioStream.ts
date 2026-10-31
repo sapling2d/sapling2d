@@ -1,4 +1,5 @@
-import type { Resource, Texture } from '../core/assets'
+import type { Resource } from '../assets/Resource'
+import type { Texture } from '../assets/Texture'
 import type { AudioBackend } from './backend'
 
 /**

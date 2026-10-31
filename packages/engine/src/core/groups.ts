@@ -1,4 +1,4 @@
-import type { GroupRegistry } from '../index'
+import type { GroupRegistry } from './registries'
 import type { Node } from './Node'
 
 /**

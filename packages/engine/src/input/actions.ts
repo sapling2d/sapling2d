@@ -1,4 +1,4 @@
-import type { ActionRegistry } from '../index'
+import type { ActionRegistry } from '../core/registries'
 
 /**
  * 输入动作名。ActionRegistry 为空时可以是任意字符串；在游戏里用声明合并注册之后，

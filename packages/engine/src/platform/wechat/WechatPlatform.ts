@@ -1,5 +1,5 @@
 /// <reference path="./wx.d.ts" />
-import type { RawPointerEvent } from '../../core/Input'
+import type { RawPointerEvent } from '../../input/Input'
 import type { ScreenInfo } from '../../core/Viewport'
 import type { LoadedImage, Platform } from '../Platform'
 import { _createClock } from './clock'

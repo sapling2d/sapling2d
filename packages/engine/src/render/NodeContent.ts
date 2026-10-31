@@ -2,7 +2,7 @@ import { Matrix, NineSliceSprite as PixiNineSlice, Particle, ParticleContainer, 
 // ParticleContainer 和 NineSliceSprite 的渲染管线是可选扩展（skipExtensionImports 不会自动加载）
 import 'pixi.js/particle-container'
 import 'pixi.js/sprite-nine-slice'
-import type { Texture } from '../core/assets'
+import type { Texture } from '../assets/Texture'
 import type { Node2D } from '../core/Node2D'
 import { invertAffine } from '../math/Affine'
 import type { Rect2 } from '../math/Rect2'

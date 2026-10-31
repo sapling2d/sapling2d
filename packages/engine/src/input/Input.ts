@@ -1,16 +1,16 @@
 import { Vector2 } from '../math/Vector2'
 import type { ActionName } from './actions'
-import { ActionMap, type ActionSource } from './input/ActionMap'
-import type { InputBinding } from './input/bindings'
-import { isPointerEvent, type RawInputEvent } from './input/events'
-import { PointerRouter } from './input/PointerRouter'
-import type { InputSource } from './input/source'
-import type { Node } from './Node'
-import type { Viewport } from './Viewport'
+import { ActionMap, type ActionSource } from './ActionMap'
+import type { InputBinding } from './bindings'
+import { isPointerEvent, type RawInputEvent } from './events'
+import { PointerRouter } from './PointerRouter'
+import type { InputSource } from './source'
+import type { Node } from '../core/Node'
+import type { Viewport } from '../core/Viewport'
 
-export type { InputBinding, PointerBinding } from './input/bindings'
-export type { RawInputEvent, RawPointerEvent } from './input/events'
-export type { InputSource } from './input/source'
+export type { InputBinding, PointerBinding } from './bindings'
+export type { RawInputEvent, RawPointerEvent } from './events'
+export type { InputSource } from './source'
 
 /** 指针按下绑定：屏幕上任意位置的按下（被 inputPickable 节点处理掉的不算）。 */
 export function pointerPress(): InputBinding {

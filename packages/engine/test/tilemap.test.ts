@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { Node2D, Scene, TileLayers, TileMapLayer, tileset, v } from 'sapling2d'
 import { createTestGame } from 'sapling2d/testing'
 import { PixiRenderer } from '../src/render/PixiRenderer'
-import { TILE_EMPTY, TILE_ONE_WAY, TILE_SOLID } from '../src/core/tileset'
+import { TILE_EMPTY, TILE_ONE_WAY, TILE_SOLID } from '../src/assets/TileSet'
 
 const set = (name: string) =>
   tileset(`${name}.png`, { tileSize: 16, tiles: { 1: { collision: 'solid' }, 2: { collision: 'oneWay' }, 3: { data: { breakable: true } } } })

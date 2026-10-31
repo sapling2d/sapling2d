@@ -1,4 +1,4 @@
-import type { AssetMap } from './assets'
+import type { AssetMap } from '../assets/Resource'
 import { Node2D } from './Node2D'
 
 /**

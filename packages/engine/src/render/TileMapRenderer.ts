@@ -11,7 +11,7 @@ import {
   type GlProgram,
   type Texture as PixiTexture,
 } from 'pixi.js'
-import type { Texture } from '../core/assets'
+import type { Texture } from '../assets/Texture'
 import { identityAffine, invertAffine } from '../math/Affine'
 import type { Rect2 } from '../math/Rect2'
 import { TILE_CHUNK, type TileMapLayer } from '../nodes/TileMapLayer'

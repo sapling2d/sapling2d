@@ -15,7 +15,7 @@ import {
   type TextureSource,
   type WebGLRenderer,
 } from 'pixi.js'
-import type { Texture } from '../core/assets'
+import type { Texture } from '../assets/Texture'
 
 /**
  * 引擎贴图句柄 → Pixi 贴图和 GPU 上的图片源。整张图一个图片源，图集的各帧（子区域）共用它。

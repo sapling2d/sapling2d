@@ -5,5 +5,5 @@
     "lib": ["ES2022"],
     "types": []
   },
-  "include": ["src/platform/wechat", "src/env.d.ts"]
+  "include": ["src/platform/wechat", "src/runtime/wechat.ts", "src/env.d.ts"]
 }

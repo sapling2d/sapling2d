@@ -7,5 +7,5 @@
     "types": []
   },
   "include": ["src"],
-  "exclude": ["src/platform/browser", "src/platform/wechat", "src/vite"]
+  "exclude": ["src/platform/browser", "src/platform/wechat", "src/runtime/browser.ts", "src/runtime/wechat.ts", "src/vite"]
 }

@@ -1,4 +1,4 @@
-import type { Texture } from '../core/assets'
+import type { Texture } from '../assets/Texture'
 import { Node2D, type Node2DOptions } from '../core/Node2D'
 import { Signal } from '../core/Signal'
 import { identityAffine } from '../math/Affine'

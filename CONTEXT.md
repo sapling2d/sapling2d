@@ -67,6 +67,22 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - **Storage** — `this.tree.storage.get(key, default)` / `set` / `remove` / `has` / `keys` / `clear`，同步、JSON、自动加前缀（默认 `sapling2d:`，`storagePrefix` 可改）。数据损坏或类型与默认值不一致时返回默认值。key 和值可通过声明合并 `StorageRegistry` 加类型。平台只实现 `StorageBackend`（浏览器 localStorage，不可用时退回内存）。
 - **dump** — 场景树的文本转储（缩进文本，可选 JSON），供 agent 观察游戏状态。
 
+## Engine layout（`packages/engine/src`）
+
+依赖只能向下（`test/layering.test.ts` 按目录检查 import 方向，类型导入也算）：
+
+- `math/` — 向量、矩形、变换、缓动、随机数，不认识任何别的目录。
+- `assets/` — 资源：`Texture` / `SpriteSheet` / `Atlas` / `AsepriteSheet` / `TileSet` / `TiledMap`、`Resource` 协议、`AssetLoader`。只认识 `math` 和 `Platform` 接口，不认识节点。
+- `audio/`、`storage/`、`physics/` — 子系统各自一个目录；`physics` 定义 `CollisionObjectNode` 接口让节点来实现，不 import 节点。
+- `core/` — 树和主循环：`Node` / `Node2D` / `Scene` / `SceneTree`、`Signal`、`Tween`、`SceneTreeTimer`、`Viewport`、`Renderer` 接口、插件 API、声明合并用的注册表（`registries.ts`）。不认识节点类型。
+- `input/` — `Input`、`ActionMap`、`PointerRouter`、事件 / 绑定 / 来源类型、键盘事件类型。和 `core` 互相只引类型。
+- `nodes/` — 内置节点，以及伴随节点的树级子系统（`CameraManager`、`TileLayers`）。
+- `render/` — Pixi 渲染：实现 `core/Renderer`，同步节点到显示对象；`NodeContent` 登记表是插件的扩展点。
+- `platform/` — `Platform` 接口和 `HeadlessPlatform`；`browser/`、`wechat/` 是各平台的实现（只有它们能碰 `window` / `wx`）。
+- `plugins/` — 内置插件（键盘、运动传感器），只用公开 API。
+- `runtime/` — 组合根：`Game`、`DefaultLoadingScene`，以及 `browser.ts` / `wechat.ts` 两个 `startGame` 入口（把平台、渲染器、默认插件拼起来）。
+- `testing/`、`vite/` — 无头测试工具、构建插件。
+
 ## Conventions
 
 - 单位：像素、y 轴向下、弧度（另有 `rotationDegrees`）、重力 px/s²。

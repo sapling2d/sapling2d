@@ -2,94 +2,62 @@ export { Node, type NodeOptions, type DumpNode, type ProcessMode } from './core/
 export { Node2D, type Node2DOptions, type BlendMode } from './core/Node2D'
 export { Scene, type SceneClass, type SceneConstructor } from './core/Scene'
 export { SceneTree, type SceneTreeOptions, type DumpOptions, type NodeClass, type SystemClass, type TreeSystem } from './core/SceneTree'
-export { AssetLoader } from './core/AssetLoader'
 export { Vector2, v } from './math/Vector2'
 export { Rect2, rect } from './math/Rect2'
 export { Curve2D, type CurvePoint, type Curve2DOptions } from './math/Curve2D'
 export { Viewport, MAX_RENDER_RESOLUTION, type StretchAspect, type DesignResolution, type ScreenInfo } from './core/Viewport'
 export { RandomNumberGenerator } from './math/RandomNumberGenerator'
-export type { Platform, PlatformKind } from './platform/Platform'
+export type { Platform, PlatformKind, LoadedImage } from './platform/Platform'
 export { HeadlessPlatform } from './platform/HeadlessPlatform'
 export { Signal, type SignalResult } from './core/Signal'
 export { Tween, type TweenProps, type TweenableKey } from './core/Tween'
 export { Ease, type EaseFn } from './math/ease'
 export { Timer, type TimerOptions } from './nodes/Timer'
 export { SceneTreeTimer } from './core/SceneTreeTimer'
-export { Input, pointerPress, type InputBinding, type PointerBinding, type RawInputEvent, type RawPointerEvent, type InputSource } from './core/Input'
-export type { ActionName } from './core/actions'
+export { Transform2D } from './math/Transform2D'
+export type { Renderer } from './core/Renderer'
+
+// 输入
+export { Input, pointerPress, type InputBinding, type PointerBinding, type RawInputEvent, type RawPointerEvent, type InputSource } from './input/Input'
+export type { ActionName } from './input/actions'
+export type { PointerEvent2D, CircleHitArea } from './core/pointer'
 export type { Plugin, PluginContext, ServiceToken } from './core/plugin'
 export { keyboard, key, Keyboard, type RawKeyEvent, type KeyBinding } from './plugins/keyboard'
-
-import type { PointerBinding, RawPointerEvent } from './core/Input'
-import type { KeyBinding, RawKeyEvent } from './plugins/keyboard'
-
-/**
- * 原始输入事件注册表。核心只有指针事件；内置的键盘插件直接登记在这里，外部插件用声明合并加入自己的事件。
- * 每种事件都要有 `type` 字段（字符串字面量），`Input` 按它把事件路由给订阅了该类型的 `InputSource`：
- *
- * ```ts
- * declare module 'sapling2d' {
- *   interface InputEventRegistry { motion: { type: 'motion'; x: number; y: number; z: number } }
- * }
- * ```
- */
-export interface InputEventRegistry {
-  pointer: RawPointerEvent
-  key: RawKeyEvent
-}
-
-/**
- * 动作绑定注册表。核心只有 `pointerPress()`；内置的键盘插件直接登记在这里，外部插件用声明合并加入自己的绑定。
- * 每种绑定都要有 `type` 字段，和认领它的 `InputSource.bindingTypes` 对应：
- *
- * ```ts
- * declare module 'sapling2d' {
- *   interface InputBindingRegistry { tilt: { type: 'tilt'; dir: 'left' | 'right' } }
- * }
- * ```
- */
-export interface InputBindingRegistry {
-  pointer: PointerBinding
-  key: KeyBinding
-}
-export type { PointerEvent2D, CircleHitArea } from './core/pointer'
-export { Transform2D } from './math/Transform2D'
 export type { GroupName, GroupNodeType } from './core/groups'
+// 用声明合并扩展的注册表（`declare module 'sapling2d' { interface ActionRegistry { … } }`）：接口在 core/registries.ts，这里按名字 re-export
+export type { InputEventRegistry, InputBindingRegistry, GroupRegistry, ActionRegistry, StorageRegistry } from './core/registries'
 
-/**
- * 组名注册表。用声明合并给组名加类型（见 GroupName）：
- *
- * ```ts
- * declare module 'sapling2d' {
- *   interface GroupRegistry { fruits: Fruit }
- * }
- * ```
- */
-export interface GroupRegistry {}
+// 节点
 export { Sprite2D, type Sprite2DOptions } from './nodes/Sprite2D'
 export { AnimatedSprite2D, type AnimatedSprite2DOptions } from './nodes/AnimatedSprite2D'
-export type { SpriteAnimation } from './core/spriteAnimation'
 export { TileMapLayer, type TileMapLayerOptions } from './nodes/TileMapLayer'
 export { TileLayers } from './nodes/TileLayers'
 export { CharacterBody2D, type CharacterBody2DOptions, type SlideCollision } from './nodes/CharacterBody2D'
 export { Camera2D, type Camera2DOptions } from './nodes/Camera2D'
 export { CameraManager } from './nodes/CameraManager'
 export { CanvasLayer, type CanvasLayerOptions } from './nodes/CanvasLayer'
-export { TileSet, tileset, type TileSetOptions, type TileOptions, type TileData, type TileCollision } from './core/tileset'
-export { TiledMap, tiledMap, type TiledObject, type TiledObjectLayer, type TiledTileLayer } from './core/tiled'
 export { CollisionObject2D, type CollisionObject2DOptions } from './nodes/physics/CollisionObject2D'
 export { PhysicsBody2D, StaticBody2D, type PhysicsBody2DOptions } from './nodes/physics/PhysicsBody2D'
 export { Area2D, type Area2DOptions } from './nodes/physics/Area2D'
 export { RigidBody2D, type RigidBody2DOptions } from './nodes/physics/RigidBody2D'
 export { CollisionShape2D, type CollisionShape2DOptions } from './nodes/physics/CollisionShape2D'
-export { CircleShape2D, RectangleShape2D, ConvexPolygonShape2D, circle, rectangle, polygon, MAX_POLYGON_VERTICES, type Shape2D } from './physics/shapes'
-export { PhysicsWorld, type PhysicsSettings } from './physics/PhysicsWorld'
-export { HitTester, type Hittable } from './physics/HitTester'
 export { ColorRect, type ColorRectOptions } from './nodes/ColorRect'
 export { NineSliceSprite, type NineSliceSpriteOptions, type NineSliceMargins } from './nodes/NineSliceSprite'
 export { Particles2D, type Particles2DOptions } from './nodes/Particles2D'
 export { Label, type LabelOptions, type LabelStroke, type HorizontalAlignment, type VerticalAlignment } from './nodes/Label'
-export { Texture, tex, SpriteSheet, sheet, Atlas, atlas, type AssetMap, type AtlasData, type AtlasFrameData, type Resource } from './core/assets'
+export { AudioStreamPlayer, type AudioStreamPlayerOptions } from './nodes/AudioStreamPlayer'
+
+// 物理
+export { CircleShape2D, RectangleShape2D, ConvexPolygonShape2D, circle, rectangle, polygon, MAX_POLYGON_VERTICES, type Shape2D } from './physics/shapes'
+export { PhysicsWorld, type PhysicsSettings } from './physics/PhysicsWorld'
+export { HitTester, type Hittable } from './physics/HitTester'
+
+// 资源
+export { AssetLoader } from './assets/AssetLoader'
+export type { AssetMap, Resource } from './assets/Resource'
+export { Texture, tex } from './assets/Texture'
+export { SpriteSheet, sheet, Atlas, atlas, type AtlasData, type AtlasFrameData } from './assets/SpriteSheet'
+export type { SpriteAnimation } from './assets/SpriteAnimation'
 export {
   AsepriteSheet,
   aseprite,
@@ -99,36 +67,18 @@ export {
   type AsepriteSliceData,
   type AsepriteSliceKey,
   type AsepriteAnimationOptions,
-} from './core/aseprite'
+} from './assets/AsepriteSheet'
+export { TileSet, tileset, type TileSetOptions, type TileOptions, type TileData, type TileCollision } from './assets/TileSet'
+export { TiledMap, tiledMap, type TiledObject, type TiledObjectLayer, type TiledTileLayer } from './assets/TiledMap'
+
+// 音频与存储
 export { AudioStream, sfx, music } from './audio/AudioStream'
-export { Storage } from './storage/Storage'
-export { MemoryStorageBackend, type StorageBackend } from './storage/backend'
 export { AudioServer, Voice, type AudioBus, type PlayOptions } from './audio/AudioServer'
 export type { AudioBackend, SoundHandle } from './audio/backend'
 export type { PlayedSound } from './audio/HeadlessAudio'
-export { AudioStreamPlayer, type AudioStreamPlayerOptions } from './nodes/AudioStreamPlayer'
-export { Game, type GameOptions, type LoadingScreen, type Renderer, type FrameStats } from './runtime/Game'
+export { Storage } from './storage/Storage'
+export { MemoryStorageBackend, type StorageBackend } from './storage/backend'
+
+// 运行时
+export { Game, type GameOptions, type LoadingScreen, type FrameStats } from './runtime/Game'
 export { DefaultLoadingScene } from './runtime/DefaultLoadingScene'
-export type { LoadedImage } from './platform/Platform'
-
-/**
- * 输入动作注册表。用声明合并给动作名加类型（见 ActionName）：
- *
- * ```ts
- * declare module 'sapling2d' {
- *   interface ActionRegistry { drop: true }
- * }
- * ```
- */
-export interface ActionRegistry {}
-
-/**
- * 存储注册表。用声明合并给存储的 key 和值加类型：
- *
- * ```ts
- * declare module 'sapling2d' {
- *   interface StorageRegistry { highScore: number }
- * }
- * ```
- */
-export interface StorageRegistry {}
