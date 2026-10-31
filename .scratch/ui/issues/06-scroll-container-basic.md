@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — `clipRect`；03 — `capturePointer`；04 — `@sapling2d/ui` 包与 `Button`
 
-**Status:** ready-for-agent
+**Status:** needs-triage（2026-10-31 挂起：先不做滚动列表；重新立项时连同 03 一起做）
 
 - [ ] 结构：容器 `inputPickable = true`、`clipRect` 等于 `rect` 且随 `size` 更新；`content: Node2D` 子节点；`contentSize` 由游戏给；`horizontal` / `vertical` 开关默认 false / true
 - [ ] 容器通过 `InputSource` 订阅原始指针事件（`pointerdown` / `pointermove` / `pointerup` / `pointercancel`），进树时 `addSource`、离树时 `removeSource`；`handle` 与 `process` 不分配（起点、当前位置用数字字段）

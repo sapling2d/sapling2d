@@ -2,6 +2,7 @@
 
 Status: ready-for-agent
 Date: 2026-10-31
+调整（2026-10-31）：滚动列表先不做。`ScrollContainer`（工单 06 / 07）和它唯一的消费原语 `capturePointer`（工单 03）挂起，等滚动列表或翻页器立项时一起做；第一批控件是 `Control`、`Button`、`ProgressBar`。下文关于两者的决策保留，作为重新立项时的起点。
 ADR: docs/adr/0002-node-owns-data-render-sync.md、docs/adr/0010-plugins.md、docs/adr/0011-plugin-assets.md；本规格落地时新增一条 ADR（裁剪是 Node2D 的属性、指针捕获可以转移、控件在独立包）
 相关讨论：对比主流小游戏引擎后，UI 是最大的能力缺口（Cocos / Laya 标配 Mask、ScrollView、Button、Widget、ProgressBar）
 

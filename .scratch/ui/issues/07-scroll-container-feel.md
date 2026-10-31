@@ -4,7 +4,7 @@
 
 **Blocked by:** 06 — `ScrollContainer` 基础
 
-**Status:** ready-for-agent
+**Status:** needs-triage（2026-10-31 挂起：先不做滚动列表；重新立项时连同 03 一起做）
 
 - [ ] 快速 `g.drag` 后继续 `g.step` 若干帧：`scrollOffset` 继续沿拖动方向变化、速度单调衰减、最终停止且不越界；`inertia: false` 时松手即停
 - [ ] 拖过边界：拖动期间 `scrollOffset` 可以越界但位移按阻尼缩小；松手后若干帧内回到边界并停住；`bounce: false` 时拖动期间就夹紧

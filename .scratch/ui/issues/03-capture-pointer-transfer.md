@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** needs-triage（2026-10-31 挂起：先不做滚动列表，等滚动列表 / 翻页器立项时和 06、07 一起做；唯一消费者是 `ScrollContainer`，见 spec 顶部的调整说明）
 
 - [ ] 子节点捕获中，父节点 `capturePointer(id)` 返回 `true`：子节点收到 `pointerUp`（位置为指针最近位置）且无 `clicked`；之后 `g.pointerMove` 只到父节点的 `pointerMove`；`g.pointerUp` 在父节点内 → 父节点 `clicked`
 - [ ] 指针按在空处（未处理，`pointerPress()` 动作为按下）→ 某节点 `capturePointer` 后，下一次 `step` 该动作 `isActionJustReleased` 为 true，`input.isPointerPressed` 仍为 true
