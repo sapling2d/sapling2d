@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { circle, CollisionShape2D, Node, Node2D, RigidBody2D, Scene, Timer, v } from 'sapling2d'
+import { AnimatedSprite2D, circle, CollisionShape2D, Node, Node2D, RigidBody2D, Scene, sheet, Timer, v } from 'sapling2d'
 import { createTestGame } from 'sapling2d/testing'
 
 /** 每个物理步记录一个值：用来比较不同倍速下各个物理步看到的东西是否一样。 */
@@ -104,6 +104,25 @@ describe('processInPhysics：按物理步推进的计时器和补间', () => {
     g.step(6)
     expect([always, pausable]).toEqual([1, 1])
     expect(mover.x).toBeCloseTo(6)
+  })
+
+  it('AnimatedSprite2D processInPhysics：帧变化（出手帧）在 1 倍速和 3 倍速下落在同一个物理步；按帧的在 3 倍速下晚两步', async () => {
+    const frameSteps = async (speed: number, processInPhysics: boolean) => {
+      const g = await createTestGame({ main: Scene })
+      g.tree.timeScale = speed
+      // 4 帧、每帧 7 步（7/60 秒，故意不是 3 的倍数）：第 2 帧在第 7 步显示，第 3 帧第 14 步，第 4 帧第 21 步
+      const d = 7 / 60
+      const sprite = g.scene.add(new AnimatedSprite2D({ frames: sheet('anim-physics.png', { columns: 4, rows: 1 }).frames(), durations: [d, d, d, d], loop: false, autoplay: true, processInPhysics }))
+      const at: number[] = []
+      sprite.frameChanged.connect(() => at.push(g.tree.physicsFrames))
+      stepPhysics(g, 24, speed)
+      expect(g.dump().includes('physics=true')).toBe(processInPhysics)
+      return at
+    }
+    expect(await frameSteps(1, true)).toEqual([7, 14, 21])
+    expect(await frameSteps(3, true)).toEqual([7, 14, 21])
+    expect(await frameSteps(1, false)).toEqual([7, 14, 21])
+    expect(await frameSteps(3, false)).toEqual([9, 15, 21]) // 按帧：帧末才推进，一帧 3 步，出手帧最多晚两步
   })
 
   it('ignoreTimeScale 和 processInPhysics 不能同时用', async () => {

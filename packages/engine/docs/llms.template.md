@@ -164,7 +164,7 @@
 - `sheet(path, { columns, rows })`：等大格子的网格图集，`frame(i)` / `frames(start, end)`（含两端）/ `count`。帧尺寸 = 整张图尺寸 / 列数（行数），图片加载后才确定，无头模式下为 0。
 - `atlas(path, data)`：打包图集，`data` 是 TexturePacker 等工具导出的 JSON（Hash 或 Array 格式，直接 import）。`get(name)` / `frames(prefix)`（名字是“前缀 + 编号”的帧，按编号排序）/ `names` / `has`。尺寸来自 JSON，无头模式下也正确；支持裁剪透明边（trimmed），不支持旋转打包。
 - 图集的帧就是 `Texture`，可以给任何 `Sprite2D`；同一张图的帧共用一份显存，绘制时能合批。`static assets` 里放 `sheet` / `atlas` / `aseprite`，切换场景时按整张图判断是否卸载。
-- `AnimatedSprite2D`：`frames` + `fps`（默认 10）+ `loop`（默认 true），或 `animations: { 名字: { frames, fps, loop } }`。`play(name?)` / `pause()` / `stop()`（回到第 0 帧）、`frame`（可赋值）、`frameCount`、`speedScale`、`isPlaying`、`animation`；信号 `frameChanged`、`animationFinished`（不循环的动画播完，参数是动画名）。`texture` 由动画控制，不要直接赋值。
+- `AnimatedSprite2D`：`frames` + `fps`（默认 10）+ `loop`（默认 true），或 `animations: { 名字: { frames, fps, loop } }`。`play(name?)` / `pause()` / `stop()`（回到第 0 帧）、`frame`（可赋值）、`frameCount`、`speedScale`、`isPlaying`、`animation`；信号 `frameChanged`、`animationFinished`（不循环的动画播完，参数是动画名）。`texture` 由动画控制，不要直接赋值。动画决定玩法时（攻击动画的出手帧）加 `processInPhysics: true`：按物理步推进，倍速下出手的物理步和 1 倍速一样（见“timeScale”）。
 
 #### 每帧时长（攻击动作的节奏）
 
@@ -402,7 +402,7 @@ shake(camera: Camera2D, strength: number, duration: number) {
 
 - `tree.timeScale`（默认 1，≥ 0）：所有游戏时间都乘上它，包括 `process` 的 dt、物理步数（步长仍是 1/60 秒，只是步数变多或变少：3 倍速在 60Hz 上每帧 3 步，步序和 1 倍速跑 3 帧完全一样，每帧的真实时间上限按倍数放大，不会丢步；代价是逻辑耗时也乘上倍速）、Tween、Timer、`createTimer`、帧动画、相机平滑和 `tree.time`。为 0 时游戏时间完全停止，输入和渲染照常（停顿中按下的键在恢复后的第一个物理步里仍然是 just pressed）。
 - 停顿时普通计时器也停了：恢复时间用 `createTimer(秒, { ignoreTimeScale: true })`（按真实时间）。
-- **倍速下要结果一致的玩法逻辑放在 `physicsProcess` 里**，驱动玩法的计时和补间用 `processInPhysics: true`：`createTimer(秒, { processInPhysics: true })`、`new Timer({ processInPhysics: true })`、`createTween({ processInPhysics: true })` 按物理步推进（每步 1/60 秒游戏时间，在 `physicsProcess` 和物理世界之后），3 倍速下触发的物理步、各步看到的补间值都和 1 倍速完全一样；按帧的版本一帧只更新一次，倍速下一帧吞掉几步。纯视觉的（受击闪白、UI 弹一下）照旧按帧。`ignoreTimeScale` 不能和它同时用。
+- **倍速下要结果一致的玩法逻辑放在 `physicsProcess` 里**，驱动玩法的计时和补间用 `processInPhysics: true`：`createTimer(秒, { processInPhysics: true })`、`new Timer({ processInPhysics: true })`、`createTween({ processInPhysics: true })`、`new AnimatedSprite2D({ processInPhysics: true })` 按物理步推进（每步 1/60 秒游戏时间，在 `physicsProcess` 和物理世界之后），3 倍速下触发的物理步、各步看到的补间值都和 1 倍速完全一样；按帧的版本一帧只更新一次，倍速下一帧吞掉几步。纯视觉的（受击闪白、UI 弹一下）照旧按帧。`ignoreTimeScale` 不能和它同时用。
 - 和 `paused` 互相独立；界面（CanvasLayer）也一起变慢，停顿很短时看不出来。大于 1 时受每帧物理步数上限（默认 2）限制。
 
 ### 粒子（Particles2D）
@@ -479,7 +479,7 @@ fx.createTween().to(fx, { alpha: 0 }, 0.3).call(() => fx.queueFree())
 | `Node2D` | 带变换 | `position` `x` `y` `rotation` `scale` `visible` `zIndex` `alpha` `modulate` `selfModulate` `blendMode` `clipRect` `globalPosition` `toLocal` `toGlobal`；`inputPickable` `hitArea` + 信号 `pointerDown` `pointerMove` `pointerUp` `clicked` |
 | `Scene` | 场景根 | `static assets` |
 | `Sprite2D` | 贴图 | `texture` `centered`（默认 true：以贴图的锚点或中心为原点）`offset` `flipH` `flipV` `flash` `flashColor` |
-| `AnimatedSprite2D` | 帧动画（继承 Sprite2D） | `frames` / `animations` `fps` `loop` `autoplay` `play()` `pause()` `stop()` `frame` `speedScale` `isPlaying` `animation`；信号 `frameChanged` `animationFinished` |
+| `AnimatedSprite2D` | 帧动画（继承 Sprite2D） | `frames` / `animations` `fps` `loop` `autoplay` `processInPhysics` `play()` `pause()` `stop()` `frame` `speedScale` `isPlaying` `animation`；信号 `frameChanged` `animationFinished` |
 | `Label` | 文字 | `text` `fontSize` `color` `fontWeight` `align` `verticalAlign` `stroke` `wrapWidth` `lineHeight` |
 | `ColorRect` | 纯色矩形（原点在左上角） | `size` `color` `rect` |
 | `NineSliceSprite` | 九宫格（界面边框，原点在左上角） | `texture` `margins` `size` `rect` |

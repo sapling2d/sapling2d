@@ -17,6 +17,12 @@ export interface AnimatedSprite2DOptions<A extends string = string> extends Omit
   autoplay?: boolean
   /** 播放倍速，默认 1（0 相当于暂停）。 */
   speedScale?: number
+  /**
+   * 按物理步推进（每步 1/60 秒的游戏时间，在 `physicsProcess` 之前）而不是按帧，默认 false。
+   * 动画决定玩法时用它（攻击动画的出手帧、`frameChanged` / `animationFinished` 里结算伤害）：倍速下触发的物理步和 1 倍速完全一样。
+   * 纯表现的动画不需要。进树后不能改。
+   */
+  processInPhysics?: boolean
 }
 
 interface ResolvedAnimation {
@@ -48,7 +54,8 @@ interface ResolvedAnimation {
  * const hero = new AnimatedSprite2D({ frames: atkFrames, durations: [0.1, 0.2, 0.04, 0.15], loop: false })
  * ```
  *
- * 按帧时间推进（暂停时停止），无头测试里结果确定。一次推进跨过好几帧时（`speedScale` 很大），每一帧都会触发 `frameChanged`。
+ * 按帧时间推进（暂停时停止），无头测试里结果确定；`processInPhysics: true` 时按物理步推进（动画决定玩法时用，见 `AnimatedSprite2DOptions`）。
+ * 一次推进跨过好几帧时（`speedScale` 很大），每一帧都会触发 `frameChanged`。
  */
 export class AnimatedSprite2D<A extends string = string> extends Sprite2D {
   /** 显示的帧变了（播放推进、切换动画、给 `frame` 赋值、stop）。 */
@@ -62,6 +69,8 @@ export class AnimatedSprite2D<A extends string = string> extends Sprite2D {
   private _playing: boolean
   private _finished = false
   private _speedScale: number
+  /** 按物理步推进（见 `AnimatedSprite2DOptions`）。 */
+  readonly processInPhysics: boolean
 
   constructor(options: AnimatedSprite2DOptions<A>) {
     super(options)
@@ -79,6 +88,7 @@ export class AnimatedSprite2D<A extends string = string> extends Sprite2D {
     this._get(this._animation)
     this._playing = options.autoplay ?? false
     this._speedScale = Math.max(0, options.speedScale ?? 1)
+    this.processInPhysics = options.processInPhysics ?? false
     this.texture = this._current.frames[0]!
   }
 
@@ -164,8 +174,22 @@ export class AnimatedSprite2D<A extends string = string> extends Sprite2D {
     this.frame = 0
   }
 
-  /** @internal 动画放在引擎内部钩子里：子类覆写 process() 不会影响播放。 */
+  /** @internal 按物理步的动画要在每个物理步被调到（即使没有覆写 physicsProcess）。 */
+  override get _needsPhysicsStep(): boolean {
+    return this.processInPhysics
+  }
+
+  /** @internal 动画放在引擎内部钩子里：子类覆写 process() / physicsProcess() 不会影响播放。 */
   override _internalProcess(dt: number): void {
+    if (!this.processInPhysics) this._tick(dt)
+  }
+
+  /** @internal */
+  override _internalPhysicsProcess(dt: number): void {
+    if (this.processInPhysics) this._tick(dt)
+  }
+
+  private _tick(dt: number): void {
     if (!this._playing) return
     const anim = this._current
     const durations = anim.durations
@@ -206,6 +230,7 @@ export class AnimatedSprite2D<A extends string = string> extends Sprite2D {
       animation: this._animations.size > 1 ? this._animation : undefined,
       frame: this._frame,
       playing: this._playing || undefined,
+      physics: this.processInPhysics || undefined,
     }
   }
 }
