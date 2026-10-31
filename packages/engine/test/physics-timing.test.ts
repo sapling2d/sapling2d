@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Node, Node2D, Scene, Timer } from 'sapling2d'
+import { circle, CollisionShape2D, Node, Node2D, RigidBody2D, Scene, Timer, v } from 'sapling2d'
 import { createTestGame } from 'sapling2d/testing'
 
 /** 每个物理步记录一个值：用来比较不同倍速下各个物理步看到的东西是否一样。 */
@@ -109,5 +109,72 @@ describe('processInPhysics：按物理步推进的计时器和补间', () => {
   it('ignoreTimeScale 和 processInPhysics 不能同时用', async () => {
     const g = await createTestGame({ main: Scene })
     expect(() => g.tree.createTimer(1, { ignoreTimeScale: true, processInPhysics: true })).toThrow(/cannot be combined/)
+  })
+})
+
+describe('物理步末执行 queueFree / callDeferred（和 Godot 一样）', () => {
+  class Counter extends Node {
+    physics = 0
+    frames = 0
+    override physicsProcess() {
+      this.physics++
+    }
+    override process() {
+      this.frames++
+    }
+  }
+
+  it('physicsProcess 里 queueFree：这一步结束就销毁，3 倍速下同一帧后面的步不再调到它，同一帧的 process 也不调', async () => {
+    const g = await createTestGame({ main: Scene })
+    g.tree.timeScale = 3
+    class Doomed extends Counter {
+      override physicsProcess() {
+        super.physicsProcess()
+        this.queueFree()
+      }
+    }
+    const d = g.scene.add(new Doomed())
+    g.step() // 一帧 3 个物理步
+    expect([d.physics, d.frames, d.isFreed]).toEqual([1, 0, true])
+  })
+
+  it('physicsProcess 里 callDeferred：这一步结束时执行，在下一步之前；process 里的仍在帧末', async () => {
+    const g = await createTestGame({ main: Scene })
+    g.tree.timeScale = 2
+    const order: string[] = []
+    class Worker extends Node {
+      override physicsProcess() {
+        const step = this.tree.physicsFrames
+        order.push(`physics:${step}`)
+        this.callDeferred(() => order.push(`deferred:${step}`))
+      }
+      override process() {
+        order.push('process')
+        this.callDeferred(() => order.push('deferred:frame'))
+      }
+    }
+    g.scene.add(new Worker())
+    g.step()
+    expect(order).toEqual(['physics:1', 'deferred:1', 'physics:2', 'deferred:2', 'process', 'deferred:frame'])
+  })
+
+  it('接触信号回调里 queueFree 的刚体：这一步结束就销毁并离开物理世界', async () => {
+    const g = await createTestGame({ main: Scene, physics: { gravity: v(0, 0) } })
+    g.tree.timeScale = 3
+    let hits = 0
+    class Ball extends RigidBody2D {
+      override ready() {
+        this.add(new CollisionShape2D({ shape: circle(10) }))
+        this.bodyEntered.connect(() => {
+          hits++
+          this.queueFree()
+        }, this)
+      }
+    }
+    const a = g.scene.add(new Ball({ position: v(100, 100), linearVelocity: v(600, 0) }))
+    const b = g.scene.add(new Ball({ position: v(130, 100) }))
+    g.step(2)
+    expect([a.isFreed, b.isFreed, hits]).toEqual([true, true, 2])
+    expect(g.tree.physics.bodyCount).toBe(0)
   })
 })

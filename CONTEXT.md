@@ -14,7 +14,7 @@ Code-first、agent-friendly 的 2D 游戏引擎。基于 PixiJS v8（渲染）+ 
 - **Group** — 节点的标签集合（`addToGroup` / `getNodesInGroup`），用于跨层级查找。通过声明合并 `GroupRegistry` 给组名和返回类型加强类型。**不支持** `getNode("Path")` 或 `%Unique` 路径查找；父子引用使用类型化字段。
 - **Signal** — 强类型事件（`new Signal<[score: number]>()`），支持 `connect(fn, owner)` / `emit` / `await`，节点释放时自动断开（owner 为该节点的连接、该节点声明的信号）。`await signal` 会错过同步紧接着的 emit，这种情况用 `signal.wait()`。
 - **Lifecycle** — `enterTree()`、`ready()`、`process(dt)`、`physicsProcess(dt)`、`exitTree()`。无下划线前缀。
-- **queueFree** — 帧末延迟销毁节点。不提供立即 `free()`。物理回调期间的增删也延迟生效；`callDeferred(fn)` 用于延迟任意操作。
+- **queueFree** — 延迟销毁节点：在当前物理步或当前帧的末尾（先到的那个）执行，和 Godot 一样每个物理步末也清一次队列，所以在 `physicsProcess` 里销毁的节点不会在同一帧后面的步里再被调到（倍速下步序和 1 倍速一致）。不提供立即 `free()`。`callDeferred(fn)` 同一时机、在销毁之前，用于延迟任意操作。
 - **processMode** — `inherit` | `pausable` | `always`，配合 `tree.paused` 决定节点是否被暂停。暂停时 pausable 节点的 process / physicsProcess、绑定的 Tween / Timer、指针事件都停止，物理世界停止；`createTimer` 默认暂停时继续计时（`processAlways: false` 可改）。
 - **Focus** — 平台的前后台事件由 Game 转发给 `tree.setFocused(focused)`：切后台时松开所有输入、挂起声音，回到前台时清空物理累加器，然后触发 `tree.focusChanged`。默认（`pauseOnBackground: true`）后台时 Game 还会挂起整个主循环。
 - **Platform** — 引擎访问外部世界的唯一接口（canvas、时间、rAF、指针事件源、资源读取、音频、存储、屏幕信息），只提供每个平台都有的东西；`kind`（`browser` / `wechat` / `headless`）给插件选实现用。实现：`BrowserPlatform`、`WechatPlatform`、`HeadlessPlatform`。核心代码禁止直接访问 `window` / `document` / `wx`；平台只产指针事件，键盘、传感器这类设备由插件自己监听（ADR 0010）。

@@ -29,7 +29,7 @@
 - **场景树**：`this.tree` 提供 `input`、`audio`、`storage`、`physics`、`viewport`、`rng`、`fxRng`（视觉效果专用的随机数流，见下）、`paused`、`timeScale`、`createTween()`、`createTimer()`、`getNodesInGroup()`、`autoload()`、`get(Token)`（插件提供的服务，见“插件”）、`changeScene()`、`dump()`；时间：`time`（游戏时间，秒，按物理步累计；暂停时和 `timeScale` 为 0 时都不走，适合做冷却和时间点）、`physicsFrames`（物理步数，暂停时也计数）、`processFrames`。节点不在树里时访问 `this.tree` 会抛错（构造函数里不要用）。
 - **构造参数**：每个节点的构造函数接受一个选项对象，键就是它可写的属性：通用的 `name`、`groups`、`processMode`；`Node2D` 的 `position`、`rotation`、`scale`、`visible`、`zIndex`、`alpha`、`modulate`、`selfModulate`、`blendMode`、`inputPickable`、`hitArea`；再加各节点自己的属性（如 `Label` 的 `text`（默认 `''`）、`fontSize`，`RigidBody2D` 的 `mass`、`bounce`）。
 - **单位与坐标**：像素、y 轴向下、弧度（另有 `rotationDegrees`）、重力 px/s²。游戏坐标是设计分辨率（默认 750×1334）；`expand` 模式下屏幕多出来的部分向两侧对称扩展，贴边的 UI 用 `this.tree.viewport.visibleRect` / `safeRect`。
-- **每帧顺序**：处理输入队列（指针信号在这里触发）→ 若干次物理步（每步：所有节点的 `physicsProcess`，再推进物理世界、写回刚体位置、派发接触信号）→ `process` → Tween / Timer → `callDeferred` → `queueFree`。每帧最多推进 2 步的真实时间（默认 `maxPhysicsStepsPerFrame: 2`，倍速按倍数放大），更长的帧多出的时间直接丢掉，物理和 `process` 用同一份封顶的帧时间。
+- **每帧顺序**：处理输入队列（指针信号在这里触发）→ 若干次物理步（每步：所有节点的 `physicsProcess`，再推进物理世界、写回刚体位置、派发接触信号），再推进按物理步的 Tween / Timer，最后执行这一步排队的 `callDeferred` / `queueFree`）→ `process` → Tween / Timer → `callDeferred` → `queueFree`。每帧最多推进 2 步的真实时间（默认 `maxPhysicsStepsPerFrame: 2`，倍速按倍数放大），更长的帧多出的时间直接丢掉，物理和 `process` 用同一份封顶的帧时间。
 
 ## 示例
 
@@ -2065,7 +2065,7 @@ for (let i = 0; i < bullets.length; i++) {
 - **严格的数组索引**：tsconfig 开启了 `noUncheckedIndexedAccess`，`arr[i]` 的类型是 `T | undefined`。确定存在时写 `arr[i]!`（示例里的 `balls[0]!` 就是这个原因），不确定时先判断。
 
 - **Vector2 不可变**：`node.position.x += 1` 是错的（编译不过）；写 `node.x += 1` 或 `node.position = node.position.add(v(1, 0))`。
-- **`queueFree` 在帧末执行**：调用后本帧内节点仍在树里；用 `isQueuedForDeletion` 防止重复处理（比如两个水果互相收到 `bodyEntered`）。
+- **`queueFree` 延迟执行**：在 `physicsProcess`（或接触信号回调）里调用的，这一步结束就销毁，同一帧后面的物理步和 `process` 不会再调到它（和 Godot 一样，倍速下步序才和 1 倍速一致）；在 `process` 里调用的在帧末销毁。调用后到那之前节点仍在树里；用 `isQueuedForDeletion` 防止重复处理（比如两个水果互相收到 `bodyEntered`）。`callDeferred` 同一时机，在销毁之前执行。
 - **物理回调里的增删**：接触信号在物理步之后派发，回调里 `queueFree` / `add` 都安全；新刚体在下一个物理步才创建，之前设置的速度和冲量会排队。
 - **改碰撞形状会重新触发接触信号**：移动、改变、禁用或增删一个刚体的 `CollisionShape2D` 时，引擎会重建它的形状，正在接触它的对象会先收到一次 `bodyExited`、再收到一次 `bodyEntered`。需要稳定的进出判断时，尽量在节点创建时定好形状，不要在接触中修改。
 - **刚体的位置由物理决定**：给 `RigidBody2D` 的 `position` 赋值等于瞬移并清零速度；`scale` 不影响碰撞形状。

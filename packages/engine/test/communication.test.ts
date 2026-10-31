@@ -145,21 +145,23 @@ describe('queueFree / callDeferred', () => {
     expect(g.scene.children.map((c) => c.name)).toEqual(['Merged'])
   })
 
-  it('callDeferred 在所有 process 之后、销毁之前执行；节点已销毁时不执行', async () => {
+  it('process 里 callDeferred 在所有 process 之后、销毁之前执行；帧外排的在本帧第一个物理步末；节点已销毁时不执行', async () => {
     const order: string[] = []
     class Worker extends Node {
       override process() {
         order.push(`process:${this.name}`)
+        if (this.name === 'w2') this.tree.callDeferred(() => order.push('deferred:frame'))
       }
     }
     const g = await createTestGame({ main: Scene })
     const w1 = g.scene.add(new Worker({ name: 'w1' }))
     g.scene.add(new Worker({ name: 'w2' }))
-    g.tree.callDeferred(() => order.push('deferred'))
+    g.scene.add(new Worker({ name: 'w3' }))
+    g.tree.callDeferred(() => order.push('deferred:step')) // 帧外排的：本帧第一个物理步末（process 之前）执行，和 Godot 一样
     w1.callDeferred(() => order.push('never')) // w1 在执行前被立即销毁
     w1._free()
     g.step()
-    expect(order).toEqual(['process:w2', 'deferred'])
+    expect(order).toEqual(['deferred:step', 'process:w2', 'process:w3', 'deferred:frame'])
   })
 
   it('不在树里的节点 queueFree 会立即销毁', () => {

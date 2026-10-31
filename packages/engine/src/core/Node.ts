@@ -39,7 +39,7 @@ export interface DumpNode {
  * - `exitTree()`：节点离开树时调用，子节点先于父节点
  *
  * 节点之间用类型化字段、Groups 和 Autoload 互相引用，不支持按路径查找（见 ADR 0003）。
- * 销毁节点用 `queueFree()`，在当前帧末尾统一执行。
+ * 销毁节点用 `queueFree()`，在当前物理步或帧的末尾统一执行。
  */
 export class Node implements ConnectionOwner {
   private _name: string
@@ -194,7 +194,7 @@ export class Node implements ConnectionOwner {
 
   // ---------------------------------------------------------------- 销毁与延迟调用
 
-  /** 已经调用过 `queueFree()`、等待帧末销毁。 */
+  /** 已经调用过 `queueFree()`、等待这一步 / 帧末销毁。 */
   get isQueuedForDeletion(): boolean {
     return this._queuedForDeletion
   }
@@ -205,8 +205,9 @@ export class Node implements ConnectionOwner {
   }
 
   /**
-   * 在当前帧末尾销毁节点和它的所有后代：先离开树（收到 exitTree），再断开信号。
-   * 同一帧内重复调用是安全的。不在树里的节点会立即销毁。
+   * 在当前物理步或当前帧的末尾（先到的那个）销毁节点和它的所有后代：先离开树（收到 exitTree），再断开信号。
+   * 在 `physicsProcess` 里调用的，这一步结束就销毁，同一帧后面的物理步和 `process` 都不会再调到它；在 `process` 里调用的在帧末销毁。
+   * 重复调用是安全的。不在树里的节点会立即销毁。
    */
   queueFree(): void {
     if (this._freed || this._queuedForDeletion) return
@@ -219,7 +220,7 @@ export class Node implements ConnectionOwner {
   }
 
   /**
-   * 在当前帧末尾调用 `fn`（在所有 process 之后、销毁节点之前）。
+   * 延迟调用 `fn`：在当前物理步或当前帧的末尾（先到的那个）执行，都在销毁节点之前（见 `SceneTree.callDeferred`）。
    * 如果到那时节点已被销毁，则不调用。
    */
   callDeferred(fn: () => void): void {

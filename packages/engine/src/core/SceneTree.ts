@@ -61,7 +61,7 @@ export interface TreeSystem {
 
 /** 浮点误差容忍：累加 n 次 1/60 之后仍应恰好触发 n 次物理步。 */
 const EPSILON = 1e-9
-/** 帧末延迟调用最多连续执行的轮数，防止回调里无限追加回调。 */
+/** 延迟调用最多连续执行的轮数，防止回调里无限追加回调。 */
 const MAX_DEFERRED_ROUNDS = 100
 
 /**
@@ -70,7 +70,8 @@ const MAX_DEFERRED_ROUNDS = 100
  * 每帧（`advance(dt)`）的顺序（下面的时间都是乘过 `timeScale` 的游戏时间）：
  * 1. 处理输入队列（节点的指针信号在这里触发）
  * 2. 按固定步长跑若干次物理步：每步先调用所有节点的 `physicsProcess`，再调用子系统的 `physicsStep`（物理世界在这里推进并写回刚体位置），
- *    最后推进按物理步的补间和计时器（`processInPhysics: true` 的 Tween / createTimer）
+ *    然后推进按物理步的补间和计时器（`processInPhysics: true` 的 Tween / createTimer），最后执行这一步里排队的 `callDeferred` 和 `queueFree`
+ *    （和 Godot 一样每个物理步末清一次：在 `physicsProcess` 里销毁的节点不会在同一帧后面的物理步里再被调到，倍速下步序才和 1 倍速一样）
  * 3. 跑一次 `process`，然后推进按帧的补间动画（Tween）和一次性计时器（createTimer）
  * 4. 执行 `callDeferred` 排队的回调
  * 5. 销毁 `queueFree` 排队的节点
@@ -383,9 +384,12 @@ export class SceneTree {
     return this.getNodesInGroup(group)[0] ?? null
   }
 
-  // ---------------------------------------------------------------- 帧末队列
+  // ---------------------------------------------------------------- 延迟队列（物理步末、帧末）
 
-  /** 在当前帧末尾调用 `fn`（所有 process 之后、销毁节点之前）。 */
+  /**
+   * 延迟调用 `fn`：在当前物理步或当前帧的末尾（先到的那个）执行，都在销毁节点之前。
+   * 在 `physicsProcess`（或物理步里的信号回调）里排的，这一步结束时执行；在 `process` 等处排的，帧末所有 process 之后执行。
+   */
   callDeferred(fn: () => void): void {
     this._deferred.push(fn)
   }
@@ -395,7 +399,8 @@ export class SceneTree {
     this._freeQueue.push(node)
   }
 
-  private _flushFrameEnd(): void {
+  /** 每个物理步末和帧末各清一次（和 Godot 一样）：先执行排队的延迟调用（回调里再排的也接着执行），再销毁排队的节点。 */
+  private _flushDeferred(): void {
     for (let round = 0; this._deferred.length > 0; round++) {
       if (round >= MAX_DEFERRED_ROUNDS) throw new Error(`callDeferred kept scheduling new calls for ${MAX_DEFERRED_ROUNDS} rounds; possible infinite loop.`)
       const calls = this._deferred
@@ -423,7 +428,7 @@ export class SceneTree {
     const tweenCount = this._tweens.length
     const timerCount = this._timers.length
     this.input._flush()
-    // 输入回调里的 queueFree / callDeferred 也在本帧末尾生效
+    // 输入回调里的 queueFree / callDeferred 在本帧第一个物理步末生效（没有物理步时在帧末）
     // 真实时间先封顶（每帧最多 maxPhysicsStepsPerFrame 步的时间，默认 1/30 秒）再乘 timeScale：掉帧、后台回来时多出的时间直接丢掉，
     // 游戏变慢而不是越补越卡（spikes/wechat/REPORT.md 第 8 节）；倍速下上限自然按倍数放大，3 倍速一帧最多 6 步。
     // 封顶后的帧时间物理、process、Tween、Timer、相机共用，两边的时钟不会分叉；不足一步的零头留到下一帧
@@ -458,6 +463,8 @@ export class SceneTree {
         }
         this._physicsTweens = advanceAll(this._physicsTweens, physicsTweenCount, this.physicsDelta, this._paused)
         this._physicsTimers = advanceAll(this._physicsTimers, physicsTimerCount, this.physicsDelta, this._paused)
+        // 这一步里 queueFree / callDeferred 的在这里生效：死掉的节点不会在同一帧后面的步里再被调到
+        this._flushDeferred()
       } finally {
         this.input._endPhysicsStep()
       }
@@ -473,7 +480,7 @@ export class SceneTree {
     this._tweens = advanceAll(this._tweens, tweenCount, frameDt, this._paused)
     this._timers = advanceAll(this._timers, timerCount, frameDt, this._paused, realDt)
 
-    this._flushFrameEnd()
+    this._flushDeferred()
     // 子系统的帧末钩子（相机按当前相机更新画面偏移）：所有节点移动完、帧末销毁之后，渲染之前
     const enders = this._frameEnders
     for (let i = 0; i < enders.length; i++) enders[i]!.frameEnd!(frameDt)
