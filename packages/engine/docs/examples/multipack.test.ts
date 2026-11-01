@@ -1,6 +1,6 @@
 // #region example
 import { atlas, Scene, Sprite2D, v } from 'sapling2d'
-// TexturePacker 开了 Multipack 和 Allow rotation：一页放不下时分成 items-0 / items-1 两页，每页一张图、一个 JSON；图片放在 public/assets/
+// 一页放不下时分成 items-0 / items-1 两页，每页一张图、一个 JSON（这两个 JSON 是 TexturePacker 的 Multipack 导出的）；图片放在 public/assets/
 import page0 from './items-0.json'
 import page1 from './items-1.json'
 
@@ -29,7 +29,7 @@ it('multipack atlas with rotated frames', async () => {
   expect(items.isLoaded).toBe(true) // 两页都在 ready 之前加载完
   // 帧带着自己那一页：路径是 页#名字
   expect([items.get('coin.png').path, items.get('key.png').path]).toEqual(['items-0.png#coin.png', 'items-1.png#key.png'])
-  // 旋转打包的帧（TexturePacker 把放不下的剑顺时针转了 90° 塞进图里）：游戏里的尺寸和方向仍是原图的，渲染时转回来
+  // 旋转的帧（JSON 里 rotated: true，剑在图里顺时针转了 90°）：游戏里的尺寸和方向仍是原图的，渲染时转回来
   const sword = items.get('sword.png')
   expect([sword.width, sword.height]).toEqual([14, 48])
   expect(g.scene.children).toHaveLength(items.names.length)

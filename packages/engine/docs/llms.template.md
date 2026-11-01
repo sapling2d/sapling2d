@@ -162,7 +162,7 @@
 <!-- example:animation#test -->
 
 - `sheet(path, { columns, rows })`：等大格子的网格图集，`frame(i)` / `frames(start, end)`（含两端）/ `count`。帧尺寸 = 整张图尺寸 / 列数（行数），图片加载后才确定，无头模式下为 0。
-- `atlas(path, data)`：打包图集，`data` 是 TexturePacker 等工具导出的 JSON（JSON Hash / JSON Array / PixiJS / Phaser 3 格式，直接 import）。`get(name)` / `frames(prefix)`（名字是“前缀 + 编号”的帧，按编号排序）/ `names` / `has`。尺寸来自 JSON，无头模式下也正确；支持裁剪透明边（trimmed）、旋转打包（rotated）和锚点（pivot）。多页打包见下面“多页图集”。
+- `atlas(path, data)`：打包图集，`data` 是通用的图集 JSON（JSON Hash / JSON Array，直接 import；Pixi、Phaser、Aseprite、TexturePacker、free-tex-packer 等都读写这种格式，Phaser 3 的多页 JSON 也认）。`get(name)` / `frames(prefix)`（名字是“前缀 + 编号”的帧，按编号排序）/ `names` / `has`。尺寸来自 JSON，无头模式下也正确；支持裁剪透明边（trimmed）、旋转的帧（rotated）和锚点（pivot）。多页见下面“多页图集与旋转的帧”。
 - 图集的帧就是 `Texture`，可以给任何 `Sprite2D`；同一张图的帧共用一份显存，绘制时能合批。`static assets` 里放 `sheet` / `atlas` / `aseprite`，切换场景时按整张图判断是否卸载。
 - `AnimatedSprite2D`：`frames` + `fps`（默认 10）+ `loop`（默认 true），或 `animations: { 名字: { frames, fps, loop } }`。`play(name?)` / `pause()` / `stop()`（回到第 0 帧）、`frame`（可赋值）、`frameCount`、`speedScale`、`isPlaying`、`animation`；信号 `frameChanged`、`animationFinished`（不循环的动画播完，参数是动画名）。`texture` 由动画控制，不要直接赋值。动画决定玩法时（攻击动画的出手帧）加 `processInPhysics: true`：按物理步推进，倍速下出手的物理步和 1 倍速一样（见“timeScale”）。
 
@@ -210,9 +210,11 @@ aseprite -b hero.aseprite --sheet public/assets/hero.png --data src/hero.json --
 - 帧名是“前缀 + 编号”，`frames(prefix)` 只取前缀后面紧跟编号的帧（中间可以有一个 `_` / `-` / 空格，后面可以有扩展名），按编号排序（`_2` 在 `_10` 之前，补零也可以）：`frames('hero_attack_')` 取 `hero_attack_01.png`…，不会混进 `hero_attack_heavy_01.png`。一帧都没取到时，报错会列出“前缀开头但后面不是编号”的帧，并提示更长的前缀。
 - `durations` 的长度和帧数对不上时报错（`animation "attack" has 5 frames but 4 durations`）：美术加减了帧，记得改时长。
 
-#### 多页图集与旋转打包（TexturePacker 的 Multipack / Allow rotation）
+#### 多页图集与旋转的帧
 
-图集超过一张图的上限（小游戏上别超过 2048）时，TexturePacker 开 Multipack 自动分页：每页一张图、一个 JSON（`items-0.json`、`items-1.json`……，`meta.related_multi_packs` 互相引用）。`atlas()` 传两个顺序一致的数组：
+图集 JSON 是引擎的图集交换格式，不绑定哪个打包工具：谁产出这种 JSON，`atlas()` 就能读。下面两种情况都只看 JSON 里的字段。
+
+一张图放不下（小游戏上单页别超过 2048）时分成几页：每页一张图、一个 JSON（`items-0.json`、`items-1.json`……；TexturePacker 的 Multipack 就是这样分，还会写 `meta.related_multi_packs`，引擎不依赖它）。`atlas()` 传两个顺序一致的数组：
 
 <!-- example:multipack -->
 
@@ -220,8 +222,8 @@ aseprite -b hero.aseprite --sheet public/assets/hero.png --data src/hero.json --
 
 - 页的顺序错了会报错（按 JSON 里的 `meta.image` 核对文件名，目录可以不同）；帧名在所有页里唯一，`get` / `frames(prefix)` 不用管在哪一页，帧动画的帧可以分散在不同页。Phaser 3 格式把所有页放在一个 JSON 里（`textures`），`atlas(['a-0.png', 'a-1.png'], data)` 只传这一个。
 - 加载和卸载以页为单位：`static assets` 里的多页图集在场景 `ready` 前全部加载完；`pages` 是每页的 `Texture`，`texture` 是第一页。
-- Allow rotation：TexturePacker 把放不下的帧顺时针转 90° 放进图里（JSON 里 `rotated: true`，`frame` 的 `w` / `h` 仍是原图的尺寸），引擎渲染时转回来：`Sprite2D` / `AnimatedSprite2D` / `NineSliceSprite` / 粒子 / 闪白都照常，`texture.width` / `height`、锚点、点击范围都按原图算。Aseprite 导出的 JSON 同样处理。
-- 不支持的：polygon 打包（Trim mode = Polygon：JSON 里的 `vertices` 忽略，仍按矩形画）、`meta.scale` 的缩放变体（帧尺寸就是图里的像素，用哪套变体由游戏自己选 JSON）、法线贴图。
+- 旋转的帧：JSON 里 `rotated: true` 表示这一帧在图里顺时针转了 90°（`frame` 的 `w` / `h` 仍是原图的尺寸；TexturePacker 的 Allow rotation 产出这种帧），引擎渲染时转回来：`Sprite2D` / `AnimatedSprite2D` / `NineSliceSprite` / 粒子 / 闪白都照常，`texture.width` / `height`、锚点、点击范围都按原图算。Aseprite 导出的 JSON 同样处理。
+- 只认这种 JSON 的通用字段，不追某个打包工具的功能：polygon 打包（`vertices` 忽略，仍按矩形画）、`meta.scale` 的缩放变体（帧尺寸就是图里的像素，用哪套变体由游戏自己选 JSON）、法线贴图、plist / XML 等其他格式都不支持。
 
 ### Spine 骨骼动画
 
