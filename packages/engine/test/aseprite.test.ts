@@ -43,10 +43,10 @@ describe('aseprite：帧', () => {
     expect([0, 1, 2, 3].map((i) => a.frame(i)._frame!.region.x)).toEqual([0, 2, 10, 1])
   })
 
-  it('越界帧号、空 JSON、旋转打包、非法时长报错', () => {
+  it('越界帧号、空 JSON、非法时长报错；旋转打包的帧照常读', () => {
     expect(() => aseprite('ase-err.png', data()).frame(6)).toThrow(/aseprite\('ase-err.png'\): frame 6 is out of range \(0–5\)/)
     expect(() => aseprite('ase-err.png', { frames: [] })).toThrow(/has no frames/)
-    expect(() => aseprite('ase-err.png', { frames: { a: { ...frame(0), rotated: true } } })).toThrow(/rotation disabled/)
+    expect(aseprite('ase-rot.png', { frames: { a: { ...frame(0), rotated: true } } }).frame(0)._frame!.rotated).toBe(true)
     expect(() => aseprite('ase-err.png', { frames: { a: { ...frame(0), duration: 0 } } })).toThrow(/frame 0 has duration 0/)
     expect(() => aseprite('ase-err.png', { frames: { a: { ...frame(0), duration: Infinity } } })).toThrow(/frame 0 has duration Infinity/)
     expect(() => aseprite('ase-err.png', data()).frames(4, 2)).toThrow(/frames\(4, 2\): start must not be greater than end/)

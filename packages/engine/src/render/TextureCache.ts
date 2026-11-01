@@ -177,17 +177,23 @@ export class TextureCache {
   }
 }
 
-/** 贴图句柄在 `source` 上对应的 Pixi 贴图：子区域带上帧、原始尺寸和裁剪信息；整张图就是整个 source。 */
+/**
+ * 贴图句柄在 `source` 上对应的 Pixi 贴图：子区域带上帧、原始尺寸和裁剪信息；整张图就是整个 source。
+ * 旋转打包的帧（TexturePacker 的 Allow rotation：像素在图里顺时针转了 90°）用 Pixi 的 `rotate: 2` 转回来，
+ * 和 Pixi 自己的图集加载器一致；`frame` 是图里实际占的矩形，`orig` / `trim` 按原图（未旋转）的尺寸。
+ */
 function frameTexture(texture: Texture, source: TextureSource): PixiTexture {
   const f = texture._frame
-  return f
-    ? new PixiTexture({
-        source,
-        frame: new Rectangle(f.region.x, f.region.y, f.region.width, f.region.height),
-        orig: new Rectangle(0, 0, f.width, f.height),
-        ...(f.trim ? { trim: new Rectangle(f.trim.x, f.trim.y, f.region.width, f.region.height) } : {}),
-      })
-    : new PixiTexture({ source })
+  if (!f) return new PixiTexture({ source })
+  const trimmedWidth = f.rotated ? f.region.height : f.region.width
+  const trimmedHeight = f.rotated ? f.region.width : f.region.height
+  return new PixiTexture({
+    source,
+    frame: new Rectangle(f.region.x, f.region.y, f.region.width, f.region.height),
+    orig: new Rectangle(0, 0, f.width, f.height),
+    ...(f.trim ? { trim: new Rectangle(f.trim.x, f.trim.y, trimmedWidth, trimmedHeight) } : {}),
+    ...(f.rotated ? { rotate: 2 } : {}),
+  })
 }
 
 let _silhouetteProgram: GlProgram | null = null

@@ -107,9 +107,12 @@ export class Texture implements Resource {
 /**
  * @internal 子区域：`region` 是它在整张图里的矩形；`width` / `height` 是裁剪前的原始尺寸，`trim` 是 region 在原始尺寸里的偏移（图集打包时裁掉了透明边），
  * `pivot` 是打包工具设置的锚点（0–1，相对原始尺寸），没有时为 null。
+ * `rotated`：打包时把这一帧顺时针转了 90° 放进图里（TexturePacker 的 Allow rotation），`region` 是图里实际占的矩形（宽高和裁剪后的尺寸相反），
+ * 渲染层把它转回来；`width` / `height` / `trim` / `pivot` 都按原图（未旋转）算。
  */
 export interface TextureFrame {
   region: Rect2
+  rotated: boolean
   width: number
   height: number
   trim: Vector2 | null

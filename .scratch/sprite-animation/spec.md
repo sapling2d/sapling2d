@@ -36,6 +36,7 @@ Date: 2026-10-10
 | 03 | TexturePacker 管线：文档和示例（`atlas().frames()` + `durations`） | 01 |
 | 04 | TexturePacker 的 pivot（每张贴图一个锚点） | 03（已完成） |
 | 05 | `atlas().frames(prefix)` 只匹配“前缀 + 编号”（03 发现） | 已完成 |
+| 06 | TexturePacker 的旋转打包（Allow rotation）和多页打包（Multipack）、Phaser 3 格式 | 已完成 |
 
 ## 未定（Fog）
 

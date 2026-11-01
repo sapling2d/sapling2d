@@ -56,7 +56,7 @@ export { HitTester, type Hittable } from './physics/HitTester'
 export { AssetLoader } from './assets/AssetLoader'
 export type { AssetMap, Resource } from './assets/Resource'
 export { Texture, tex } from './assets/Texture'
-export { SpriteSheet, sheet, Atlas, atlas, type AtlasData, type AtlasFrameData } from './assets/SpriteSheet'
+export { SpriteSheet, sheet, Atlas, atlas, type AtlasData, type AtlasFrameData, type AtlasFrames, type AtlasTexturesData } from './assets/SpriteSheet'
 export type { SpriteAnimation } from './assets/SpriteAnimation'
 export {
   AsepriteSheet,

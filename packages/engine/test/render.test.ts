@@ -370,3 +370,39 @@ describe('pixelArt', () => {
     expect((await sync(false)).roundPixels).toEqual([false, false, false])
   })
 })
+
+describe('旋转打包的帧', () => {
+  // TexturePacker 的 Allow rotation：图里的像素顺时针转了 90°，JSON 里 frame 的 w / h 仍是原图的尺寸
+  const items = atlas('rot-items.png', {
+    frames: {
+      sword: { frame: { x: 2, y: 15, w: 10, h: 38 }, rotated: true, trimmed: true, spriteSourceSize: { x: 1, y: 1, w: 10, h: 38 }, sourceSize: { w: 12, h: 40 } },
+      panel: { frame: { x: 0, y: 0, w: 30, h: 60 }, rotated: true },
+    },
+  })
+
+  it('Pixi 贴图：frame 是图里实际占的矩形，orig / trim 按原图，rotate = 2 转回来；精灵的尺寸是原图的；九宫格一样', async () => {
+    const g = await createTestGame({ main: Scene })
+    const r = PixiRenderer._createForSyncTests()
+    items.texture._setLoaded({ width: 64, height: 64 }, 64, 64)
+    const s = g.scene.add(new Sprite2D({ texture: items.get('sword') }))
+    const n = g.scene.add(new NineSliceSprite({ texture: items.get('panel'), margins: 4, size: v(100, 50) }))
+    r.sync(g.tree)
+    const sprite = view(s)!.children[0] as Sprite
+    const t = sprite.texture
+    expect([t.frame.x, t.frame.y, t.frame.width, t.frame.height]).toEqual([2, 15, 38, 10])
+    expect([t.orig.width, t.orig.height, t.rotate]).toEqual([12, 40, 2])
+    expect([t.trim!.x, t.trim!.y, t.trim!.width, t.trim!.height]).toEqual([1, 1, 10, 38])
+    expect([sprite.width, sprite.height]).toEqual([12, 40])
+    // uv：精灵的左上角采样图里矩形的右上角、右上角采样右下角（把顺时针转过的像素转回来）
+    const px = (u: number, v: number) => [Math.round(u * 64), Math.round(v * 64)]
+    expect([px(t.uvs.x0, t.uvs.y0), px(t.uvs.x1, t.uvs.y1), px(t.uvs.x2, t.uvs.y2), px(t.uvs.x3, t.uvs.y3)]).toEqual([
+      [40, 15],
+      [40, 25],
+      [2, 25],
+      [2, 15],
+    ])
+    const nine = (view(n)!.children[0] as PixiNineSlice).texture
+    expect([nine.frame.width, nine.frame.height, nine.orig.width, nine.orig.height, nine.rotate]).toEqual([60, 30, 30, 60, 2])
+    expect(s.rect!.width).toBe(12) // 点击范围按原图
+  })
+})

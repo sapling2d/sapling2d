@@ -18,8 +18,7 @@ export interface SaplingPluginOptions {
    */
   assetPackages?: string[]
   /**
-   * 额外检查的资源函数名。默认是引擎的 `tex` / `      if (!quickCheck.test(code)) return null
-      for (const ref of findAssetReferences(code, assetFns)) {` / `music` / `sheet` / `atlas` / `aseprite` / `tileset` / `tiledMap`，
+   * 额外检查的资源函数名。默认是引擎的 `tex` / `sfx` / `music` / `sheet` / `atlas` / `aseprite` / `tileset` / `tiledMap`，
    * 加上依赖包 `package.json` 里 `"sapling2d": { "assetFunctions": [...] }` 声明的（如 `@sapling2d/spine` 的 `spineSkeleton`）。
    */
   assetFunctions?: string[]
@@ -36,6 +35,11 @@ export const ENGINE_ASSET_FUNCTIONS: readonly string[] = ['tex', 'sfx', 'music',
 function assetCallPattern(fns: readonly string[]): RegExp {
   return new RegExp(`\\b(${fns.join('|')})(?:<[^()]*?>)?\\(\\s*(['"\`])((?:(?!\\2)[^\\\\\\n$]|\\\\.)+)\\2\\s*[,)]`, 'g')
 }
+/** 第一个参数是数组的调用：atlas(['a.png', 'b.png'], ...)（多页图集）。数组里的每个字面量路径都检查，遇到不是字面量的项就停。 */
+function assetArrayCallPattern(fns: readonly string[]): RegExp {
+  return new RegExp(`\\b(${fns.join('|')})(?:<[^()]*?>)?\\(\\s*\\[`, 'g')
+}
+const STRING_LITERAL = /(['"`])((?:(?!\1)[^\\\n$]|\\.)+)\1/y
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?)$/
 
 export interface AssetReference {
@@ -50,21 +54,39 @@ export interface AssetReference {
 /** sapling2d 包自身的源码目录：不检查（文档注释里有示例路径）。 */
 const ENGINE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
-/** 找出源码中所有字面量资源路径（注释里的不算）。`fns` 是要找的函数名，默认是引擎自己的。 */
+/** 找出源码中所有字面量资源路径（注释里的不算），按出现顺序。`fns` 是要找的函数名，默认是引擎自己的。 */
 export function findAssetReferences(code: string, fns: readonly string[] = ENGINE_ASSET_FUNCTIONS): AssetReference[] {
-  const refs: AssetReference[] = []
-  for (const m of stripComments(code).matchAll(assetCallPattern(fns))) {
-    const before = code.slice(0, m.index)
-    const line = before.split('\n').length
-    const column = m.index - (before.lastIndexOf('\n') + 1)
-    refs.push({ fn: m[1]!, path: m[3]!, line, column })
+  const refs: (AssetReference & { index: number })[] = []
+  const stripped = stripComments(code)
+  const push = (fn: string, path: string, index: number) => {
+    const before = code.slice(0, index)
+    refs.push({ fn, path, line: before.split('\n').length, column: index - (before.lastIndexOf('\n') + 1), index })
   }
-  return refs
+  for (const m of stripped.matchAll(assetCallPattern(fns))) push(m[1]!, m[3]!, m.index)
+  for (const m of stripped.matchAll(assetArrayCallPattern(fns))) {
+    let i = m.index + m[0].length
+    for (;;) {
+      i = skipSpaces(stripped, i)
+      STRING_LITERAL.lastIndex = i
+      const item = STRING_LITERAL.exec(stripped)
+      if (!item) break
+      push(m[1]!, item[2]!, i)
+      i = skipSpaces(stripped, STRING_LITERAL.lastIndex)
+      if (stripped[i] !== ',') break
+      i++
+    }
+  }
+  return refs.sort((a, b) => a.index - b.index).map(({ index: _, ...ref }) => ref)
+}
+
+function skipSpaces(code: string, i: number): number {
+  while (i < code.length && /\s/.test(code[i]!)) i++
+  return i
 }
 
 /**
  * sapling2d 的 Vite 插件：在构建和开发时检查 `tex()` / `sfx()` / `music()` / `sheet()` / `atlas()` / `aseprite()` / `tileset()` / `tiledMap()` 引用的资源文件是否存在
- * （Tiled 关卡还检查它引用的外部图块集和图块集图片）。
+ * （多页图集 `atlas(['a-0.png', 'a-1.png'], …)` 的每一页都检查；Tiled 关卡还检查它引用的外部图块集和图块集图片）。
  * 文件缺失时构建失败、开发服务器显示错误浮层，并指出文件、行列和最相近的现有文件名。
  *
  * 插件包的资源（ADR 0011）：依赖里声明了 `"sapling2d": { "assets": "<dir>" }` 的包被挂载到 `~<包名>/`，

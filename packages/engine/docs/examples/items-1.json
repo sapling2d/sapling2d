@@ -1,0 +1,45 @@
+{"frames": [
+
+{
+	"filename": "arrow.png",
+	"frame": {"x":2,"y":21,"w":12,"h":39},
+	"rotated": true,
+	"trimmed": true,
+	"spriteSourceSize": {"x":0,"y":0,"w":12,"h":39},
+	"sourceSize": {"w":12,"h":40}
+},
+{
+	"filename": "key.png",
+	"frame": {"x":2,"y":36,"w":40,"h":14},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":40,"h":14},
+	"sourceSize": {"w":40,"h":14}
+},
+{
+	"filename": "ring.png",
+	"frame": {"x":35,"y":2,"w":16,"h":16},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":16,"h":16},
+	"sourceSize": {"w":16,"h":16}
+},
+{
+	"filename": "scroll.png",
+	"frame": {"x":2,"y":2,"w":30,"h":12},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":30,"h":12},
+	"sourceSize": {"w":30,"h":12}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "items-1.png",
+	"format": "RGBA8888",
+	"size": {"w":53,"h":52},
+	"scale": "1",
+	"related_multi_packs": [ "items-0.json" ],
+	"smartupdate": "$TexturePacker:SmartUpdate:0b16615d472e53108cb32359b67e9e82:a6f50f96465f040654063a178ac07ce4:441b46ad0849ff71a42851aa50b34314$"
+}
+}

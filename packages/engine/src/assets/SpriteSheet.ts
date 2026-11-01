@@ -33,7 +33,7 @@ export class SpriteSheet implements Resource {
       return new Texture(`${texture.path}#${i}`, texture, () => {
         const w = texture.width / columns
         const h = texture.height / rows
-        return { region: new Rect2(col * w, row * h, w, h), width: w, height: h, trim: null, pivot: null }
+        return { region: new Rect2(col * w, row * h, w, h), rotated: false, width: w, height: h, trim: null, pivot: null }
       })
     })
   }
@@ -78,27 +78,44 @@ export class SpriteSheet implements Resource {
   }
 }
 
-/** 图集 JSON 里的一帧（TexturePacker 等工具导出的 “JSON Hash” / “JSON Array” 格式，Pixi 使用的也是这种格式）。 */
+/** 图集 JSON 里的一帧（TexturePacker 等工具导出的 “JSON Hash” / “JSON Array” 格式，Pixi、Phaser 使用的也是这种格式）。 */
 export interface AtlasFrameData {
+  /** 帧在图里的位置。旋转打包的帧（`rotated`）这里的 `w` / `h` 仍是**未旋转**的尺寸，图里实际占 `h` 宽、`w` 高（TexturePacker 的约定，Pixi 也这样读）。 */
   frame: { x: number; y: number; w: number; h: number }
+  /** 打包时把这一帧顺时针转了 90° 放进图里（TexturePacker 的 Allow rotation）；渲染时转回来，游戏代码看到的尺寸和方向都是原图的。 */
   rotated?: boolean
   trimmed?: boolean
   spriteSourceSize?: { x: number; y: number; w: number; h: number }
   sourceSize?: { w: number; h: number }
   /** 锚点（0–1，相对裁剪前的原始尺寸）：TexturePacker 打开 pivot points 时导出。 */
   pivot?: { x: number; y: number }
-  /** 同 `pivot`：TexturePacker 的 PixiJS 格式用这个名字。 */
+  /** 同 `pivot`：TexturePacker 的 PixiJS / Phaser 3 格式用这个名字。 */
   anchor?: { x: number; y: number }
 }
 
-/** 图集 JSON：`frames` 是 名字 → 帧（JSON Hash），或带 `filename` 的帧数组（JSON Array）。 */
+/** 图集 JSON 里的帧列表：名字 → 帧（JSON Hash），或带 `filename` 的帧数组（JSON Array）。 */
+export type AtlasFrames<F extends AtlasFrameData = AtlasFrameData> = Record<string, F> | (F & { filename: string })[]
+
+/** 一页图集的 JSON（TexturePacker 的 JSON Hash / JSON Array / PixiJS 格式）。多页打包（multipack）时每页一个这样的文件。 */
 export interface AtlasData {
-  frames: Record<string, AtlasFrameData> | (AtlasFrameData & { filename: string })[]
-  meta?: { image?: string }
+  frames: AtlasFrames
+  meta?: {
+    /** 这一页的图片文件名；多页图集用它检查页的顺序对不对。 */
+    image?: string
+    /** TexturePacker 多页打包时同一套图集的其他 JSON 文件名（只作参考：引擎按 `atlas()` 传入的顺序对应页）。 */
+    related_multi_packs?: string[]
+    [key: string]: unknown
+  }
+}
+
+/** Phaser 3 格式的图集 JSON（TexturePacker 的 “Phaser 3”）：所有页在一个文件里，`textures` 每项一页。 */
+export interface AtlasTexturesData {
+  textures: { image?: string; frames: AtlasFrames }[]
+  meta?: Record<string, unknown>
 }
 
 /**
- * 打包图集：很多张大小不一的小图打包在一张大图里，每张小图有名字。用 `atlas(path, data)` 创建，
+ * 打包图集：很多张大小不一的小图打包在一张（或几张）大图里，每张小图有名字。用 `atlas(path, data)` 创建，
  * `data` 是打包工具导出的 JSON（直接 import 进代码）：
  *
  * ```ts
@@ -108,31 +125,66 @@ export interface AtlasData {
  * new AnimatedSprite2D({ frames: Main.assets.sprites.frames('explosion_'), fps: 16 })
  * ```
  *
- * 帧的尺寸来自 JSON，无头模式下也正确。不支持旋转打包（导出时关闭 “Allow rotation”）。
+ * 多页打包（TexturePacker 的 Multipack：一页放不下时自动分页）每页一张图、一个 JSON，按同样的顺序传两个数组；
+ * Phaser 3 格式是一个 JSON 带所有页（`textures`），只传它：
+ *
+ * ```ts
+ * static assets = { items: atlas(['items-0.png', 'items-1.png'], [page0, page1]) }
+ * ```
+ *
+ * 帧的尺寸来自 JSON，无头模式下也正确。支持裁剪透明边（trimmed）、旋转打包（rotated：渲染时转回来）和锚点（pivot）。
+ * 加载、卸载以页为单位（每页一张图）。
  */
 export class Atlas implements Resource {
   readonly kind = 'atlas'
+  /** 每一页的图（单页图集只有一项）。 */
+  readonly pages: readonly Texture[]
+  /** 第一页的图（单页图集就是整张图）。 */
+  readonly texture: Texture
   private readonly _frames = new Map<string, Texture>()
+  private readonly _who: string
 
   /** @internal 请使用 atlas()。 */
-  constructor(
-    /** 整张图。 */
-    readonly texture: Texture,
-    data: AtlasData,
-  ) {
-    for (const [name, f] of atlasEntries(data)) {
-      const frame = atlasFrame(`atlas('${texture.path}')`, name, f)
-      this._frames.set(name, new Texture(`${texture.path}#${name}`, texture, () => frame))
+  constructor(paths: string | string[], data: AtlasData | AtlasData[] | AtlasTexturesData) {
+    const list = Array.isArray(paths) ? paths : [paths]
+    const who = (this._who = list.length === 1 ? `atlas('${list[0]}')` : `atlas(['${list.join("', '")}'])`)
+    if (!list.length) throw new Error(`atlas([]): give at least one image path.`)
+    const pages = atlasPages(data)
+    if (pages.length !== list.length) {
+      throw new Error(`${who}: ${list.length} image path(s) but the frame data has ${pages.length} page(s). Pass one image path per page, in the order the packer numbered them.`)
     }
+    const owner = new Map<string, string>()
+    this.pages = list.map((path, i) => {
+      if (owner.has(path)) throw new Error(`${who}: the same image is listed twice ('${path}').`)
+      owner.set(path, path)
+      const page = pages[i]!
+      // 多页时按 JSON 里记的图片名检查顺序：两个数组错位的话帧会画成另一页的像素，很难看出来
+      if (list.length > 1 && page.image && baseName(page.image) !== baseName(path)) {
+        throw new Error(`${who}: page ${i + 1} is '${path}' but its frame data is for '${page.image}'. List the images in the same order as their JSON files.`)
+      }
+      return tex(path)
+    })
+    this.texture = this.pages[0]!
+    const pageOf = new Map<string, string>()
+    this.pages.forEach((texture, i) => {
+      for (const [name, f] of atlasEntries(pages[i]!)) {
+        const other = pageOf.get(name)
+        if (other !== undefined) throw new Error(`${who}: frame "${name}" is in both '${other}' and '${texture.path}'.`)
+        pageOf.set(name, texture.path)
+        const frame = atlasFrame(who, name, f)
+        this._frames.set(name, new Texture(`${texture.path}#${name}`, texture, () => frame))
+      }
+    })
   }
 
-  /** 所有帧的名字（按 JSON 中的顺序）。 */
+  /** 所有帧的名字（按 JSON 中的顺序，多页时按页的顺序）。 */
   get names(): string[] {
     return [...this._frames.keys()]
   }
 
+  /** 所有页的图都加载完。 */
   get isLoaded(): boolean {
-    return this.texture.isLoaded
+    return this.pages.every((p) => p.isLoaded)
   }
 
   has(name: string): boolean {
@@ -144,13 +196,13 @@ export class Atlas implements Resource {
     const t = this._frames.get(name)
     if (t) return t
     const similar = this.names.filter((n) => n.includes(name) || name.includes(n)).slice(0, 5)
-    throw new Error(`atlas('${this.texture.path}'): no frame named "${name}".` + (similar.length ? ` Similar: ${similar.join(', ')}.` : ` Frames: ${this.names.slice(0, 10).join(', ')}${this._frames.size > 10 ? ', …' : ''}.`))
+    throw new Error(`${this._who}: no frame named "${name}".` + (similar.length ? ` Similar: ${similar.join(', ')}.` : ` Frames: ${this.names.slice(0, 10).join(', ')}${this._frames.size > 10 ? ', …' : ''}.`))
   }
 
   /**
    * 一段动画的所有帧：名字是 `prefix` + 编号（前面可以有一个分隔符 `_` / `-` / 空格，后面可以有扩展名），按编号排序。
    * `frames('explosion_')` 和 `frames('explosion')` 都取 `explosion_1.png`、`explosion_2.png`……，
-   * 但不会取到 `explosion_big_1.png`（前缀后面不是编号）。一帧都没有时报错。
+   * 但不会取到 `explosion_big_1.png`（前缀后面不是编号）。多页图集的帧可以分散在不同页里。一帧都没有时报错。
    */
   frames(prefix: string): Texture[] {
     const frameNumber = (n: string) => Number(/\d+/.exec(n.slice(prefix.length))![0])
@@ -162,12 +214,12 @@ export class Atlas implements Resource {
       const hint = loose.length
         ? ` Frames starting with it, but not followed by a number: ${loose.slice(0, 5).join(', ')}${loose.length > 5 ? ', …' : ''}. Use a longer prefix (e.g. "${longerPrefix(loose[0]!, prefix)}").`
         : ''
-      throw new Error(`atlas('${this.texture.path}'): no frames named "${prefix}" + a number.${hint}`)
+      throw new Error(`${this._who}: no frames named "${prefix}" + a number.${hint}`)
     }
     return names.map((n) => this._frames.get(n)!)
   }
 
-  /** 整张图的路径（`Resource`）。 */
+  /** 第一页的图的路径（`Resource`）。 */
   get path(): string {
     return this.texture.path
   }
@@ -180,15 +232,28 @@ export class Atlas implements Resource {
   /** @internal 图片是单独的资源，这里没有自己的数据要释放。 */
   _unload(): void {}
 
-  /** @internal */
+  /** @internal 每一页的图。 */
   _textures(): Texture[] {
-    return [this.texture]
+    return [...this.pages]
   }
 }
 
 /** @internal 图集 JSON 的帧：JSON Array 和 JSON Hash 都整理成 [名字, 帧] 的列表，保持导出顺序。 */
 export function atlasEntries<F extends AtlasFrameData>(data: { frames: Record<string, F> | (F & { filename: string })[] }): [string, F][] {
   return Array.isArray(data.frames) ? data.frames.map((f) => [f.filename, f]) : Object.entries(data.frames)
+}
+
+/** 图集数据整理成页的列表：一页的 JSON、每页一个 JSON 的数组，或 Phaser 3 格式（`textures`）。 */
+function atlasPages(data: AtlasData | AtlasData[] | AtlasTexturesData): { image?: string; frames: AtlasFrames }[] {
+  if (Array.isArray(data)) return data.map((d) => ({ image: d.meta?.image, frames: d.frames }))
+  if ('textures' in data && Array.isArray(data.textures)) return data.textures
+  const d = data as AtlasData
+  return [{ image: d.meta?.image, frames: d.frames }]
+}
+
+/** 路径最后一段（`ui/items-0.png` → `items-0.png`）。 */
+function baseName(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1)
 }
 
 /** @internal 第 `start` 到第 `end` 帧（都包含）。`frame(i)` 负责检查越界；`start > end` 时报错，不返回空列表。 */
@@ -201,13 +266,16 @@ export function frameRange(who: string, start: number, end: number, frame: (i: n
 
 /** @internal 图集 JSON 里的一帧 → 子区域。`who` 用在错误信息里（如 `atlas('a.png')`）。 */
 export function atlasFrame(who: string, name: string, f: AtlasFrameData): TextureFrame {
-  if (f.rotated) throw new Error(`${who}: frame "${name}" is rotated. Export the atlas with rotation disabled.`)
+  if (!f.frame) throw new Error(`${who}: frame "${name}" has no "frame" rectangle. Export the atlas as JSON (Hash) or JSON (Array).`)
   const { x, y, w, h } = f.frame
+  const rotated = f.rotated === true
   const src = f.trimmed ? f.spriteSourceSize : undefined
   const pivot = f.pivot ?? f.anchor
   if (pivot && !(Number.isFinite(pivot.x) && Number.isFinite(pivot.y))) throw new Error(`${who}: frame "${name}" has an invalid pivot (${pivot.x}, ${pivot.y}).`)
   return {
-    region: new Rect2(x, y, w, h),
+    // 旋转打包的帧：JSON 里的 w / h 是未旋转的尺寸，图里实际占 h 宽、w 高
+    region: new Rect2(x, y, rotated ? h : w, rotated ? w : h),
+    rotated,
     width: src ? (f.sourceSize?.w ?? w) : w,
     height: src ? (f.sourceSize?.h ?? h) : h,
     trim: src ? new Vector2(src.x, src.y) : null,
@@ -221,9 +289,12 @@ export function sheet(path: string, grid: { columns: number; rows: number }): Sp
   return new SpriteSheet(tex(path), grid.columns, grid.rows)
 }
 
-/** 打包图集：`path` 是图集图片（相对于资源目录），`data` 是打包工具导出的 JSON。 */
-export function atlas(path: string, data: AtlasData): Atlas {
-  return new Atlas(tex(path), data)
+/** 打包图集：`path` 是图集图片（相对于资源目录），`data` 是打包工具导出的 JSON（JSON Hash / JSON Array / PixiJS / Phaser 3）。 */
+export function atlas(path: string, data: AtlasData | AtlasTexturesData): Atlas
+/** 多页图集（TexturePacker 的 Multipack）：每页一张图、一个 JSON，两个数组顺序一致；或者 Phaser 3 格式的一个 JSON（`textures` 每项一页）。 */
+export function atlas(paths: string[], data: AtlasData[] | AtlasTexturesData): Atlas
+export function atlas(paths: string | string[], data: AtlasData | AtlasData[] | AtlasTexturesData): Atlas {
+  return new Atlas(paths, data)
 }
 
 /** `frames(prefix)` 里前缀后面剩下的部分：可选的分隔符 + 编号 + 可选的扩展名（`_01.png`、`-3`、` 12`）。 */

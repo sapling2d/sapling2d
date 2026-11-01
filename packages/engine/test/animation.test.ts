@@ -91,23 +91,98 @@ describe('atlas', () => {
     expect(() => atlas('anim-pivot-bad.png', { frames: { x: { frame: { x: 0, y: 0, w: 1, h: 1 }, pivot: { x: NaN, y: 0 } } } })).toThrow(/frame "x" has an invalid pivot/)
   })
 
-  it('名字不存在、前缀没有帧、旋转打包时报错', () => {
+  it('名字不存在、前缀没有帧、帧没有 frame 矩形时报错', () => {
     const a = atlas('anim-atlas.png', ATLAS)
     expect(() => a.get('run')).toThrow(/no frame named "run". Similar: run_10, run_2, run_1/)
     expect(() => a.frames('jump_')).toThrow(/no frames named "jump_" \+ a number\./)
-    expect(() => atlas('anim-rot.png', { frames: { x: { frame: { x: 0, y: 0, w: 1, h: 1 }, rotated: true } } })).toThrow(/rotation disabled/)
+    expect(() => atlas('anim-noframe.png', { frames: { x: {} as never } })).toThrow(/atlas\('anim-noframe.png'\): frame "x" has no "frame" rectangle/)
+  })
+
+  it('旋转打包：JSON 里 frame 的 w / h 是未旋转的尺寸，图里实际占 h 宽 w 高；贴图的尺寸、裁剪和锚点都按原图', () => {
+    // TexturePacker 7 导出：12×40 的竖条，裁掉透明边后 10×38，顺时针转 90° 放进图里
+    const a = atlas('anim-rotated.png', {
+      frames: {
+        bar: { frame: { x: 2, y: 15, w: 10, h: 38 }, rotated: true, trimmed: true, spriteSourceSize: { x: 1, y: 1, w: 10, h: 38 }, sourceSize: { w: 12, h: 40 }, pivot: { x: 0.5, y: 0.9 } },
+        plain: { frame: { x: 0, y: 0, w: 10, h: 38 }, rotated: true },
+      },
+    })
+    const bar = a.get('bar')
+    expect([bar.width, bar.height]).toEqual([12, 40])
+    const f = bar._frame!
+    expect([f.region.x, f.region.y, f.region.width, f.region.height, f.rotated]).toEqual([2, 15, 38, 10, true])
+    expect(f.trim!.equals(v(1, 1))).toBe(true)
+    expect(bar.pivot!.equals(v(0.5, 0.9))).toBe(true)
+    const plain = a.get('plain')
+    expect([plain.width, plain.height, plain._frame!.region.width, plain._frame!.region.height]).toEqual([10, 38, 38, 10])
+    expect(atlas('anim-atlas.png', ATLAS).get('bullet')._frame!.rotated).toBe(false)
+  })
+
+  it('多页图集：每页一张图、一个 JSON；帧带着自己那一页；frames(prefix) 跨页；所有页加载完才算加载完', () => {
+    const page0: AtlasData = {
+      frames: { 'coin_1.png': { frame: { x: 0, y: 0, w: 8, h: 8 } }, 'coin_3.png': { frame: { x: 8, y: 0, w: 8, h: 8 } } },
+      meta: { image: 'items-0.png', related_multi_packs: ['items-1.json'] },
+    }
+    const page1: AtlasData = {
+      frames: [
+        { filename: 'coin_2.png', frame: { x: 0, y: 0, w: 8, h: 8 } },
+        { filename: 'sword.png', frame: { x: 0, y: 8, w: 6, h: 20 }, rotated: true },
+      ],
+      meta: { image: 'items-1.png', related_multi_packs: ['items-0.json'] },
+    }
+    const a = atlas(['ui/items-0.png', 'ui/items-1.png'], [page0, page1])
+    expect(a.pages.map((p) => p.path)).toEqual(['ui/items-0.png', 'ui/items-1.png'])
+    expect([a.texture, a.path]).toEqual([tex('ui/items-0.png'), 'ui/items-0.png'])
+    expect(a.names).toEqual(['coin_1.png', 'coin_3.png', 'coin_2.png', 'sword.png'])
+    expect(a.get('sword.png').path).toBe('ui/items-1.png#sword.png')
+    expect(a.get('sword.png')._base).toBe(tex('ui/items-1.png'))
+    expect([a.get('sword.png').width, a.get('sword.png').height]).toEqual([6, 20])
+    expect(a.frames('coin').map((t) => t.path)).toEqual(['ui/items-0.png#coin_1.png', 'ui/items-1.png#coin_2.png', 'ui/items-0.png#coin_3.png'])
+    expect(a._textures()).toEqual([tex('ui/items-0.png'), tex('ui/items-1.png')])
+    tex('ui/items-0.png')._setLoaded({}, 64, 64)
+    expect([a.isLoaded, a.get('coin_1.png').isLoaded, a.get('coin_2.png').isLoaded]).toEqual([false, true, false])
+    tex('ui/items-1.png')._setLoaded({}, 64, 64)
+    expect([a.isLoaded, a.get('coin_2.png').isLoaded]).toEqual([true, true])
+  })
+
+  it('Phaser 3 格式：一个 JSON 里 textures 每项一页；单页也可以', () => {
+    const data = {
+      textures: [
+        { image: 'p-0.png', frames: [{ filename: 'a', frame: { x: 0, y: 0, w: 1, h: 2 } }] },
+        { image: 'p-1.png', frames: [{ filename: 'b', frame: { x: 0, y: 0, w: 3, h: 4 }, anchor: { x: 0, y: 1 } }] },
+      ],
+    }
+    const a = atlas(['p-0.png', 'p-1.png'], data)
+    expect([a.get('a').path, a.get('b').path, a.get('b').height]).toEqual(['p-0.png#a', 'p-1.png#b', 4])
+    expect(a.get('b').pivot!.equals(v(0, 1))).toBe(true)
+    const one = atlas('p-single.png', { textures: [{ frames: [{ filename: 'a', frame: { x: 0, y: 0, w: 1, h: 2 } }] }] })
+    expect([one.pages.length, one.get('a').path]).toEqual([1, 'p-single.png#a'])
+  })
+
+  it('多页的参数错误：页数和路径数对不上、顺序和 JSON 里的图片名对不上、同一张图列两次、帧名重复、空数组', () => {
+    const page = (image: string, name: string): AtlasData => ({ frames: { [name]: { frame: { x: 0, y: 0, w: 1, h: 1 } } }, meta: { image } })
+    expect(() => atlas(['e-0.png', 'e-1.png'], [page('e-0.png', 'a')])).toThrow(/atlas\(\['e-0.png', 'e-1.png'\]\): 2 image path\(s\) but the frame data has 1 page\(s\)/)
+    expect(() => atlas(['e-0.png'], [page('e-0.png', 'a'), page('e-1.png', 'b')])).toThrow(/1 image path\(s\) but the frame data has 2 page\(s\)/)
+    expect(() => atlas(['e-1.png', 'e-0.png'], [page('e-0.png', 'a'), page('e-1.png', 'b')])).toThrow(
+      /page 1 is 'e-1.png' but its frame data is for 'e-0.png'\. List the images in the same order as their JSON files/,
+    )
+    // 单页时不核对图片名（图片改了名也没关系）；多页时只比文件名，目录可以不同
+    expect(() => atlas('renamed.png', page('e-0.png', 'a'))).not.toThrow()
+    expect(() => atlas(['ui/e-0.png', 'ui/e-1.png'], [page('e-0.png', 'a'), page('e-1.png', 'b')])).not.toThrow()
+    expect(() => atlas(['e-0.png', 'e-0.png'], [page('e-0.png', 'a'), page('e-0.png', 'b')])).toThrow(/the same image is listed twice \('e-0.png'\)/)
+    expect(() => atlas(['e-0.png', 'e-1.png'], [page('e-0.png', 'a'), page('e-1.png', 'a')])).toThrow(/frame "a" is in both 'e-0.png' and 'e-1.png'/)
+    expect(() => atlas([], [])).toThrow(/atlas\(\[\]\): give at least one image path/)
   })
 })
 
 describe('图集作为场景资源', () => {
-  it('static assets 里的 sheet / atlas 加载整张图；切换场景时按整张图判断是否卸载', async () => {
+  it('static assets 里的 sheet / atlas 加载整张图（多页图集每一页都加载）；切换场景时按整张图判断是否卸载', async () => {
     const boom = sheet('anim-scene-boom.png', { columns: 2, rows: 1 })
-    const ui = atlas('anim-scene-ui.png', ATLAS)
+    const ui = atlas(['anim-scene-ui-0.png', 'anim-scene-ui-1.png'], [ATLAS, { frames: { extra: { frame: { x: 0, y: 0, w: 1, h: 1 } } } }])
     let loaded = false
     class A extends Scene {
       static override assets = { boom, ui }
       override ready() {
-        loaded = boom.isLoaded && ui.get('bullet').isLoaded
+        loaded = boom.isLoaded && ui.isLoaded && ui.get('bullet').isLoaded && ui.get('extra').isLoaded
       }
     }
     // B 用另一种写法引用同一张图：应保留；ui 只在 A 里：应卸载
@@ -117,7 +192,7 @@ describe('图集作为场景资源', () => {
     const g = await createTestGame({ main: A })
     expect(loaded).toBe(true)
     await g.tree.changeScene(B, undefined as never)
-    expect([boom.isLoaded, ui.isLoaded]).toEqual([true, false])
+    expect([boom.isLoaded, ui.isLoaded, ui.pages[0]!.isLoaded, ui.pages[1]!.isLoaded]).toEqual([true, false, false, false])
   })
 })
 

@@ -1,0 +1,77 @@
+{"frames": [
+
+{
+	"filename": "boot.png",
+	"frame": {"x":29,"y":32,"w":22,"h":24},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":22,"h":24},
+	"sourceSize": {"w":22,"h":24}
+},
+{
+	"filename": "bow.png",
+	"frame": {"x":2,"y":2,"w":20,"h":44},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":20,"h":44},
+	"sourceSize": {"w":20,"h":44}
+},
+{
+	"filename": "coin.png",
+	"frame": {"x":29,"y":59,"w":18,"h":18},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":18,"h":18},
+	"sourceSize": {"w":18,"h":18}
+},
+{
+	"filename": "gem.png",
+	"frame": {"x":50,"y":61,"w":16,"h":20},
+	"rotated": true,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":16,"h":20},
+	"sourceSize": {"w":16,"h":20}
+},
+{
+	"filename": "potion.png",
+	"frame": {"x":54,"y":32,"w":20,"h":26},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":20,"h":26},
+	"sourceSize": {"w":20,"h":26}
+},
+{
+	"filename": "shield.png",
+	"frame": {"x":2,"y":49,"w":24,"h":28},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":24,"h":28},
+	"sourceSize": {"w":24,"h":28}
+},
+{
+	"filename": "sword.png",
+	"frame": {"x":25,"y":2,"w":14,"h":48},
+	"rotated": true,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":14,"h":48},
+	"sourceSize": {"w":14,"h":48}
+},
+{
+	"filename": "wand.png",
+	"frame": {"x":25,"y":19,"w":10,"h":44},
+	"rotated": true,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":10,"h":44},
+	"sourceSize": {"w":10,"h":44}
+}],
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "items-0.png",
+	"format": "RGBA8888",
+	"size": {"w":76,"h":79},
+	"scale": "1",
+	"related_multi_packs": [ "items-1.json" ],
+	"smartupdate": "$TexturePacker:SmartUpdate:0b16615d472e53108cb32359b67e9e82:a6f50f96465f040654063a178ac07ce4:441b46ad0849ff71a42851aa50b34314$"
+}
+}

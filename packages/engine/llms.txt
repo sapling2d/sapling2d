@@ -705,7 +705,7 @@ it('sprite animation', async () => {
 ```
 
 - `sheet(path, { columns, rows })`：等大格子的网格图集，`frame(i)` / `frames(start, end)`（含两端）/ `count`。帧尺寸 = 整张图尺寸 / 列数（行数），图片加载后才确定，无头模式下为 0。
-- `atlas(path, data)`：打包图集，`data` 是 TexturePacker 等工具导出的 JSON（Hash 或 Array 格式，直接 import）。`get(name)` / `frames(prefix)`（名字是“前缀 + 编号”的帧，按编号排序）/ `names` / `has`。尺寸来自 JSON，无头模式下也正确；支持裁剪透明边（trimmed），不支持旋转打包。
+- `atlas(path, data)`：打包图集，`data` 是 TexturePacker 等工具导出的 JSON（JSON Hash / JSON Array / PixiJS / Phaser 3 格式，直接 import）。`get(name)` / `frames(prefix)`（名字是“前缀 + 编号”的帧，按编号排序）/ `names` / `has`。尺寸来自 JSON，无头模式下也正确；支持裁剪透明边（trimmed）、旋转打包（rotated）和锚点（pivot）。多页打包见下面“多页图集”。
 - 图集的帧就是 `Texture`，可以给任何 `Sprite2D`；同一张图的帧共用一份显存，绘制时能合批。`static assets` 里放 `sheet` / `atlas` / `aseprite`，切换场景时按整张图判断是否卸载。
 - `AnimatedSprite2D`：`frames` + `fps`（默认 10）+ `loop`（默认 true），或 `animations: { 名字: { frames, fps, loop } }`。`play(name?)` / `pause()` / `stop()`（回到第 0 帧）、`frame`（可赋值）、`frameCount`、`speedScale`、`isPlaying`、`animation`；信号 `frameChanged`、`animationFinished`（不循环的动画播完，参数是动画名）。`texture` 由动画控制，不要直接赋值。动画决定玩法时（攻击动画的出手帧）加 `processInPhysics: true`：按物理步推进，倍速下出手的物理步和 1 倍速一样（见“timeScale”）。
 
@@ -860,7 +860,7 @@ it('aseprite', async () => {
 ```
 
 - `aseprite<Tag>(path, data)`：`data` 是导出的 JSON（Array 或 Hash 格式，直接 import），放进 `static assets` 加载，和 `atlas()` 一样按整张图卸载。类型参数是 tag 的名字，只用于类型检查（从 JSON 推断不出来）。
-- 帧按导出顺序编号：`frame(i)` / `frames(start, end)` / `count` / `duration(i)`（秒），贴图路径是 `hero.png#3`。支持裁剪透明边，不支持旋转打包。
+- 帧按导出顺序编号：`frame(i)` / `frames(start, end)` / `count` / `duration(i)`（秒），贴图路径是 `hero.png#3`。支持裁剪透明边。
 - `animation(tag?, { loop })`：一个 tag 的 `SpriteAnimation`（`frames` + `durations`）；不传 tag 时是全部帧。`animations({ tag: { loop } })`：所有 tag。
   - 方向 `forward` / `reverse` / `pingpong` / `pingpong_reverse` 展开成帧序列；循环的 pingpong 往回走时不重复两端（和 Aseprite 播放一致）。
   - tag 没设播放次数（repeat）时循环；设了 N 次就展开 N 遍、不循环（pingpong 每走一趟算一次）。`loop` 覆盖它：攻击这类只播一次的动作写 `{ attack: { loop: false } }`（不循环的 pingpong 走一个来回）。
@@ -927,9 +927,56 @@ it('texturepacker sequence', async () => {
 
 - **同一个角色的所有序列用相同的画布尺寸导出**（攻击时武器挥出去的部分也要在画布里）。TexturePacker 开启 trim（裁掉透明边，省图集空间）：帧的尺寸仍是画布尺寸、以画布中心对齐，切换动作时角色不会跳。
 - 画布没法统一时（不同工具、不同人做的序列）用**锚点**：TexturePacker 里选中帧、打开 pivot points，把锚点放在角色脚底（同一个角色每帧都放在脚底），导出的 JSON 里每帧带 `pivot`（PixiJS 格式叫 `anchor`，两个都认）。`Sprite2D` 默认（`centered: true`）就以锚点为原点，切换动作时脚底不动；`texture.pivot` 能读到（0–1，相对裁剪前的尺寸）。`centered: false` 时忽略锚点、原点在左上角；`offset` 照常叠加。没设 `hitArea` 时的点击范围也跟着锚点。
-- TexturePacker 里关闭 rotation（不支持旋转打包，加载时报错）。数据格式选 JSON (Hash) 或 JSON (Array)。
+- 数据格式选 JSON (Hash)、JSON (Array)、PixiJS 或 Phaser 3 都行；Allow rotation、Multipack 开不开都行（见下一节）。
 - 帧名是“前缀 + 编号”，`frames(prefix)` 只取前缀后面紧跟编号的帧（中间可以有一个 `_` / `-` / 空格，后面可以有扩展名），按编号排序（`_2` 在 `_10` 之前，补零也可以）：`frames('hero_attack_')` 取 `hero_attack_01.png`…，不会混进 `hero_attack_heavy_01.png`。一帧都没取到时，报错会列出“前缀开头但后面不是编号”的帧，并提示更长的前缀。
 - `durations` 的长度和帧数对不上时报错（`animation "attack" has 5 frames but 4 durations`）：美术加减了帧，记得改时长。
+
+#### 多页图集与旋转打包（TexturePacker 的 Multipack / Allow rotation）
+
+图集超过一张图的上限（小游戏上别超过 2048）时，TexturePacker 开 Multipack 自动分页：每页一张图、一个 JSON（`items-0.json`、`items-1.json`……，`meta.related_multi_packs` 互相引用）。`atlas()` 传两个顺序一致的数组：
+
+```ts
+import { atlas, Scene, Sprite2D, v } from 'sapling2d'
+// TexturePacker 开了 Multipack 和 Allow rotation：一页放不下时分成 items-0 / items-1 两页，每页一张图、一个 JSON；图片放在 public/assets/
+import page0 from './items-0.json'
+import page1 from './items-1.json'
+
+export class Inventory extends Scene {
+  // 图片按页的顺序列出（和 JSON 里的 meta.image 对不上时报错）；帧按名字取，不用管在哪一页
+  static override assets = { items: atlas(['items-0.png', 'items-1.png'], [page0, page1]) }
+
+  override ready() {
+    const items = Inventory.assets.items
+    items.names.forEach((name, i) => {
+      const position = v(150 + (i % 4) * 150, 400 + Math.floor(i / 4) * 150)
+      this.add(new Sprite2D({ name: name.replace('.png', ''), texture: items.get(name), position, scale: v(3, 3) }))
+    })
+  }
+}
+```
+
+```ts
+import { expect, it } from 'vitest'
+import { createTestGame } from 'sapling2d/testing'
+
+it('multipack atlas with rotated frames', async () => {
+  const g = await createTestGame({ main: Inventory })
+  const items = Inventory.assets.items
+  expect(items.pages.map((p) => p.path)).toEqual(['items-0.png', 'items-1.png'])
+  expect(items.isLoaded).toBe(true) // 两页都在 ready 之前加载完
+  // 帧带着自己那一页：路径是 页#名字
+  expect([items.get('coin.png').path, items.get('key.png').path]).toEqual(['items-0.png#coin.png', 'items-1.png#key.png'])
+  // 旋转打包的帧（TexturePacker 把放不下的剑顺时针转了 90° 塞进图里）：游戏里的尺寸和方向仍是原图的，渲染时转回来
+  const sword = items.get('sword.png')
+  expect([sword.width, sword.height]).toEqual([14, 48])
+  expect(g.scene.children).toHaveLength(items.names.length)
+})
+```
+
+- 页的顺序错了会报错（按 JSON 里的 `meta.image` 核对文件名，目录可以不同）；帧名在所有页里唯一，`get` / `frames(prefix)` 不用管在哪一页，帧动画的帧可以分散在不同页。Phaser 3 格式把所有页放在一个 JSON 里（`textures`），`atlas(['a-0.png', 'a-1.png'], data)` 只传这一个。
+- 加载和卸载以页为单位：`static assets` 里的多页图集在场景 `ready` 前全部加载完；`pages` 是每页的 `Texture`，`texture` 是第一页。
+- Allow rotation：TexturePacker 把放不下的帧顺时针转 90° 放进图里（JSON 里 `rotated: true`，`frame` 的 `w` / `h` 仍是原图的尺寸），引擎渲染时转回来：`Sprite2D` / `AnimatedSprite2D` / `NineSliceSprite` / 粒子 / 闪白都照常，`texture.width` / `height`、锚点、点击范围都按原图算。Aseprite 导出的 JSON 同样处理。
+- 不支持的：polygon 打包（Trim mode = Polygon：JSON 里的 `vertices` 忽略，仍按矩形画）、`meta.scale` 的缩放变体（帧尺寸就是图里的像素，用哪套变体由游戏自己选 JSON）、法线贴图。
 
 ### Spine 骨骼动画
 

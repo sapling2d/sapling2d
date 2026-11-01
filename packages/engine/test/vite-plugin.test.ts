@@ -24,6 +24,27 @@ describe('findAssetReferences', () => {
     ])
   })
 
+  it('atlas([...])：多页图集的每个字面量路径都检查，带各自的行列；跨行、尾随逗号、类型参数都行；遇到不是字面量的项就停', () => {
+    const code = [
+      "atlas(['ui/items-0.png', \"items-1.png\"], [a, b])",
+      'atlas<T>([',
+      '  `items-2.png`,',
+      "  'items-3.png',",
+      '])',
+      "atlas(['ok.png', pageVar, 'skipped.png'], d)",
+      'atlas([`${dir}/x.png`], d)',
+      "atlas(pages, d); tex('still.png')",
+    ].join('\n')
+    expect(findAssetReferences(code)).toEqual([
+      { fn: 'atlas', path: 'ui/items-0.png', line: 1, column: 7 },
+      { fn: 'atlas', path: 'items-1.png', line: 1, column: 25 },
+      { fn: 'atlas', path: 'items-2.png', line: 3, column: 2 },
+      { fn: 'atlas', path: 'items-3.png', line: 4, column: 2 },
+      { fn: 'atlas', path: 'ok.png', line: 6, column: 7 },
+      { fn: 'tex', path: 'still.png', line: 8, column: 17 },
+    ])
+  })
+
   it('aseprite：检查第一个参数；函数名后面可以带类型参数', () => {
     const code = "aseprite('hero.png', heroData); aseprite<'idle' | 'attack'>('boss.png', bossData)"
     expect(findAssetReferences(code)).toEqual([
@@ -93,6 +114,14 @@ describe('vite build', () => {
     expect(err.message).toMatch(/src[/\\]main\.ts:2:12/)
     expect(err.errors?.[0]?.id).toMatch(/src[/\\]main\.ts$/)
     expect(err.errors?.[0]?.loc).toEqual({ line: 2, column: 12 })
+  })
+
+  it('多页图集的数组路径逐个检查，报错指向缺失的那一项', async () => {
+    const run = fixture("const atlas = (p: string[], d: unknown) => p\nconsole.log(atlas(['fruit.png', 'frut.png'], [{}, {}]))")
+    const err = (await run().catch((e: unknown) => e)) as Error & { errors?: { loc: { line: number; column: number } }[] }
+    expect(err.message).toContain("Asset not found: atlas('frut.png')")
+    expect(err.message).toContain("Did you mean 'fruit.png'?")
+    expect(err.errors?.[0]?.loc).toEqual({ line: 2, column: 32 })
   })
 
   it('路径跑出资源目录时报错', async () => {
