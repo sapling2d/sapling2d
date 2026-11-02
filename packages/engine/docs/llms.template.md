@@ -223,7 +223,26 @@ aseprite -b hero.aseprite --sheet public/assets/hero.png --data src/hero.json --
 - 页的顺序错了会报错（按 JSON 里的 `meta.image` 核对文件名，目录可以不同）；帧名在所有页里唯一，`get` / `frames(prefix)` 不用管在哪一页，帧动画的帧可以分散在不同页。Phaser 3 格式把所有页放在一个 JSON 里（`textures`），`atlas(['a-0.png', 'a-1.png'], data)` 只传这一个。
 - 加载和卸载以页为单位：`static assets` 里的多页图集在场景 `ready` 前全部加载完；`pages` 是每页的 `Texture`，`texture` 是第一页。
 - 旋转的帧：JSON 里 `rotated: true` 表示这一帧在图里顺时针转了 90°（`frame` 的 `w` / `h` 仍是原图的尺寸；TexturePacker 的 Allow rotation 产出这种帧），引擎渲染时转回来：`Sprite2D` / `AnimatedSprite2D` / `NineSliceSprite` / 粒子 / 闪白都照常，`texture.width` / `height`、锚点、点击范围都按原图算。Aseprite 导出的 JSON 同样处理。
+- 打包不需要 TexturePacker：`@sapling2d/pack`（开发依赖）把一个目录的 PNG 打成同一种图集，见下一节。
 - 只认这种 JSON 的通用字段，不追某个打包工具的功能：polygon 打包（`vertices` 忽略，仍按矩形画）、`meta.scale` 的缩放变体（帧尺寸就是图里的像素，用哪套变体由游戏自己选 JSON）、法线贴图、plist / XML 等其他格式都不支持。
+
+#### 自己打包图集（`@sapling2d/pack`）
+
+散图（PNG 序列、图标）打成图集不需要装 TexturePacker：`pnpm add -D @sapling2d/pack`，然后
+
+```sh
+pnpm sapling-pack art/items public/assets --json src   # art/items/**/*.png → public/assets/items.png + src/items.json
+```
+
+```ts
+import itemsData from './items.json'
+static assets = { items: atlas('items.png', itemsData) }
+```
+
+- 帧名是相对输入目录的路径（`coin.png`、`hero/attack_01.png`），按名字排序；`frames('hero/attack_')` 照常用。
+- 默认裁掉透明边（帧的尺寸仍是原图的，`--no-trim` 关掉）、不旋转、单页最大 2048（`--max-size`）、帧间距 2（`--padding`）。放不下时分页：`items-0.png` / `items-0.json`、`items-1…`，用多页的 `atlas([…], […])` 读。
+- 输出确定：同样的输入得到逐字节相同的 PNG 和 JSON。产物提交进仓库（小游戏打包和无头测试都读磁盘上的文件），改了散图重跑一次。
+- 在自己的脚本里用 `packAtlas(name, sprites, options)`：输入 RGBA 像素（`{ name, image: { data, width, height }, pivot? }`），输出每页的像素和 JSON 对象，不读写文件、不编解码图片，编码可以换成别的（比如 sharp 的调色板量化，体积约 1/3）。按传入的顺序装箱，要确定的输出就先排序。
 
 ### Spine 骨骼动画
 

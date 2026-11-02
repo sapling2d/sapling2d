@@ -1,0 +1,9 @@
+{
+  // 只在 Node 上跑（构建期工具），不进游戏包。
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

@@ -1,0 +1,69 @@
+{
+  "name": "@sapling2d/pack",
+  "version": "0.1.0",
+  "description": "Build-time texture atlas packer for sapling2d: PNGs in, atlas PNG + JSON Hash out (the format atlas() reads). Trims transparent edges, splits into pages, deterministic output, no TexturePacker needed.",
+  "keywords": [
+    "sapling2d",
+    "texture-atlas",
+    "sprite-sheet",
+    "packer",
+    "texturepacker"
+  ],
+  "license": "MIT",
+  "author": "kwoktung",
+  "homepage": "https://github.com/kwoktung/sapling2d#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kwoktung/sapling2d.git",
+    "directory": "packages/pack"
+  },
+  "bugs": {
+    "url": "https://github.com/kwoktung/sapling2d/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "bin": {
+    "sapling-pack": "./src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/",
+    "bin": {
+      "sapling-pack": "./dist/cli.mjs"
+    },
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs"
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsdown",
+    "prepublishOnly": "node ../engine/scripts/check-publish.ts && pnpm build && pnpm test"
+  },
+  "dependencies": {
+    "maxrects-packer": "2.7.3",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/pngjs": "^6.0.5",
+    "sapling2d": "workspace:*",
+    "tsdown": "0.23.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}
