@@ -1,9 +1,10 @@
-// 生成飞机大战的素材：精灵图集（sprites.png + src/sprites.json，TexturePacker 的 JSON Hash 格式）、
+// 生成飞机大战的素材：精灵图集（sprites.png + src/sprites.json，@sapling2d/pack 打包，通用的 JSON Hash 格式）、
 // 爆炸网格图（explosion.png，4 列 × 2 行）、可以上下无缝拼接的星空背景，以及 ffmpeg 合成的音效和 BGM。
 // 运行：node scripts/gen-assets.mjs（生成的文件已提交，平时不需要再跑）
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { deflateSync } from 'node:zlib'
+import { packAtlas } from '@sapling2d/pack'
 
 // ---------------------------------------------------------------- PNG 编码
 
@@ -24,21 +25,28 @@ function chunk(type, data) {
   crc.writeUInt32BE(crc32(td))
   return Buffer.concat([len, td, crc])
 }
-function encodePng(img) {
+/** 预乘 alpha 的浮点画布 → RGBA 字节（非预乘，按行存）。 */
+function toRgba(img) {
   const { w, h, px } = img
+  const data = new Uint8Array(w * h * 4)
+  for (let i = 0; i < w * h * 4; i += 4) {
+    const a = px[i + 3]
+    // 内部是预乘 alpha，写出时还原
+    data[i] = a > 0 ? clamp((px[i] / a) * 255) : 0
+    data[i + 1] = a > 0 ? clamp((px[i + 1] / a) * 255) : 0
+    data[i + 2] = a > 0 ? clamp((px[i + 2] / a) * 255) : 0
+    data[i + 3] = clamp(a * 255)
+  }
+  return { data, width: w, height: h }
+}
+function encodePng(img) {
+  return encodeRgba(toRgba(img))
+}
+function encodeRgba({ data, width: w, height: h }) {
   const raw = Buffer.alloc((w * 4 + 1) * h)
   for (let y = 0; y < h; y++) {
     raw[y * (w * 4 + 1)] = 0
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4
-      const a = px[i + 3]
-      const o = y * (w * 4 + 1) + 1 + x * 4
-      // 内部是预乘 alpha，写出时还原
-      raw[o] = a > 0 ? clamp((px[i] / a) * 255) : 0
-      raw[o + 1] = a > 0 ? clamp((px[i + 1] / a) * 255) : 0
-      raw[o + 2] = a > 0 ? clamp((px[i + 2] / a) * 255) : 0
-      raw[o + 3] = clamp(a * 255)
-    }
+    raw.set(data.subarray(y * w * 4, (y + 1) * w * 4), y * (w * 4 + 1) + 1)
   }
   const ihdr = Buffer.alloc(13)
   ihdr.writeUInt32BE(w, 0)
@@ -251,45 +259,17 @@ const sprites = {}
   sprites.white = img
 }
 
-// ---------------------------------------------------------------- 打包图集（按高度排序的货架算法）
-
-function pack(entries, width, pad = 2) {
-  const sorted = Object.entries(entries).sort((a, b) => b[1].h - a[1].h)
-  let x = pad
-  let y = pad
-  let shelf = 0
-  const placed = {}
-  for (const [name, img] of sorted) {
-    if (x + img.w + pad > width) {
-      x = pad
-      y += shelf + pad
-      shelf = 0
-    }
-    placed[name] = { x, y, img }
-    x += img.w + pad
-    shelf = Math.max(shelf, img.h)
-  }
-  let height = 1
-  while (height < y + shelf + pad) height *= 2
-  const atlas = image(width, height)
-  const frames = {}
-  for (const [name, { x: ox, y: oy, img }] of Object.entries(placed)) {
-    for (let yy = 0; yy < img.h; yy++) atlas.px.set(img.px.subarray(yy * img.w * 4, (yy + 1) * img.w * 4), ((oy + yy) * width + ox) * 4)
-    frames[name] = {
-      frame: { x: ox, y: oy, w: img.w, h: img.h },
-      rotated: false,
-      trimmed: false,
-      spriteSourceSize: { x: 0, y: 0, w: img.w, h: img.h },
-      sourceSize: { w: img.w, h: img.h },
-    }
-  }
-  return { atlas, json: { frames, meta: { app: 'scripts/gen-assets.mjs', image: 'sprites.png', format: 'RGBA8888', size: { w: width, h: height }, scale: '1' } } }
-}
+// ---------------------------------------------------------------- 打包图集
 
 mkdirSync('public/assets/sfx', { recursive: true })
-const { atlas, json } = pack(sprites, 512)
-writeFileSync('public/assets/sprites.png', encodePng(atlas))
-writeFileSync('src/sprites.json', JSON.stringify(json, null, 2) + '\n')
+{
+  // 按名字排序再交给打包器：布局只取决于精灵的内容，不取决于上面画的先后
+  const list = Object.keys(sprites).sort().map((name) => ({ name, image: toRgba(sprites[name]) }))
+  const { pages } = packAtlas('sprites', list)
+  if (pages.length !== 1) throw new Error('sprites do not fit in one 2048×2048 page')
+  writeFileSync('public/assets/sprites.png', encodeRgba(pages[0].image))
+  writeFileSync('src/sprites.json', JSON.stringify(pages[0].json, null, 2) + '\n')
+}
 
 // ---------------------------------------------------------------- 爆炸：4 列 × 2 行，每帧 128×128
 

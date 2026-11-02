@@ -2,198 +2,38 @@
   "frames": {
     "boss": {
       "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 296,
+        "h": 230
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
         "x": 2,
-        "y": 2,
-        "w": 300,
-        "h": 230
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
         "y": 0,
-        "w": 300,
+        "w": 296,
         "h": 230
       },
       "sourceSize": {
         "w": 300,
         "h": 230
-      }
-    },
-    "enemy_large": {
-      "frame": {
-        "x": 304,
-        "y": 2,
-        "w": 180,
-        "h": 150
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 180,
-        "h": 150
-      },
-      "sourceSize": {
-        "w": 180,
-        "h": 150
-      }
-    },
-    "player": {
-      "frame": {
-        "x": 2,
-        "y": 234,
-        "w": 110,
-        "h": 120
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 110,
-        "h": 120
-      },
-      "sourceSize": {
-        "w": 110,
-        "h": 120
-      }
-    },
-    "enemy_medium": {
-      "frame": {
-        "x": 114,
-        "y": 234,
-        "w": 100,
-        "h": 92
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 100,
-        "h": 92
-      },
-      "sourceSize": {
-        "w": 100,
-        "h": 92
-      }
-    },
-    "pause": {
-      "frame": {
-        "x": 216,
-        "y": 234,
-        "w": 72,
-        "h": 72
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 72,
-        "h": 72
-      },
-      "sourceSize": {
-        "w": 72,
-        "h": 72
-      }
-    },
-    "enemy_small": {
-      "frame": {
-        "x": 290,
-        "y": 234,
-        "w": 70,
-        "h": 70
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 70,
-        "h": 70
-      },
-      "sourceSize": {
-        "w": 70,
-        "h": 70
-      }
-    },
-    "powerup_power": {
-      "frame": {
-        "x": 362,
-        "y": 234,
-        "w": 56,
-        "h": 56
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 56,
-        "h": 56
-      },
-      "sourceSize": {
-        "w": 56,
-        "h": 56
-      }
-    },
-    "powerup_life": {
-      "frame": {
-        "x": 420,
-        "y": 234,
-        "w": 56,
-        "h": 56
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 56,
-        "h": 56
-      },
-      "sourceSize": {
-        "w": 56,
-        "h": 56
-      }
-    },
-    "bullet_player": {
-      "frame": {
-        "x": 478,
-        "y": 234,
-        "w": 16,
-        "h": 42
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 16,
-        "h": 42
-      },
-      "sourceSize": {
-        "w": 16,
-        "h": 42
       }
     },
     "bullet_boss": {
       "frame": {
-        "x": 2,
-        "y": 356,
-        "w": 30,
-        "h": 30
+        "x": 0,
+        "y": 232,
+        "w": 28,
+        "h": 28
       },
       "rotated": false,
-      "trimmed": false,
+      "trimmed": true,
       "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 30,
-        "h": 30
+        "x": 1,
+        "y": 1,
+        "w": 28,
+        "h": 28
       },
       "sourceSize": {
         "w": 30,
@@ -202,28 +42,188 @@
     },
     "bullet_enemy": {
       "frame": {
-        "x": 34,
-        "y": 356,
-        "w": 24,
-        "h": 24
+        "x": 30,
+        "y": 232,
+        "w": 22,
+        "h": 22
       },
       "rotated": false,
-      "trimmed": false,
+      "trimmed": true,
       "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 24,
-        "h": 24
+        "x": 1,
+        "y": 1,
+        "w": 22,
+        "h": 22
       },
       "sourceSize": {
         "w": 24,
         "h": 24
       }
     },
+    "bullet_player": {
+      "frame": {
+        "x": 0,
+        "y": 262,
+        "w": 16,
+        "h": 36
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 3,
+        "w": 16,
+        "h": 36
+      },
+      "sourceSize": {
+        "w": 16,
+        "h": 42
+      }
+    },
+    "enemy_large": {
+      "frame": {
+        "x": 298,
+        "y": 0,
+        "w": 176,
+        "h": 140
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 2,
+        "y": 8,
+        "w": 176,
+        "h": 140
+      },
+      "sourceSize": {
+        "w": 180,
+        "h": 150
+      }
+    },
+    "enemy_medium": {
+      "frame": {
+        "x": 298,
+        "y": 142,
+        "w": 96,
+        "h": 86
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 2,
+        "y": 4,
+        "w": 96,
+        "h": 86
+      },
+      "sourceSize": {
+        "w": 100,
+        "h": 92
+      }
+    },
+    "enemy_small": {
+      "frame": {
+        "x": 54,
+        "y": 232,
+        "w": 64,
+        "h": 66
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 3,
+        "y": 2,
+        "w": 64,
+        "h": 66
+      },
+      "sourceSize": {
+        "w": 70,
+        "h": 70
+      }
+    },
+    "pause": {
+      "frame": {
+        "x": 298,
+        "y": 230,
+        "w": 68,
+        "h": 68
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 2,
+        "y": 2,
+        "w": 68,
+        "h": 68
+      },
+      "sourceSize": {
+        "w": 72,
+        "h": 72
+      }
+    },
+    "player": {
+      "frame": {
+        "x": 0,
+        "y": 300,
+        "w": 104,
+        "h": 116
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 3,
+        "y": 4,
+        "w": 104,
+        "h": 116
+      },
+      "sourceSize": {
+        "w": 110,
+        "h": 120
+      }
+    },
+    "powerup_life": {
+      "frame": {
+        "x": 396,
+        "y": 142,
+        "w": 52,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 2,
+        "y": 2,
+        "w": 52,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 56,
+        "h": 56
+      }
+    },
+    "powerup_power": {
+      "frame": {
+        "x": 396,
+        "y": 196,
+        "w": 52,
+        "h": 52
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 2,
+        "y": 2,
+        "w": 52,
+        "h": 52
+      },
+      "sourceSize": {
+        "w": 56,
+        "h": 56
+      }
+    },
     "white": {
       "frame": {
-        "x": 60,
-        "y": 356,
+        "x": 30,
+        "y": 256,
         "w": 8,
         "h": 8
       },
@@ -242,13 +242,12 @@
     }
   },
   "meta": {
-    "app": "scripts/gen-assets.mjs",
+    "app": "@sapling2d/pack",
     "image": "sprites.png",
     "format": "RGBA8888",
     "size": {
-      "w": 512,
-      "h": 512
-    },
-    "scale": "1"
+      "w": 474,
+      "h": 416
+    }
   }
 }

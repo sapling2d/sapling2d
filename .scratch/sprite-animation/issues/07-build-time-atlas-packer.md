@@ -14,7 +14,7 @@ pnpm sapling-pack art/items public/assets --json src   # art/items/**/*.png → 
 
 **Blocked by:** None
 
-**Status:** done（2026-11-01；hero-guard 的改动未提交，见 Comments）
+**Status:** done（2026-11-01）
 
 ## 为什么
 
@@ -50,5 +50,9 @@ pnpm sapling-pack art/items public/assets --json src   # art/items/**/*.png → 
   - 9 张图集的 **JSON 逐字节不变**（布局、帧、锚点、meta 字段顺序都一样）。
   - **PNG 变了**：原来用 sharp 的 `composite` 叠到透明画布上，它按预乘 alpha 合成，半透明像素有取整误差；现在直接拷贝像素。量化前对比：4746 万像素里 28582 个半透明像素差 1（0.06%），不透明和全透明的完全相同。量化加抖动对输入敏感，差 1 就选出不同的调色板，所以量化后 17–48% 的通道值不同；但按原图（未量化）算的误差新旧一样（每张平均误差差 < 0.1，最大误差同一量级），总体积 3812 KB → 3793 KB。
   - `pnpm art pack` 重新生成后 `pnpm art check` 通过（74 个文件可复现），hero-guard `pnpm check` 通过；浏览器里看了主页（islands / home_icons / ui）和战斗（hero_archer / enemies / wall / fx），显示正常，控制台无错误。
-  - hero-guard 的改动（`scripts/art/pipeline.ts`、`package.json`、`pnpm-lock.yaml`、9 张 PNG）留在工作区，没有提交。
-- plane 的 `gen-assets.mjs` 还没迁移（后续可做）：它把每个精灵单独画好，再用自己写的货架算法装箱（`pack()`），正是 `packAtlas` 的用途。迁移时要把它内部的预乘 alpha 浮点像素转成 RGBA 字节（`encodePng` 里已有这一步），布局会变，`src/sprites.json` 和 `sprites.png` 要重新生成。
+  - 已提交到 hero-guard（`c879e78`）。
+- plane 的 `gen-assets.mjs` 迁移（2026-11-02）：它自己写的货架装箱（`pack()`）换成 `packAtlas`（默认选项：裁透明边），预乘 alpha 的浮点画布先 `toRgba()` 转成 RGBA 字节；精灵按名字排序后打包。
+  - 只有 `sprites.png` / `src/sprites.json` 变了；爆炸图、背景、音效重跑后逐字节不变（拆出 `toRgba` 的重构没改输出）。
+  - 图集 512×512 → 474×416（显存约 1 MB → 0.79 MB），文件 27.9 KB → 27.1 KB；12 帧的名字和原始尺寸都不变。
+  - 每帧按原始尺寸还原后和旧图集逐像素比较：8 帧完全相同，4 帧（`bullet_boss` / `bullet_enemy` / `powerup_*`）只差在 alpha = 0 的像素上（旧的带着 RGB，裁掉后补 0），看不见。
+  - plane `pnpm check` 通过；浏览器里看了标题页和战斗（战机、敌机、子弹、暂停按钮），子弹对准机头，控制台无错误。

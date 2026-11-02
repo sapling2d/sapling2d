@@ -44,6 +44,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/engine
     devDependencies:
+      '@sapling2d/pack':
+        specifier: workspace:*
+        version: link:../../packages/pack
       '@types/node':
         specifier: ^26.6.4
         version: 26.6.4
