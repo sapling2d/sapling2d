@@ -4,6 +4,8 @@ English | [简体中文](./README.zh-CN.md)
 
 A code-first, agent-friendly 2D game engine for TypeScript.
 
+**Docs (Chinese) and playable examples: <https://sapling2d.github.io/sapling2d/>**
+
 - **Godot-style node tree**: `Node`, `Node2D`, `Scene`, typed signals, groups, autoloads, timers, tweens and pausing.
 - **PixiJS v8 rendering** and **planck.js (Box2D) physics**: `RigidBody2D`, `StaticBody2D`, `Area2D`, collision layers and contact signals.
 - **Write once, run in two places**: in the browser, and as a **WeChat Mini Game** with a built-in adapter and Vite plugin.

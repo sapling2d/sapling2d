@@ -4,6 +4,8 @@
 
 代码优先、对 AI Agent 友好的 TypeScript 2D 游戏引擎。
 
+**文档和可以直接玩的示例：<https://sapling2d.github.io/sapling2d/>**
+
 - **Godot 风格节点树**：`Node`、`Node2D`、`Scene`，以及类型安全的信号、分组、Autoload、计时器、补间和暂停。
 - **渲染与物理**：渲染用 PixiJS v8，物理用 planck.js（Box2D）。提供 `RigidBody2D`、`StaticBody2D`、`Area2D`、碰撞层和接触信号。
 - **一份代码，两端运行**：浏览器，以及**微信小游戏**。引擎内置小游戏适配层和 Vite 插件。
