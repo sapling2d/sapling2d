@@ -1,6 +1,6 @@
 # @sapling2d/touch
 
-Touch controls for [sapling2d](https://github.com/kwoktung/sapling2d): `TouchScreenButton` and `TouchJoystick`, with default skins, installed as a plugin.
+Touch controls for [sapling2d](https://github.com/sapling2d/sapling2d): `TouchScreenButton` and `TouchJoystick`, with default skins, installed as a plugin.
 
 ```sh
 npm install @sapling2d/touch
@@ -30,4 +30,4 @@ await startGame({
 - The skins live in this package's `assets/` and are referenced as `~@sapling2d/touch/...`; the `sapling2d/vite` plugin mounts them for the browser and the WeChat Mini Game build. No configuration needed.
 - Headless tests work with `createTestGame({ ..., plugins: [touch()] })` from `sapling2d/testing`.
 
-The engine's [`llms.txt`](https://github.com/kwoktung/sapling2d/blob/main/packages/engine/llms.txt) documents both controls with runnable examples. Built only on sapling2d's public API (`inputPickable`, `hitTest`, pointer signals, `InputSource`): a template for your own controls.
+The engine's [`llms.txt`](https://github.com/sapling2d/sapling2d/blob/main/packages/engine/llms.txt) documents both controls with runnable examples. Built only on sapling2d's public API (`inputPickable`, `hitTest`, pointer signals, `InputSource`): a template for your own controls.

@@ -15,11 +15,11 @@
   "homepage": "https://sapling2d.github.io/sapling2d/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kwoktung/sapling2d.git",
+    "url": "git+https://github.com/sapling2d/sapling2d.git",
     "directory": "packages/ui"
   },
   "bugs": {
-    "url": "https://github.com/kwoktung/sapling2d/issues"
+    "url": "https://github.com/sapling2d/sapling2d/issues"
   },
   "type": "module",
   "engines": {

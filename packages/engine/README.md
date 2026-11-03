@@ -1,6 +1,6 @@
 # sapling2d
 
-English | [简体中文](https://github.com/kwoktung/sapling2d/blob/main/README.zh-CN.md)
+English | [简体中文](https://github.com/sapling2d/sapling2d/blob/main/README.zh-CN.md)
 
 A code-first, agent-friendly 2D game engine for TypeScript.
 
@@ -11,7 +11,7 @@ A code-first, agent-friendly 2D game engine for TypeScript.
 - **Write once, run in two places**: in the browser, and as a **WeChat Mini Game** with a built-in adapter and Vite plugin.
 - **Plugins for platform-specific input**: the core only knows pointers and actions; keyboard, accelerometer tilt (`sapling2d/motion`) and your own devices plug in as `InputSource`s and drive the same actions.
 - **Deterministic headless testing**: `sapling2d/testing` steps the game frame by frame in Vitest and dumps the scene tree as text.
-- **Agent friendly**: all of it is plain code, with no editor or scene files. [`llms.txt`](https://github.com/kwoktung/sapling2d/blob/main/packages/engine/llms.txt) holds the whole API, runnable examples and known pitfalls in one file, generated from tested examples.
+- **Agent friendly**: all of it is plain code, with no editor or scene files. [`llms.txt`](https://github.com/sapling2d/sapling2d/blob/main/packages/engine/llms.txt) holds the whole API, runnable examples and known pitfalls in one file, generated from tested examples.
 
 > Status: 0.1, an early MVP. The API may change before 1.0.
 
@@ -89,10 +89,10 @@ Then run `vite build -c vite.wechat.config.ts --watch` and open `dist-wechat/` i
 
 ## Repository
 
-- [`packages/engine`](https://github.com/kwoktung/sapling2d/tree/main/packages/engine): the engine, published as `sapling2d`
-- [`templates/game`](https://github.com/kwoktung/sapling2d/tree/main/templates/game): a starter project, with an `AGENTS.md` guide for coding agents
-- [`examples/`](https://github.com/kwoktung/sapling2d/tree/main/examples): sprite, physics, WeChat tree, and a Suika-style merge game
-- [`docs/adr`](https://github.com/kwoktung/sapling2d/tree/main/docs/adr): architecture decisions
+- [`packages/engine`](https://github.com/sapling2d/sapling2d/tree/main/packages/engine): the engine, published as `sapling2d`
+- [`templates/game`](https://github.com/sapling2d/sapling2d/tree/main/templates/game): a starter project, with an `AGENTS.md` guide for coding agents
+- [`examples/`](https://github.com/sapling2d/sapling2d/tree/main/examples): sprite, physics, WeChat tree, and a Suika-style merge game
+- [`docs/adr`](https://github.com/sapling2d/sapling2d/tree/main/docs/adr): architecture decisions
 
 ```sh
 pnpm install

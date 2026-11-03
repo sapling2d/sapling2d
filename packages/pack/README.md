@@ -1,6 +1,6 @@
 # @sapling2d/pack
 
-Build-time texture atlas packer for [sapling2d](https://github.com/kwoktung/sapling2d). PNGs in, atlas PNG + JSON Hash out: the same format TexturePacker, Pixi and Phaser use, read directly by `atlas()`. No TexturePacker install or licence needed.
+Build-time texture atlas packer for [sapling2d](https://github.com/sapling2d/sapling2d). PNGs in, atlas PNG + JSON Hash out: the same format TexturePacker, Pixi and Phaser use, read directly by `atlas()`. No TexturePacker install or licence needed.
 
 ```sh
 pnpm add -D @sapling2d/pack

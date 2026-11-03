@@ -1,6 +1,6 @@
 # @sapling2d/spine
 
-[Spine](https://esotericsoftware.com/) skeletal animation for [sapling2d](https://github.com/kwoktung/sapling2d): a `spineSkeleton()` resource, a `SpineSprite` node, a `SpineBoneNode` that follows a bone, and a `spine()` plugin. Built on the official `@esotericsoftware/spine-core` **4.3** runtime; rendering is the engine's own PixiJS mesh sync, so it runs in the browser, as a WeChat Mini Game and in headless tests.
+[Spine](https://esotericsoftware.com/) skeletal animation for [sapling2d](https://github.com/sapling2d/sapling2d): a `spineSkeleton()` resource, a `SpineSprite` node, a `SpineBoneNode` that follows a bone, and a `spine()` plugin. Built on the official `@esotericsoftware/spine-core` **4.3** runtime; rendering is the engine's own PixiJS mesh sync, so it runs in the browser, as a WeChat Mini Game and in headless tests.
 
 ```sh
 npm install @sapling2d/spine
@@ -34,7 +34,7 @@ await startGame({ main: Arena, plugins: [spine()] })
 - Headless tests (`createTestGame` from `sapling2d/testing`) load the real skeleton and atlas files, so bone positions, events and animation timing are testable in Node.
 - Not supported: two-color tinting (tint black; the dark color is ignored with a warning), `.skel` binaries, driving bones from nodes.
 
-The engine's [`llms.txt`](https://github.com/kwoktung/sapling2d/blob/main/packages/engine/llms.txt) has the full API with runnable examples ("Spine 骨骼动画").
+The engine's [`llms.txt`](https://github.com/sapling2d/sapling2d/blob/main/packages/engine/llms.txt) has the full API with runnable examples ("Spine 骨骼动画").
 
 ## License
 
