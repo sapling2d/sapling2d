@@ -1,6 +1,7 @@
 import { startGame } from 'sapling2d/wechat'
 import { runBench } from './bench'
 import { runVerify } from './verify'
+import { runScrollProbe } from './scroll-probe'
 import { gameOptions } from './game'
 
 // 小游戏构建是 CommonJS，不能用顶层 await
@@ -13,6 +14,11 @@ void startGame(gameOptions).then((game) => {
   // 真机效果检查构建（VITE_VERIFY=1）：摆好闪白和叠加发光的画面，截图发到 log server
   if (import.meta.env.VITE_VERIFY === '1') {
     void runVerify(game)
+    return
+  }
+  // 滚动列表的真机手感检查（VITE_SCROLL=1）：30 行列表 + 切换 deceleration
+  if (import.meta.env.VITE_SCROLL === '1') {
+    void runScrollProbe(game)
     return
   }
   // 每 5 秒打印一次帧耗时（构建时设置 SAPLING_LOG_URL 就能在电脑上看到真机的数字）
