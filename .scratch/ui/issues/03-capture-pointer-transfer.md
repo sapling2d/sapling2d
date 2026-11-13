@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** needs-triage（2026-10-31 挂起：先不做滚动列表，等滚动列表 / 翻页器立项时和 06、07 一起做；唯一消费者是 `ScrollContainer`，见 spec 顶部的调整说明）
+**Status:** done（2026-11-14）
 
 - [ ] 子节点捕获中，父节点 `capturePointer(id)` 返回 `true`：子节点收到 `pointerUp`（位置为指针最近位置）且无 `clicked`；之后 `g.pointerMove` 只到父节点的 `pointerMove`；`g.pointerUp` 在父节点内 → 父节点 `clicked`
 - [ ] 指针按在空处（未处理，`pointerPress()` 动作为按下）→ 某节点 `capturePointer` 后，下一次 `step` 该动作 `isActionJustReleased` 为 true，`input.isPointerPressed` 仍为 true
@@ -15,3 +15,7 @@
 - [ ] `Input` 公开成员列表与插件机制规格一致（测试或类型层面有断言，例如现有 input 测试里对公开面的检查）；路由器新增方法带下划线前缀
 - [ ] 热路径不分配：转移只在调用时做一次 Map 操作
 - [ ] `CONTEXT.md` 的 Pointer picking 词条补"捕获可转移、取消统一表现为不带 clicked 的抬起"；`llms.template.md` 输入一节加一段说明；`pnpm check` 绿
+
+## Comments
+
+- 2026-11-14：落地。另加了 `Node2D.hasPointerCapture(id, subtree?)`：滚动容器从 `InputSource` 看到按下时，需要知道这次按下是否落在自己的子树里（上层弹窗挡住时不接管），见 ADR 0013。测试在 `packages/engine/test/input.test.ts` 的"捕获转移"一组。

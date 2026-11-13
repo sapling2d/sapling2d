@@ -85,6 +85,7 @@
 - 放进 `CanvasLayer` 固定在屏幕上；隐藏、暂停（不能处理）时按不下，按着的会在下一帧松开。按绘制顺序参与拾取：画在它上面的可点击节点（例如更高层的对话框）先收到指针；一个手指只按最上层的那个按钮。
 - `action` 应该是已定义的动作（可以是没有绑定的 `[]`）；未定义时打印警告，按钮照常显示但不影响任何动作。
 - 屏幕按钮和摇杆只用节点拾取的公开能力（`inputPickable`、覆写 `hitTest`、`pointerDown` / `pointerMove` / `pointerUp`）加 `InputSource` 实现，不依赖引擎内部：自己的控件可以照着写。
+- 捕获可以转移：`node.capturePointer(pointerId)` 把按着的指针从当前捕获它的节点手里接过来（滚动列表在手指滑过阈值后从子按钮手里抢手势就靠它）。原节点收到一次 `pointerUp`、不发 `clicked`（和隐藏 / 暂停 / 切后台的取消一样，控件只需要处理这一条松开路径）；之后的移动、抬起发给新节点；正按着 `pointerPress()` 动作的指针被接管后动作松开。指针没按着、节点不在树里或不可命中时返回 false。`node.hasPointerCapture(pointerId, subtree?)` 查指针是否被本节点（`subtree` 时含后代）捕获：订阅原始指针事件的 `InputSource` 用它判断“这次按下落在我的子树里”（被上层弹窗挡住时就不是）。
 
 ### 摇杆（方向和力度）
 
@@ -374,7 +375,7 @@ shake(camera: Camera2D, strength: number, duration: number) {
 
 ### 界面控件（`@sapling2d/ui`）
 
-按钮、进度条这类控件在独立的包 `@sapling2d/ui` 里（`pnpm add @sapling2d/ui`），作为插件安装：`plugins: [ui()]` 预加载一套中性的灰白圆角默认皮肤，并提供全局的按下反馈和点击音效默认值。不装也能用：传自己的贴图照常工作，`texture: null` 是纯色模式。
+按钮、进度条、滚动列表这类控件在独立的包 `@sapling2d/ui` 里（`pnpm add @sapling2d/ui`），作为插件安装：`plugins: [ui()]` 预加载一套中性的灰白圆角默认皮肤，并提供全局的按下反馈和点击音效默认值。不装也能用：传自己的贴图照常工作，`texture: null` 是纯色模式。
 
 <!-- example:../ui/docs/examples/ui-button -->
 
@@ -398,6 +399,19 @@ shake(camera: Camera2D, strength: number, duration: number) {
 - `fillMode`：`leftToRight`（默认）/ `rightToLeft` / `bottomToTop` / `topToBottom`。
 - 底 `background` 和填充 `fill` 各自是九宫格贴图（默认皮肤：深色面板 + 纯白填充按 `fillColor` 染色）或纯色（`textureBackground: null` / `textureFill: null` + `backgroundColor` / `fillColor`）；`fillPadding` 让填充相对底图内缩（默认皮肤 6）。
 - **填充节点始终铺满整条，用它的 `clipRect` 裁出已填充的部分**，所以九宫格的圆角和高光在半满时不变形（不要再用改 `scale.x` 的办法）。值为 0 时填充不显示，满时不裁剪。
+
+#### 滚动列表（ScrollContainer）
+
+<!-- example:../ui/docs/examples/ui-scroll -->
+
+<!-- example:../ui/docs/examples/ui-scroll#test -->
+
+- `ScrollContainer`（继承 Control）：**条目加到 `content` 下**（直接加到容器上的不会滚动），**`contentSize` 要自己给**（引擎没有通用包围盒；等高的行 `n * 行距 - 间距`）。容器的 `clipRect` 就是 `rect`：滚出可见区的条目看不见也点不到。
+- `scrollOffset`（内容向左 / 向上移动的量，夹在 `0..maxScroll`，`maxScroll = contentSize - size`，内容比容器小时为 0；回弹期间短暂越界）、`scrollX` / `scrollY` 可读写；`scrollTo(offset, { animate? })`（`animate` 约 0.3 秒缓出，按下会打断）；`isScrolling`；信号 `scrolled(offset)`。
+- 手势：只认一根手指。按在条目（按钮）上先由条目捕获；手指移动超过 `dragThreshold`（默认 12 设计像素，只看开着的轴）后容器用 `capturePointer` 接管，按钮收到 `released`、不 `clicked`；阈值内抬起就是普通点击。按在空白处由容器自己捕获（不会触发 `pointerPress()`）。惯性滚动中按下只是把列表按停，不会点到条目。
+- 选项：`vertical`（默认 true）/ `horizontal`（默认 false）；`inertia`（默认 true）+ `deceleration`（每秒损失的速度比例，默认 0.87）；`bounce`（默认 true：拖过边界有阻尼、松手回弹；false 时夹在边界内）。
+- 惯性、回弹、`scrollTo` 动画在 `process(dt)` 里推进（跟着 `timeScale`）。暂停菜单里的列表设 `processMode: 'always'`。切后台、容器被隐藏或暂停时拖动结束、速度清零。
+- 不画滚动条、不处理鼠标滚轮；嵌套的滚动容器之间不做手势仲裁。
 
 ### 场景切换与存档
 
@@ -510,7 +524,7 @@ fx.createTween().to(fx, { alpha: 0 }, 0.3).call(() => fx.queueFree())
 | 节点 | 用途 | 关键成员 |
 |---|---|---|
 | `Node` | 基类 | `add` `remove` `queueFree` `callDeferred` `addToGroup` `createTween` `processMode` `tree` |
-| `Node2D` | 带变换 | `position` `x` `y` `rotation` `scale` `visible` `zIndex` `alpha` `modulate` `selfModulate` `blendMode` `clipRect` `globalPosition` `toLocal` `toGlobal`；`inputPickable` `hitArea` + 信号 `pointerDown` `pointerMove` `pointerUp` `clicked` |
+| `Node2D` | 带变换 | `position` `x` `y` `rotation` `scale` `visible` `zIndex` `alpha` `modulate` `selfModulate` `blendMode` `clipRect` `globalPosition` `toLocal` `toGlobal`；`inputPickable` `hitArea` `capturePointer` `hasPointerCapture` + 信号 `pointerDown` `pointerMove` `pointerUp` `clicked` |
 | `Scene` | 场景根 | `static assets` |
 | `Sprite2D` | 贴图 | `texture` `centered`（默认 true：以贴图的锚点或中心为原点）`offset` `flipH` `flipV` `flash` `flashColor` |
 | `AnimatedSprite2D` | 帧动画（继承 Sprite2D） | `frames` / `animations` `fps` `loop` `autoplay` `processInPhysics` `play()` `pause()` `stop()` `frame` `speedScale` `isPlaying` `animation`；信号 `frameChanged` `animationFinished` |
@@ -530,6 +544,7 @@ fx.createTween().to(fx, { alpha: 0 }, 0.3).call(() => fx.queueFree())
 | `Control`（`@sapling2d/ui`） | 界面控件基类 / 布局盒子（原点在左上角） | `size` `rect` `anchor` `anchorTo` |
 | `ProgressBar`（`@sapling2d/ui`） | 进度条（继承 Control） | `value` `minValue` `maxValue` `ratio` `fillMode` `fillColor` `fillPadding` `background` `fill`；信号 `valueChanged` |
 | `Button`（`@sapling2d/ui`） | 按钮（继承 Control） | `text` `label` `body` `background` `isPressed` `disabled` `disabledAlpha` `pressEffect` `clickSound`；信号 `pressed` `released` `clicked` |
+| `ScrollContainer`（`@sapling2d/ui`） | 滚动列表（继承 Control） | `content` `contentSize` `scrollOffset` `scrollX` `scrollY` `maxScroll` `scrollTo` `isScrolling` `horizontal` `vertical` `dragThreshold` `inertia` `deceleration` `bounce`；信号 `scrolled` |
 | `SpineSprite`（`@sapling2d/spine`） | Spine 骨骼动画（继承 Node2D） | `skeleton` `play()` `queue()` `stop()` `animation` `isPlaying` `speedScale` `defaultMix` `mix()` `skin` `setAttachment()` `setupPose()` `refreshPose()` `flipH` `flipV` `physics` `bonePosition()` `boneRotation()` `rect` `state` `spine`；信号 `animationStarted` `animationFinished` `animationEvent` |
 | `SpineBoneNode`（`@sapling2d/spine`） | 跟随一根骨骼（`SpineSprite` 的直接子节点） | `bone` |
 | `TiledMap`（资源，不是节点） | Tiled 关卡 | `tiledMap(path)`；`tileLayers` `tileLayer(name)` `layerNames` `objects(layer?)` `objectLayers` `width` `height` `tileSize` `pixelWidth` `pixelHeight` `tileSets` `properties`；建节点用 `TileMapLayer.fromTiled(map, name?)` |
@@ -577,7 +592,7 @@ const g = await createTestGame({ main: GameScene, seed: 1, screen?, storage?, au
 | `CollisionShape2D` | `shape`（如 `circle(30)`）、`disabled` |
 | `Timer` | `waitTime`、`oneShot`、`timeLeft`、`stopped` |
 | `AudioStreamPlayer` | `stream`、`playing`、`loop`、`volume` |
-| `Control` / `Button` / `ProgressBar`（`@sapling2d/ui`） | `size`（总是显示）、`anchor`（`right:20,top:30` 形式）；按钮按着时 `pressed`、禁用时 `disabled`；进度条 `value`（总是显示）、非默认的 `fillMode` |
+| `Control` / `Button` / `ProgressBar` / `ScrollContainer`（`@sapling2d/ui`） | `size`（总是显示）、`anchor`（`right:20,top:30` 形式）；按钮按着时 `pressed`、禁用时 `disabled`；进度条 `value`（总是显示）、非默认的 `fillMode`；滚动容器 `contentSize`（总是显示）、非零的 `scrollOffset` |
 
 游戏自己的节点可以覆写 `protected dumpProps()`，加入关键状态（如 `level`），方便测试和 agent 观察：`return { ...super.dumpProps(), level: this.level }`。
 
@@ -595,7 +610,7 @@ this.tree.get(MotionInput).permission   // 插件提供的服务按类取；没�
 
 - 插件在建树之后、定义动作之前按顺序安装；三个入口都默认装键盘（`keyboard()`，小游戏里没有事件源，只是让 `key()` 绑定有人认领）；`plugins` 追加在默认之后。
 - **插件在三个平台上都能装**：不支持的平台装一个 mock（控制台 `info` 一次），游戏照常跑——浏览器里开发、Node 里测试永远不会因为少了传感器或广告而报错。
-- 现有插件：`keyboard()`（内置在 `sapling2d`）、`motion()`（`sapling2d/motion`，见“倾斜”）、`touch()`（独立的包 `@sapling2d/touch`：屏幕按钮和摇杆，带默认皮肤，见“屏幕按钮”）、`ui()`（`@sapling2d/ui`：按钮等界面控件，带默认皮肤，见“界面控件”）、`ads()`（`@sapling2d/ads`：小游戏广告，见“广告”）、`spine()`（`@sapling2d/spine`：Spine 骨骼动画，见“Spine 骨骼动画”）。
+- 现有插件：`keyboard()`（内置在 `sapling2d`）、`motion()`（`sapling2d/motion`，见“倾斜”）、`touch()`（独立的包 `@sapling2d/touch`：屏幕按钮和摇杆，带默认皮肤，见“屏幕按钮”）、`ui()`（`@sapling2d/ui`：按钮、进度条、滚动列表等界面控件，带默认皮肤，见“界面控件”）、`ads()`（`@sapling2d/ads`：小游戏广告，见“广告”）、`spine()`（`@sapling2d/spine`：Spine 骨骼动画，见“Spine 骨骼动画”）。
 - 自己写一个：实现 `Plugin`（`install(ctx)`：`ctx.tree`、`ctx.platform.kind`、`ctx.provide(Token, service)`、`ctx.preload(assets)`（插件自己的贴图 / 音效，和入口场景的资源一起加载，切场景不卸载），返回卸载函数）。插件包里的资源用 `tex('~<包名>/<路径>')` 引用，包的 `package.json` 声明 `"sapling2d": { "assets": "<目录>" }`，构建工具负责校验、serve、拷进包（浏览器和小游戏都是）。输入类插件把一个 `InputSource` 登记到 `tree.input.addSource(...)`：`eventTypes` 订阅事件（自己的事件用 `tree.input.enqueue` 入队，和指针事件同一个队列、帧首按序处理）、`bindingTypes` 认领绑定类型、`strength(action, bindings)` 给力度 0–1、`beginFrame()` 给轮询型设备、`releaseAll(queue)` 处理切后台。事件和绑定的类型用声明合并登记：`declare module 'sapling2d' { interface InputEventRegistry { motion: … } interface InputBindingRegistry { tilt: … } }`（都要有 `type` 字段）。向 `window` / `wx` 注册监听是插件自己的事，核心不碰。
 - 测试里用 `g.inject(event)` 注入插件的事件；屏幕按钮和摇杆就是用这套公开能力写的，可以照着看。
 - 带自己的节点类型和资源格式的插件（`@sapling2d/spine` 就是）：节点自持数据，渲染用 `sapling2d/render` 的 `registerNodeContent(NodeClass, (node, ctx) => content)` 登记——`content.display` 是挂在节点容器下的 Pixi 显示对象，每帧 `sync(node, ctx, changed)`，`ctx.textures.get(handle)` 把贴图句柄换成 Pixi 贴图；同步测试用 `PixiRenderer._createForSyncTests()`。资源实现 `Resource` 协议（`kind`、`path`、`isLoaded`、`_load(platform)`、`_unload()`、`_textures()`）就能放进 `static assets` / `ctx.preload`，引擎负责加载、去重、切场景卸载；包的 `package.json` 声明 `"sapling2d": { "assetFunctions": ["spineSkeleton"] }`，`sapling()` 在构建期检查这些函数的字面量路径。
@@ -646,6 +661,7 @@ for (let i = 0; i < bullets.length; i++) {
 - **改碰撞形状会重新触发接触信号**：移动、改变、禁用或增删一个刚体的 `CollisionShape2D` 时，引擎会重建它的形状，正在接触它的对象会先收到一次 `bodyExited`、再收到一次 `bodyEntered`。需要稳定的进出判断时，尽量在节点创建时定好形状，不要在接触中修改。
 - **刚体的位置由物理决定**：给 `RigidBody2D` 的 `position` 赋值等于瞬移并清零速度；`scale` 不影响碰撞形状。
 - **控件的锚点只在 CanvasLayer 里有意义**：`anchor` 是屏幕位置（设计坐标），放在场景里会跟着相机走并警告一次。暂停菜单里的按钮要设 `processMode: 'always'`，否则 `tree.paused` 时点不到。
+- **滚动列表的条目加到 `list.content` 下，`contentSize` 自己给**：直接加到 `ScrollContainer` 上的节点不会滚动；`contentSize` 没给（默认 0）时拖不动。列表里的条目被拖走时只会收到 `released`，不要在 `pressed` 里做不可撤销的事，动作放在 `clicked` 里。
 - **`clipRect` 不裁 CanvasLayer**：裁剪容器下面的 `CanvasLayer` 自成一层、照常全屏显示。弹窗里要一起裁掉的东西不要放进 CanvasLayer。被裁掉的区域点不到，但算空白：会触发 `pointerPress()` 动作。
 - **不支持路径查找**：没有 `getNode('A/B')`；用字段（`this.player = this.add(...)`）、`getNodesInGroup` 或 `autoload`。
 - **发布构建会压缩类名**：节点不传 `name` 时默认用类名，但真机发布包里类名会被压缩（变成 `cP` 之类）。逻辑里不要依赖默认名字或 `constructor.name`：要按名字找就显式传 `name`，判断类型用 `instanceof`。

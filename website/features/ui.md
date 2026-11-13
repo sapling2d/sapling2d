@@ -1,6 +1,6 @@
 # 界面控件
 
-按钮、进度条这类控件在独立的包 `@sapling2d/ui` 里：
+按钮、进度条、滚动列表这类控件在独立的包 `@sapling2d/ui` 里：
 
 ```sh
 pnpm add @sapling2d/ui
@@ -59,6 +59,42 @@ pnpm add @sapling2d/ui
 - 底 `background` 和填充 `fill` 各是一张九宫格贴图（默认皮肤是深色面板 + 按 `fillColor` 染色的白色填充），也可以用纯色（`textureBackground: null` / `textureFill: null` 加 `backgroundColor` / `fillColor`）。`fillPadding` 让填充相对底图内缩，默认皮肤是 6。
 - 填充节点始终铺满整条，用 `clipRect` 裁出已填充的部分，所以九宫格的圆角和高光在半满时不变形。不要用改 `scale.x` 的老办法。值为 0 时填充不显示，满时不裁剪。
 
+## 滚动列表
+
+<<< ../../packages/ui/docs/examples/ui-scroll.test.ts#example
+
+<<< ../../packages/ui/docs/examples/ui-scroll.test.ts#test
+
+`ScrollContainer` 把条目放进一个可以单指拖动的可见区里，带惯性和到边回弹。选关、商店、排行榜这类多于一屏的界面都用它。
+
+- **条目加到 `content` 下**，直接加到容器上的节点不会滚动。
+- **`contentSize` 要自己给**：引擎没有通用的包围盒。等高的行用 `行数 * 行距 - 间距` 就能算出来。
+- 容器的 `clipRect` 就是它的 `rect`：滚出可见区的条目看不见，也点不到。
+
+| 成员 | 说明 |
+|---|---|
+| `scrollOffset`、`scrollX` / `scrollY` | 内容向左 / 向上移动的量，夹在 `0..maxScroll`（`contentSize - size`） |
+| `scrollTo(offset, { animate? })` | 立即跳到，或约 0.3 秒平滑滚过去；按下会打断动画 |
+| `scrolled` | 滚动位置变化时发出 |
+| `isScrolling` | 正在拖动、惯性、回弹或动画中 |
+| `vertical` / `horizontal` | 滚动方向，默认只开竖向 |
+| `dragThreshold` | 手指移动超过多少设计像素才算拖动，默认 12 |
+| `inertia` / `deceleration` | 松手后的惯性，默认开；`deceleration` 是每秒损失的速度比例，默认 0.87 |
+| `bounce` | 拖过边界时有阻尼、松手回弹，默认开；关掉时夹在边界内 |
+
+手势：
+
+- 按在按钮上，先由按钮捕获。手指移动超过 `dragThreshold` 后容器接管，按钮只收到 `released`，不会 `clicked`；在阈值内抬起就是普通的点击。所以列表里的按钮不需要自己区分点击和拖动。
+- 按在空白处由容器自己捕获，不会触发 `pointerPress()`。
+- 惯性滚动中按下只是把列表按停，不会点到条目。
+- 只认一根手指。切后台、容器被隐藏或暂停时拖动结束、速度清零。
+
+::: tip 按钮的动作放在 clicked 里
+被拖走的按钮只会收到 `released`。不要在 `pressed` 里做不能撤销的事。
+:::
+
+暂时不画滚动条、不处理鼠标滚轮，嵌套的滚动容器之间也不做手势仲裁。
+
 ## 暂停菜单
 
-`tree.paused` 时控件默认不响应。暂停菜单的面板设 `processMode: 'always'`。
+`tree.paused` 时控件默认不响应。暂停菜单的面板设 `processMode: 'always'`，里面的滚动列表也一样（惯性和回弹在 `process` 里推进）。

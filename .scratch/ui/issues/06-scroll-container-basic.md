@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — `clipRect`；03 — `capturePointer`；04 — `@sapling2d/ui` 包与 `Button`
 
-**Status:** needs-triage（2026-10-31 挂起：先不做滚动列表；重新立项时连同 03 一起做）
+**Status:** done（2026-11-14）
 
 - [ ] 结构：容器 `inputPickable = true`、`clipRect` 等于 `rect` 且随 `size` 更新；`content: Node2D` 子节点；`contentSize` 由游戏给；`horizontal` / `vertical` 开关默认 false / true
 - [ ] 容器通过 `InputSource` 订阅原始指针事件（`pointerdown` / `pointermove` / `pointerup` / `pointercancel`），进树时 `addSource`、离树时 `removeSource`；`handle` 与 `process` 不分配（起点、当前位置用数字字段）
@@ -20,3 +20,8 @@
 - [ ] 包内 `docs/examples/ui-scroll.test.ts`，`llms.template.md` 界面控件一节加滚动容器段落、节点清单 / dump 条目、陷阱（`contentSize` 要自己给；暂停菜单要 `processMode: 'always'`）；`CONTEXT.md` 加 `ScrollContainer` 词条
 - [ ] 浏览器里用一个 30 项的列表肉眼确认裁剪与透传（截图记录在工单评论）
 - [ ] `pnpm check` 绿
+
+## Comments
+
+- 2026-11-14：落地（`packages/ui/src/ScrollContainer.ts`，测试 `packages/ui/test/scroll-container.test.ts`，示例 `packages/ui/docs/examples/ui-scroll.test.ts`）。位移从超过阈值的那一点开始算（接管时不跳）。
+- 浏览器确认（towerdefense 页面里注入 30 行列表，Chrome）：裁剪正确（第 5 行在容器底边被切开）；从按钮上起手拖动会滚动，不触发 `clicked`；轻点可见行触发对应行的 `clicked`；`tree.paused` 且 `processMode: 'always'` 时照常可用。

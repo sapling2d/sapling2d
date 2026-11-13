@@ -5,7 +5,7 @@
 | 节点 | 用途 | 关键成员 |
 |---|---|---|
 | `Node` | 基类 | `add` `remove` `queueFree` `callDeferred` `addToGroup` `createTween` `processMode` `tree` |
-| `Node2D` | 带变换 | `position` `x` `y` `rotation` `scale` `visible` `zIndex` `alpha` `modulate` `selfModulate` `blendMode` `clipRect` `globalPosition` `toLocal` `toGlobal`；`inputPickable` `hitArea` + 信号 `pointerDown` `pointerMove` `pointerUp` `clicked` |
+| `Node2D` | 带变换 | `position` `x` `y` `rotation` `scale` `visible` `zIndex` `alpha` `modulate` `selfModulate` `blendMode` `clipRect` `globalPosition` `toLocal` `toGlobal`；`inputPickable` `hitArea` `capturePointer` `hasPointerCapture` + 信号 `pointerDown` `pointerMove` `pointerUp` `clicked` |
 | `Scene` | 场景根 | `static assets` |
 | `Sprite2D` | 贴图 | `texture` `centered`（默认 true：以贴图的锚点或中心为原点）`offset` `flipH` `flipV` `flash` `flashColor` |
 | `AnimatedSprite2D` | 帧动画（继承 Sprite2D） | `frames` / `animations` `fps` `loop` `autoplay` `processInPhysics` `play()` `pause()` `stop()` `frame` `speedScale` `isPlaying` `animation`；信号 `frameChanged` `animationFinished` |
@@ -33,6 +33,7 @@
 | `Control`（`@sapling2d/ui`） | 界面控件基类 / 布局盒子（原点在左上角） | `size` `rect` `anchor` `anchorTo` |
 | `Button`（`@sapling2d/ui`） | 按钮（继承 Control） | `text` `label` `body` `background` `isPressed` `disabled` `disabledAlpha` `pressEffect` `clickSound`；信号 `pressed` `released` `clicked` |
 | `ProgressBar`（`@sapling2d/ui`） | 进度条（继承 Control） | `value` `minValue` `maxValue` `ratio` `fillMode` `fillColor` `fillPadding` `background` `fill`；信号 `valueChanged` |
+| `ScrollContainer`（`@sapling2d/ui`） | 滚动列表（继承 Control） | `content` `contentSize` `scrollOffset` `scrollX` `scrollY` `maxScroll` `scrollTo` `isScrolling` `horizontal` `vertical` `dragThreshold` `inertia` `deceleration` `bounce`；信号 `scrolled` |
 | `SpineSprite`（`@sapling2d/spine`） | Spine 骨骼动画（继承 Node2D） | `skeleton` `play()` `queue()` `stop()` `animation` `isPlaying` `speedScale` `defaultMix` `mix()` `skin` `setAttachment()` `setupPose()` `refreshPose()` `flipH` `flipV` `physics` `bonePosition()` `boneRotation()` `rect` `state` `spine`；信号 `animationStarted` `animationFinished` `animationEvent` |
 | `SpineBoneNode`（`@sapling2d/spine`） | 跟随一根骨骼（`SpineSprite` 的直接子节点） | `bone` |
 
@@ -68,6 +69,6 @@
 | `CollisionShape2D` | `shape`（如 `circle(30)`）、`disabled` |
 | `Timer` | `waitTime`、`oneShot`、`timeLeft`、`stopped` |
 | `AudioStreamPlayer` | `stream`、`playing`、`loop`、`volume` |
-| `Control` / `Button` / `ProgressBar`（`@sapling2d/ui`） | `size`（总是显示）、`anchor`（`right:20,top:30` 形式）；按钮按着时 `pressed`、禁用时 `disabled`；进度条 `value`（总是显示）、非默认的 `fillMode` |
+| `Control` / `Button` / `ProgressBar` / `ScrollContainer`（`@sapling2d/ui`） | `size`（总是显示）、`anchor`（`right:20,top:30` 形式）；按钮按着时 `pressed`、禁用时 `disabled`；进度条 `value`（总是显示）、非默认的 `fillMode`；滚动容器 `contentSize`（总是显示）、非零的 `scrollOffset` |
 
 自己的节点可以覆写 `dumpProps()` 加入关键状态，见 [无头测试](/guide/testing)。

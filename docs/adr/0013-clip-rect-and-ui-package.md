@@ -28,13 +28,17 @@
 
 `@sapling2d/ui`：`ui()` 插件预加载一套中性的默认皮肤（`~@sapling2d/ui/`，ADR 0011）并提供 `UiTheme`（按下反馈和点击音效的全局默认）；`Control`（`size` / `rect`、点击区域默认是矩形、按 `safeRect` 的锚点）、`Button`、`ProgressBar`。控件原点一律在左上角（和 `ColorRect` 一样）；`Button` 的按下反馈作用在原点在中心的内部主体 `body` 上，节点自身的 `scale` / `rect` 不变，布局不受影响。所有取消路径（滑出抬起、切后台、隐藏、途中禁用）只走 `pointerUp` 一条信号，控件不需要区分"抬起"和"取消"；`disabled` 时 `hitTest` 返回 false，路由器抬起时就不会发 `clicked`。皮肤只有默认一套：实际游戏里按钮图大多各不相同，按控件传 `texture` 即可，不做全局换皮。
 
-### 挂起：捕获转移与滚动列表
+### 捕获转移与滚动列表
 
-`ScrollContainer` 需要"手指滑过阈值后把捕获从子按钮手里抢过来"的原语（`Node2D.capturePointer`），它是该原语唯一的消费者。按本 ADR 的判据，没有消费者的原语不进核心：两者一起挂起（工单 03 / 06 / 07），等滚动列表或翻页器立项时再做。
+最初挂起（2026-10-31：`capturePointer` 唯一的消费者是 `ScrollContainer`，没有消费者的原语不进核心），2026-11-14 和滚动列表一起落地（工单 03 / 06 / 07）。
+
+- 核心加两个 `Node2D` 方法：`capturePointer(id)` 把按着的指针从当前捕获者手里接过来，原捕获者收到一次不带 `clicked` 的 `pointerUp`（和隐藏 / 暂停 / 切后台的取消同一条路径），没被处理的指针被接管后 `pointerPress()` 动作松开；`hasPointerCapture(id, subtree?)` 查询捕获者是不是自己（或后代）。`Input` 的公开面不增长，二者经 `Input._capturePointer` / `_hasPointerCapture` 走路由器。
+- `hasPointerCapture` 是规格之外补的原语：滚动容器从 `InputSource` 看到原始的按下时，需要知道这次按下是不是落在自己的子树里。只按几何判断（点在容器矩形里）会在上层弹窗盖住列表时误接管弹窗按钮的手势；问"捕获者在不在我的子树里"和路由器的拾取结果天然一致，查询不分配。
+- `ScrollContainer` 只用公开 API 写成，验证了"裁剪 + 捕获转移"够用：阈值前的移动从 `InputSource` 的原始事件读（窗口坐标除以 `viewport.scale`，不分配），接管后的移动用容器自己的 `pointerMove`（局部坐标，跟着容器的变换走）。真的抬起和取消都表现为 `pointerUp`，容器靠随后有没有原始 `pointerup` 区分二者，取消不给惯性。
 
 ## Consequences
 
 - 游戏不再需要自己拼按钮和进度条；hero-guard 的 `Button` 变成 `@sapling2d/ui` 按钮的一层皮肤适配，HUD 的三条血条 / 经验条换成 `ProgressBar`。
 - `clipRect` 让渲染和拾取有了同一个"可见性"概念；以后任何控件都可以靠它裁内容而不用切贴图。
 - 每个带裁剪的节点多一次 stencil 写入；按 spike 的数据，UI 里一两个裁剪容器可以忽略。
-- 滚动列表仍然缺位：长列表的界面（多于一屏的关卡、商店）暂时要靠分页或固定布局。
+- 长列表（多于一屏的关卡、商店、排行榜）用 `ScrollContainer`；滚动条、鼠标滚轮、嵌套滚动容器的手势仲裁仍不在范围内。

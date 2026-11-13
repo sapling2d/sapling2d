@@ -29,6 +29,8 @@
 
 `Node2D` 设 `inputPickable = true` 后能收到指针：信号 `pointerDown`、`pointerMove`、`pointerUp`、`clicked`。点击区域是 `hitArea`；`Sprite2D` 不设时用贴图范围。被节点处理掉的点击不会触发 `pointerPress()`。
 
+按下时点中的节点会捕获这根指针，之后的移动和抬起都发给它。捕获可以转移：`node.capturePointer(pointerId)` 把按着的指针从当前的节点手里接过来，原来的节点收到一次 `pointerUp`（不发 `clicked`，和被隐藏、切后台时的取消一样），之后的移动和抬起发给新节点。滚动列表就是这样在手指滑动时从按钮手里接管手势的。`node.hasPointerCapture(pointerId, subtree?)` 查询指针是否被这个节点（`subtree` 为 true 时包括后代）捕获。
+
 ::: tip 无头测试里贴图宽高是 0
 需要点击的精灵，在测试里显式设 `hitArea`。
 :::

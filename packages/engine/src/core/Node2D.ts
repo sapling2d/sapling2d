@@ -383,6 +383,22 @@ export class Node2D extends Node {
     return (this._clicked ??= new Signal())
   }
 
+  /**
+   * 把按着的指针 `pointerId` 的捕获接过来（滚动容器在手指滑过阈值后从子按钮手里抢手势就靠它）：
+   * 原来捕获它的节点收到一次 `pointerUp`（不发 `clicked`，和隐藏 / 暂停 / 切后台的取消一样），之后这根指针的
+   * `pointerMove` / `pointerUp` / `clicked` 按普通的捕获规则发给本节点；没被任何节点处理、正在按着 `pointerPress()` 动作的指针被接管后，动作松开。
+   * 指针没按着、本节点不在树里或不可命中（隐藏、暂停、排队销毁）时返回 false，什么都不改；本节点已是捕获者时返回 true。
+   * 本节点不需要 `inputPickable`。
+   */
+  capturePointer(pointerId: number): boolean {
+    return this.isInsideTree && this.tree.input._capturePointer(pointerId, this)
+  }
+
+  /** 指针 `pointerId` 现在是否被本节点捕获（`subtree` 为 true 时：本节点或它的任一后代）。不分配。 */
+  hasPointerCapture(pointerId: number, subtree = false): boolean {
+    return this.isInsideTree && this.tree.input._hasPointerCapture(pointerId, this, subtree)
+  }
+
   /** 局部坐标的点是否在点击区域内。子类可以覆写（Sprite2D 默认用贴图范围）。 */
   hitTest(localPoint: Vector2): boolean {
     const area = this.hitArea

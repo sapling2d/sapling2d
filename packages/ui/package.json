@@ -1,13 +1,14 @@
 {
   "name": "@sapling2d/ui",
   "version": "0.1.0",
-  "description": "UI controls for sapling2d: Control (size + anchors), Button (press feedback, disabled state, click sound) and ProgressBar, with a neutral default skin installed as a plugin.",
+  "description": "UI controls for sapling2d: Control (size + anchors), Button (press feedback, disabled state, click sound), ProgressBar and ScrollContainer (drag, inertia, bounce), with a neutral default skin installed as a plugin.",
   "keywords": [
     "sapling2d",
     "game-engine",
     "ui",
     "button",
     "progress-bar",
+    "scroll-view",
     "wechat-minigame"
   ],
   "license": "MIT",

@@ -260,3 +260,89 @@ describe('InputMap', () => {
     expect(() => g.tree.input.isActionPressed('fire')).toThrow()
   })
 })
+
+describe('捕获转移（capturePointer / hasPointerCapture）', () => {
+  const kinds = (b: Button) => b.log.map((l) => l.split(' ')[0])
+
+  it('子节点捕获中，父节点接管：子节点收到 pointerUp（最近位置，无 clicked）；之后的移动和抬起发给父节点', async () => {
+    const g = await createTestGame({ main: Scene })
+    const parent = g.scene.add(new Button({ position: v(200, 200), hitArea: rect(-150, -150, 300, 300) }))
+    const child = parent.add(new Button())
+    g.pointerDown(200, 200)
+    g.pointerMove(210, 200)
+    g.step()
+    expect([child.hasPointerCapture(1), parent.hasPointerCapture(1), parent.hasPointerCapture(1, true)]).toEqual([true, false, true])
+    expect(parent.capturePointer(1)).toBe(true)
+    expect(child.log).toEqual(['down (200, 200)@(0, 0)', 'move (210, 200)@(10, 0)', 'up (210, 200)@(10, 0)'])
+    expect([child.hasPointerCapture(1), parent.hasPointerCapture(1)]).toEqual([false, true])
+    g.pointerMove(220, 200)
+    g.pointerUp(220, 200)
+    g.step()
+    expect(kinds(child)).toEqual(['down', 'move', 'up'])
+    expect(parent.log).toEqual(['move (220, 200)@(20, 0)', 'up (220, 200)@(20, 0)', 'click (220, 200)@(20, 0)'])
+  })
+
+  it('已是捕获者：返回 true，不发信号；指针没按着 / 不在树里 / 不可命中：返回 false，什么都不改', async () => {
+    const g = await createTestGame({ main: Scene })
+    const b = g.scene.add(new Button({ position: v(100, 100) }))
+    const other = g.scene.add(new Button({ position: v(400, 400) }))
+    expect(other.capturePointer(1)).toBe(false) // 没按着
+    g.pointerDown(100, 100)
+    g.step()
+    expect(b.capturePointer(1)).toBe(true)
+    expect(kinds(b)).toEqual(['down'])
+    const detached = new Button()
+    expect(detached.capturePointer(1)).toBe(false)
+    other.visible = false
+    expect(other.capturePointer(1)).toBe(false)
+    other.visible = true
+    b.processMode = 'always'
+    g.tree.paused = true // other 暂停了，不可命中
+    expect(other.capturePointer(1)).toBe(false)
+    expect(b.hasPointerCapture(1)).toBe(true)
+    expect(kinds(b)).toEqual(['down'])
+  })
+
+  it('接管没被处理的指针：pointerPress() 动作松开，指针仍算按着', async () => {
+    const g = await createTestGame({ main: Scene, actions: { drop: [pointerPress()] } })
+    const b = g.scene.add(new Button({ position: v(100, 100) }))
+    g.pointerDown(400, 400)
+    g.step()
+    expect(g.tree.input.isActionPressed('drop')).toBe(true)
+    expect(b.capturePointer(1)).toBe(true) // 不需要按在自己身上
+    g.step()
+    expect(g.tree.input.isActionJustReleased('drop')).toBe(true)
+    expect(g.tree.input.isPointerPressed).toBe(true)
+    g.pointerUp(100, 100)
+    g.step()
+    expect(kinds(b)).toEqual(['up', 'click'])
+  })
+
+  it('转移后：原节点销毁不影响新节点；新节点隐藏走帧首取消；切后台照常收到一次抬起', async () => {
+    const g = await createTestGame({ main: Scene })
+    const a = g.scene.add(new Button({ position: v(100, 100) }))
+    const b = g.scene.add(new Button({ position: v(400, 400) }))
+    g.pointerDown(100, 100)
+    g.step()
+    b.capturePointer(1)
+    a.queueFree()
+    g.pointerMove(110, 100)
+    g.step()
+    expect(kinds(b)).toEqual(['move'])
+    b.visible = false
+    g.step()
+    expect(kinds(b)).toEqual(['move', 'up'])
+    expect(g.tree.input.isPointerPressed).toBe(false)
+
+    b.visible = true
+    const c = g.scene.add(new Button({ position: v(100, 100) }))
+    g.pointerDown(100, 100)
+    g.step()
+    b.capturePointer(1)
+    g.setFocus(false)
+    g.setFocus(true)
+    g.step()
+    expect(kinds(b)).toEqual(['move', 'up', 'up'])
+    expect(kinds(c)).toEqual(['down', 'up'])
+  })
+})

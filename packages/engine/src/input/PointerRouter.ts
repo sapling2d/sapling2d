@@ -137,6 +137,31 @@ export class PointerRouter {
     return true
   }
 
+  /**
+   * 把按着的指针 `id` 的捕获交给 `node`：原捕获节点收到一次 pointerUp（不发 clicked，和隐藏 / 暂停的取消相同），
+   * 没被处理的指针从未处理集合移除（`pointerPress()` 动作随之松开）。之后这根指针的移动、抬起发给 `node`。
+   * 指针没按着、`node` 不在树里或不可命中时返回 false、什么都不改；`node` 已是捕获者时返回 true。
+   */
+  transfer(id: number, node: Node2D): boolean {
+    const position = this._pointers.get(id)
+    if (!position || !node.isInsideTree || node.isFreed || !canHit(node)) return false
+    const old = this._captures.get(id)
+    if (old === node) return true
+    this._captures.set(id, node)
+    this._unhandled.delete(id)
+    if (old && old.isInsideTree && !old.isFreed) old.pointerUp.emit(event(id, position, this._pointersDesign.get(id)!, old))
+    return true
+  }
+
+  /** 指针 `id` 现在被 `node`（`subtree` 时：`node` 或它的后代）捕获着。不分配。 */
+  isCapturedBy(id: number, node: Node2D, subtree: boolean): boolean {
+    const capture = this._captures.get(id)
+    if (!capture) return false
+    if (!subtree) return capture === node
+    for (let n: Node | null = capture; n; n = n.parent) if (n === node) return true
+    return false
+  }
+
   /** 指针抬起（`up`）或取消：捕获它的节点收到 pointerUp（抬起时还在节点里、没被裁剪掉才算 clicked）。 */
   private _end(id: number, up: boolean, position: Vector2, design: Vector2): void {
     const capture = this._captures.get(id)

@@ -6,6 +6,7 @@ import { isPointerEvent, type RawInputEvent } from './events'
 import { PointerRouter } from './PointerRouter'
 import type { InputSource } from './source'
 import type { Node } from '../core/Node'
+import type { Node2D } from '../core/Node2D'
 import type { Viewport } from '../core/Viewport'
 
 export type { InputBinding, PointerBinding } from './bindings'
@@ -254,6 +255,16 @@ export class Input {
       this._actions.update(this._source)
     }
     queue.length = 0
+  }
+
+  /** @internal `Node2D.capturePointer` 的实现。 */
+  _capturePointer(id: number, node: Node2D): boolean {
+    return this._pointer.transfer(id, node)
+  }
+
+  /** @internal `Node2D.hasPointerCapture` 的实现。 */
+  _hasPointerCapture(id: number, node: Node2D, subtree: boolean): boolean {
+    return this._pointer.isCapturedBy(id, node, subtree)
   }
 
   /**

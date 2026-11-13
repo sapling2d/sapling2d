@@ -4,7 +4,7 @@
 
 **Blocked by:** 06 — `ScrollContainer` 基础
 
-**Status:** needs-triage（2026-10-31 挂起：先不做滚动列表；重新立项时连同 03 一起做）
+**Status:** ready-for-human（2026-11-14：agent 侧完成；剩 iPhone 微信真机手感确认与 `deceleration` 默认值调整）
 
 - [ ] 快速 `g.drag` 后继续 `g.step` 若干帧：`scrollOffset` 继续沿拖动方向变化、速度单调衰减、最终停止且不越界；`inertia: false` 时松手即停
 - [ ] 拖过边界：拖动期间 `scrollOffset` 可以越界但位移按阻尼缩小；松手后若干帧内回到边界并停住；`bounce: false` 时拖动期间就夹紧
@@ -17,3 +17,8 @@
 - [ ] 文档：滚动容器段落补惯性 / 回弹 / `scrollTo` 动画的说明和选项表
 - [ ] iPhone 真机（微信）上用 06 的列表示例确认手感可接受并记录调整过的默认值
 - [ ] `pnpm check` 绿
+
+## Comments
+
+- 2026-11-14：惯性（`deceleration` 默认 0.87：每秒损失 87% 的速度，接近 iOS 原生列表）、越界橡皮筋阻尼（iOS 公式，系数 0.55）、临界阻尼弹簧回弹（ω=14，按 1/120 秒子步积分）、`scrollTo` 动画（0.3 秒三次缓出）均已实现并有测试。额外：惯性中按下只按停、不点到条目；拖动被取消（隐藏、暂停、切后台）时不给惯性。
+- 待办（人）：真机上用 `ui-scroll` 示例的列表确认手感，必要时调 `deceleration` / 回弹参数并记在这里。

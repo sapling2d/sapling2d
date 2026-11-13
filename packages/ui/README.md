@@ -1,6 +1,6 @@
 # @sapling2d/ui
 
-UI controls for [sapling2d](https://github.com/sapling2d/sapling2d): `Control` (size + anchors), `Button` (press feedback, disabled state, click sound) and `ProgressBar`, with a neutral default skin installed as a plugin.
+UI controls for [sapling2d](https://github.com/sapling2d/sapling2d): `Control` (size + anchors), `Button` (press feedback, disabled state, click sound), `ProgressBar` and `ScrollContainer` (drag, inertia, bounce, tap-through to child buttons), with a neutral default skin installed as a plugin.
 
 ```sh
 npm install @sapling2d/ui
@@ -24,6 +24,7 @@ await startGame({ main: Menu, plugins: [ui({ clickSound: sfx('click.mp3') })] })
 
 - Controls have their origin at the top-left (like `ColorRect`); `anchor` places them relative to the safe area and re-applies on screen changes.
 - `Button`: nine-slice background (default skin, your own texture, or `texture: null` for a flat color), centered label, press feedback on an inner body (scale about the center; `pressEffect: { scale, tint, duration } | false`), `disabled`, `clickSound`. Signals: `pressed`, `released`, `clicked`.
+- `ScrollContainer`: add rows to `list.content` and set `list.contentSize`; one-finger drag scrolls (vertical by default), with inertia and edge bounce. A tap on a child button is a click; once the finger moves past `dragThreshold` the container takes the pointer over (`Node2D.capturePointer`) and the button only gets `released`. `scrollTo(offset, { animate })`, signal `scrolled`.
 - The skin lives in this package's `assets/` and is referenced as `~@sapling2d/ui/...`; the `sapling2d/vite` plugin mounts it for the browser and the WeChat Mini Game build. No configuration needed.
 - Headless tests work with `createTestGame({ ..., plugins: [ui()] })` from `sapling2d/testing`; the press feedback is observable as `button.body.scale`.
 
